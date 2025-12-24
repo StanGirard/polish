@@ -9,8 +9,9 @@
     background: #000000;
     background-image:
       linear-gradient(rgba(0, 255, 0, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 255, 0, 0.03) 1px, transparent 1px);
-    background-size: 20px 20px;
+      linear-gradient(90deg, rgba(0, 255, 0, 0.03) 1px, transparent 1px),
+      radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.02) 0%, transparent 50%);
+    background-size: 20px 20px, 20px 20px, 100% 100%;
     position: relative;
   }
 
@@ -174,5 +175,161 @@
     0% { opacity: 0.98; }
     50% { opacity: 1; }
     100% { opacity: 0.98; }
+  }
+
+  /* Data stream animation */
+  .data-stream {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .data-stream::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(0, 255, 0, 0.1) 50%,
+      transparent 100%);
+    animation: stream 3s linear infinite;
+  }
+
+  @keyframes stream {
+    0% { left: -100%; }
+    100% { left: 100%; }
+  }
+
+  /* Hexadecimal background pattern */
+  .hex-pattern {
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(0, 255, 0, 0.02) 10px,
+        rgba(0, 255, 0, 0.02) 20px
+      );
+  }
+
+  /* Terminal cursor blink */
+  .terminal-cursor::after {
+    content: '▋';
+    animation: cursor-blink 1s step-end infinite;
+  }
+
+  @keyframes cursor-blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  /* Glitch effect */
+  .glitch {
+    position: relative;
+  }
+
+  .glitch::before,
+  .glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glitch::before {
+    animation: glitch-1 2.5s infinite;
+    color: #00ffff;
+    z-index: -1;
+  }
+
+  .glitch::after {
+    animation: glitch-2 2.5s infinite;
+    color: #ff00ff;
+    z-index: -2;
+  }
+
+  @keyframes glitch-1 {
+    0%, 100% { transform: translate(0); }
+    33% { transform: translate(-2px, 0); }
+  }
+
+  @keyframes glitch-2 {
+    0%, 100% { transform: translate(0); }
+    33% { transform: translate(2px, 0); }
+  }
+
+  /* System monitor bars */
+  .monitor-bar {
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(0, 255, 0, 0.8) 0px,
+      rgba(0, 255, 0, 0.8) 2px,
+      transparent 2px,
+      transparent 4px
+    );
+  }
+
+  /* Enhanced hover effects */
+  .hover-tech {
+    transition: all 0.3s ease;
+  }
+
+  .hover-tech:hover {
+    transform: translateX(2px);
+    box-shadow: -2px 0 10px rgba(0, 255, 0, 0.3);
+  }
+
+  /* Typing animation */
+  @keyframes typing {
+    from { width: 0; }
+    to { width: 100%; }
+  }
+
+  /* Code block effect */
+  .code-block {
+    font-family: 'Courier New', monospace;
+    background: rgba(0, 20, 0, 0.5);
+    border-left: 3px solid rgba(0, 255, 0, 0.5);
+    padding: 0.5rem;
+  }
+
+  /* Neon border animation */
+  @keyframes neon-border {
+    0%, 100% {
+      box-shadow:
+        0 0 5px rgba(0, 255, 0, 0.2),
+        inset 0 0 5px rgba(0, 255, 0, 0.1);
+    }
+    50% {
+      box-shadow:
+        0 0 20px rgba(0, 255, 0, 0.6),
+        inset 0 0 10px rgba(0, 255, 0, 0.2);
+    }
+  }
+
+  .neon-border {
+    animation: neon-border 2s ease-in-out infinite;
+  }
+
+  /* Matrix rain effect (subtle) */
+  @keyframes matrix-rain {
+    0% {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.5;
+    }
+    90% {
+      opacity: 0.5;
+    }
+    100% {
+      transform: translateY(100vh);
+      opacity: 0;
+    }
   }
 }

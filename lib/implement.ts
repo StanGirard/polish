@@ -122,52 +122,91 @@ export async function* runImplementPhase(
       data: { phase: 'implement', message: 'Starting implementation...' }
     }
 
-    const prompt = buildImplementPrompt(mission)
+    // Auto-continuation support
+    const MAX_CONTINUATIONS = 5
+    let sessionId: string | undefined
+    let continuationCount = 0
+    let shouldContinue = true
 
-    for await (const message of query({
-      prompt,
-      options: {
-        cwd: projectPath,
-        systemPrompt: IMPLEMENT_SYSTEM_PROMPT,
-        allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
-        permissionMode: 'acceptEdits',
-        maxTurns: 30, // More turns for implementation
-        env: {
-          ...process.env,
-          ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api',
-          ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || process.env.OPENROUTER_API_KEY,
-          ANTHROPIC_API_KEY: ''
-        },
-        hooks: {
-          PreToolUse: [{ hooks: [toolHook] }],
-          PostToolUse: [{ hooks: [toolHook] }]
+    while (shouldContinue && continuationCount <= MAX_CONTINUATIONS) {
+      const isResume = sessionId !== undefined
+      const prompt = isResume
+        ? 'Continue implementing the remaining features.'
+        : buildImplementPrompt(mission)
+
+      for await (const message of query({
+        prompt,
+        options: {
+          cwd: projectPath,
+          systemPrompt: IMPLEMENT_SYSTEM_PROMPT,
+          allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
+          permissionMode: 'acceptEdits',
+          maxTurns: 30,
+          resume: sessionId,
+          env: {
+            ...process.env,
+            ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api',
+            ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || process.env.OPENROUTER_API_KEY,
+            ANTHROPIC_API_KEY: ''
+          },
+          hooks: {
+            PreToolUse: [{ hooks: [toolHook] }],
+            PostToolUse: [{ hooks: [toolHook] }]
+          }
         }
-      }
-    })) {
-      // Yield hook events
-      while (hookEvents.length > 0) {
-        yield hookEvents.shift()!
-      }
+      })) {
+        // Yield hook events
+        while (hookEvents.length > 0) {
+          yield hookEvents.shift()!
+        }
 
-      // Process SDK messages
-      if (message.type === 'assistant' && message.message?.content) {
-        for (const block of message.message.content) {
-          if ('text' in block) {
-            yield {
-              type: 'agent',
-              data: { message: block.text }
+        // Process SDK messages
+        if (message.type === 'assistant' && message.message?.content) {
+          for (const block of message.message.content) {
+            if ('text' in block) {
+              yield {
+                type: 'agent',
+                data: { message: block.text }
+              }
             }
           }
-        }
-      } else if (message.type === 'result') {
-        yield {
-          type: 'status',
-          data: {
-            phase: 'implement',
-            message: message.subtype === 'success'
-              ? 'Implementation complete'
-              : `Implementation stopped: ${message.subtype}`
+        } else if (message.type === 'result') {
+          if (message.subtype === 'error_max_turns') {
+            // Hit max turns - capture session and continue
+            sessionId = message.session_id
+            continuationCount++
+
+            yield {
+              type: 'status',
+              data: {
+                phase: 'implement',
+                message: `Continuing implementation (${continuationCount}/${MAX_CONTINUATIONS})...`
+              }
+            }
+            break // Break inner loop, continue outer while loop
+          } else {
+            // Success or other completion - exit
+            yield {
+              type: 'status',
+              data: {
+                phase: 'implement',
+                message: message.subtype === 'success'
+                  ? 'Implementation complete'
+                  : `Implementation stopped: ${message.subtype}`
+              }
+            }
+            shouldContinue = false
           }
+        }
+      }
+    }
+
+    if (continuationCount > MAX_CONTINUATIONS) {
+      yield {
+        type: 'status',
+        data: {
+          phase: 'implement',
+          message: 'Implementation reached maximum continuations limit'
         }
       }
     }
