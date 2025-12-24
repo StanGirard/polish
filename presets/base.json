@@ -12,14 +12,32 @@
   },
   "capabilities": {
     "shared": {
-      "tools": ["Read", "Edit", "Bash", "Glob", "Grep", "WebSearch"],
-      "settingSources": ["project"]
+      "tools": ["Read", "Edit", "Bash", "Glob", "Grep", "WebSearch", "Task"],
+      "settingSources": ["project"],
+      "agents": {
+        "explore": {
+          "description": "Agent léger et rapide pour explorer le codebase. Utilise-le pour rechercher des fichiers par patterns, trouver du code par mots-clés, ou comprendre la structure du projet. Spécifie le niveau de profondeur: 'quick' pour recherches basiques, 'medium' pour exploration modérée, 'thorough' pour analyse complète.",
+          "prompt": "Tu es un agent d'exploration de codebase optimisé pour la vitesse. Ta mission est de rechercher et analyser le code efficacement.\n\nRègles:\n- Ne modifie JAMAIS de fichiers\n- Retourne des informations structurées et concises\n- Indique toujours les chemins de fichiers pertinents\n- Si tu trouves plusieurs résultats, priorise par pertinence",
+          "tools": ["Read", "Glob", "Grep"],
+          "model": "haiku"
+        },
+        "plan": {
+          "description": "Agent architecte pour concevoir des plans d'implémentation. Utilise-le quand tu dois planifier une stratégie avant de coder, identifier les fichiers critiques, ou évaluer les compromis architecturaux.",
+          "prompt": "Tu es un architecte logiciel expérimenté. Ta mission est d'analyser le codebase et de proposer des plans d'implémentation détaillés.\n\nTon analyse doit inclure:\n1. Les fichiers à modifier/créer/supprimer\n2. Les étapes d'implémentation dans l'ordre\n3. Les risques potentiels et comment les mitiger\n4. Les dépendances entre les changements\n\nRègles:\n- Ne modifie JAMAIS de fichiers\n- Sois précis sur les lignes et fonctions concernées\n- Identifie les patterns existants à réutiliser",
+          "tools": ["Read", "Glob", "Grep", "Bash"],
+          "model": "sonnet"
+        }
+      }
     },
     "implement": {
-      "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebSearch"]
+      "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebSearch", "Task"]
     },
     "polish": {
-      "tools": ["Read", "Edit", "Bash", "Glob", "Grep", "WebSearch"]
+      "tools": ["Read", "Edit", "Bash", "Glob", "Grep", "WebSearch", "Task"]
+    },
+    "planning": {
+      "tools": ["Read", "Glob", "Grep", "Bash", "Task"],
+      "systemPromptAppend": "Tu es en mode PLANNING. Tu ne peux PAS modifier de fichiers. Ton rôle est d'explorer le codebase et de proposer un plan d'implémentation détaillé que l'utilisateur pourra approuver ou modifier."
     }
   }
 }
