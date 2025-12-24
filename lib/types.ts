@@ -143,6 +143,12 @@ export interface CommitInfo {
 // Polish Configuration
 // ============================================================================
 
+/** Thoroughness level for planning - affects how deep agents explore */
+export type PlanningThoroughness = 'quick' | 'medium' | 'thorough'
+
+/** Planning mode - controls which agents are used */
+export type PlanningMode = 'auto' | 'manual' | 'agent-driven'
+
 export interface PolishConfig {
   projectPath: string
   mission?: string
@@ -162,6 +168,8 @@ export interface PolishConfig {
   capabilityOverrides?: CapabilityOverride[] // Session-level capability overrides
   // Planning phase options
   enablePlanning?: boolean // Enable interactive planning phase before implementation
+  planningThoroughness?: PlanningThoroughness // Level of exploration depth (default: 'medium')
+  planningMode?: PlanningMode // How to use sub-agents (default: 'agent-driven')
   notifications?: NotificationConfig // Browser notification settings
 }
 

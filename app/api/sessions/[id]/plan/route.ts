@@ -142,7 +142,7 @@ async function runPlanningContinuationInBackground(
     }
 
     // Continue planning with user feedback
-    for await (const event of continuePlanning(context, userMessage, null, planningOptions)) {
+    for await (const event of continuePlanning(context, userMessage, planningOptions)) {
       addEvent(sessionId, event)
 
       // If we got a plan, update status to awaiting_approval
