@@ -213,7 +213,7 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-5xl font-bold glow-green tracking-wider mb-2">
-                <span className="text-green-400">&gt;&gt;</span> POLISH.SYS
+                <span className="text-green-400">&gt;&gt;</span> POLISH.RUN
               </h1>
               <div className="flex items-center gap-4 text-[10px] text-green-700 uppercase tracking-widest">
                 <span>[v0.1.0]</span>
@@ -550,7 +550,7 @@ export default function Home() {
         <div className="mt-12 pt-6 border-t border-green-900/30">
           <div className="flex items-center justify-between text-[10px] text-gray-700 tracking-widest font-mono">
             <div className="flex items-center gap-4">
-              <span>POLISH.SYS</span>
+              <span>POLISH.RUN</span>
               <span className="text-gray-800">|</span>
               <span>BUILD: {new Date().toISOString().split('T')[0].replace(/-/g, '')}</span>
               <span className="text-gray-800">|</span>

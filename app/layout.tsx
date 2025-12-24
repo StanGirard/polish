@@ -9,7 +9,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'POLISH.SYS // Code Quality Enhancement System',
+  title: 'POLISH.RUN // Code Quality Enhancement System',
   description: 'Autonomous LLM-driven code quality improvement loop',
 }
 

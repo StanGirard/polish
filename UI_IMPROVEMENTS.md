@@ -1,4 +1,4 @@
-# UI Improvements - Polish.sys
+# UI Improvements - Polish.run
 
 ## Overview
 The UI has been significantly enhanced to provide a more immersive, technical, and developer-focused experience with a cyberpunk/terminal aesthetic.

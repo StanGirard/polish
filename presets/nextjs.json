@@ -3,21 +3,28 @@
   "metrics": [
     {
       "name": "lintErrors",
-      "weight": 40,
+      "weight": 30,
       "command": "npx eslint . --format json 2>/dev/null | jq '[.[].errorCount] | add // 0'",
       "higherIsBetter": false,
       "target": 0
     },
     {
       "name": "typeErrors",
-      "weight": 40,
+      "weight": 30,
       "command": "npx tsc --noEmit 2>&1 | grep -c 'error TS' || echo 0",
       "higherIsBetter": false,
       "target": 0
     },
     {
+      "name": "codeDuplication",
+      "weight": 25,
+      "command": "npx jscpd app/ lib/ --min-lines 5 --min-tokens 50 --ignore '**/*.json,**/*.md' 2>&1 | grep -o 'Found [0-9]* clones' | grep -o '[0-9]*' || echo 0",
+      "higherIsBetter": false,
+      "target": 0
+    },
+    {
       "name": "lintWarnings",
-      "weight": 20,
+      "weight": 15,
       "command": "npx eslint . --format json 2>/dev/null | jq '[.[].warningCount] | add // 0'",
       "higherIsBetter": false,
       "target": 0
@@ -33,6 +40,11 @@
       "name": "fix-types",
       "focus": "typeErrors",
       "prompt": "Corrige une erreur TypeScript. Exécute d'abord `npx tsc --noEmit` pour voir les erreurs, puis corrige UNE seule erreur."
+    },
+    {
+      "name": "reduce-duplication",
+      "focus": "codeDuplication",
+      "prompt": "Réduis la duplication de code. Exécute d'abord `npx jscpd app/ lib/ --min-lines 5 --min-tokens 50` pour voir les duplications. Identifie UNE duplication et extrais le code dupliqué dans une fonction réutilisable. Remplace les occurrences dupliquées par des appels à cette nouvelle fonction."
     },
     {
       "name": "fix-warnings",
