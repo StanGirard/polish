@@ -139,6 +139,8 @@ export function SessionDetail({
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewRedirectTo, setReviewRedirectTo] = useState<'implement' | 'testing' | undefined>()
   const [reviewComplete, setReviewComplete] = useState(false)
+  const [reviewStreamText, setReviewStreamText] = useState('')
+  const [reviewThinkingText, setReviewThinkingText] = useState('')
 
   // Streaming states for real-time planning display
   const [streamingText, setStreamingText] = useState('')
@@ -170,7 +172,9 @@ export function SessionDetail({
       // Planning streaming events
       'plan_stream', 'plan_thinking',
       // Review Gate events (Phase 3)
-      'review_start', 'review_result', 'review_redirect', 'review_complete'
+      'review_start', 'review_result', 'review_redirect', 'review_complete',
+      // Review streaming events
+      'review_stream', 'review_thinking'
     ]
 
     for (const type of eventTypes) {
@@ -246,6 +250,9 @@ export function SessionDetail({
             setReviewMaxIterations(data.maxIterations as number)
             setReviewLoading(true)
             setReviewComplete(false)
+            // Reset streaming text for new review
+            setReviewStreamText('')
+            setReviewThinkingText('')
           }
 
           if (type === 'review_result') {
@@ -265,9 +272,21 @@ export function SessionDetail({
           if (type === 'review_complete') {
             setReviewComplete(true)
             setReviewLoading(false)
+            // Reset streaming when complete
+            setReviewStreamText('')
+            setReviewThinkingText('')
             if (data.approved) {
               setCurrentPhase('idle')
             }
+          }
+
+          // Review streaming events
+          if (type === 'review_stream') {
+            setReviewStreamText(prev => prev + (data.chunk || ''))
+          }
+
+          if (type === 'review_thinking') {
+            setReviewThinkingText(prev => prev + (data.chunk || ''))
           }
 
           // Send browser notification for important events
@@ -551,6 +570,8 @@ export function SessionDetail({
               isLoading={reviewLoading}
               redirectTo={reviewRedirectTo}
               isComplete={reviewComplete}
+              streamingText={reviewStreamText}
+              thinkingText={reviewThinkingText}
             />
           </div>
         )}

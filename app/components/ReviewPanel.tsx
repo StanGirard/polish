@@ -18,6 +18,9 @@ interface ReviewPanelProps {
   isLoading?: boolean
   redirectTo?: 'implement' | 'testing'
   isComplete?: boolean
+  // Streaming props
+  streamingText?: string
+  thinkingText?: string
 }
 
 const VERDICT_CONFIG: Record<ReviewVerdict, {
@@ -56,10 +59,14 @@ export function ReviewPanel({
   review,
   isLoading = false,
   redirectTo,
-  isComplete = false
+  isComplete = false,
+  streamingText = '',
+  thinkingText = ''
 }: ReviewPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false)
   const verdictConfig = review ? VERDICT_CONFIG[review.verdict] : null
+  const isStreaming = isLoading && (streamingText || thinkingText)
 
   return (
     <div className="p-5 bg-black rounded border border-fuchsia-500/30 relative overflow-hidden">
@@ -69,7 +76,7 @@ export function ReviewPanel({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="text-fuchsia-400 text-xl">◆</span>
+          <span className={`text-fuchsia-400 text-xl ${isLoading ? 'animate-pulse' : ''}`}>◆</span>
           <div>
             <div className="text-fuchsia-400 text-xs uppercase tracking-widest font-bold">
               Code Review
@@ -105,13 +112,50 @@ export function ReviewPanel({
         </div>
       </div>
 
-      {/* Loading State */}
+      {/* Streaming State - Show reasoning in real-time */}
       {isLoading && !review && (
-        <div className="p-6 rounded border border-fuchsia-800/50 bg-fuchsia-900/10 animate-pulse">
-          <div className="flex items-center gap-3 text-fuchsia-400">
-            <span className="animate-spin text-xl">⟳</span>
-            <span className="text-sm tracking-widest">Reviewing code...</span>
-          </div>
+        <div className="space-y-4">
+          {/* Thinking Toggle */}
+          {thinkingText && (
+            <div>
+              <button
+                onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                className="flex items-center gap-2 text-purple-400 text-xs uppercase tracking-widest hover:text-purple-300 transition-colors"
+              >
+                <span>{isThinkingExpanded ? '▼' : '▶'}</span>
+                <span>Extended Thinking</span>
+                <span className="text-purple-600 text-[10px]">({thinkingText.length} chars)</span>
+              </button>
+              {isThinkingExpanded && (
+                <div className="mt-2 p-3 bg-purple-900/20 rounded border border-purple-800/30 max-h-64 overflow-y-auto">
+                  <pre className="text-purple-300 text-xs whitespace-pre-wrap font-mono leading-relaxed">
+                    {thinkingText}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Streaming Text */}
+          {streamingText ? (
+            <div className="p-4 rounded border border-fuchsia-800/50 bg-fuchsia-900/10">
+              <div className="text-[10px] text-fuchsia-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                <span className="animate-pulse">●</span>
+                Analyzing...
+              </div>
+              <pre className="text-gray-300 text-sm whitespace-pre-wrap font-mono leading-relaxed max-h-96 overflow-y-auto">
+                {streamingText}
+                <span className="text-fuchsia-400 animate-pulse">▋</span>
+              </pre>
+            </div>
+          ) : (
+            <div className="p-6 rounded border border-fuchsia-800/50 bg-fuchsia-900/10 animate-pulse">
+              <div className="flex items-center gap-3 text-fuchsia-400">
+                <span className="animate-spin text-xl">⟳</span>
+                <span className="text-sm tracking-widest">Reviewing code...</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -228,14 +228,28 @@ async function* runReviewAgent(
         }
       }
     })) {
+      // Yield hook events (tool calls)
       while (hookEvents.length > 0) {
         yield hookEvents.shift()!
       }
 
+      // Handle streaming content
       if (message.type === 'assistant' && message.message?.content) {
         for (const block of message.message.content) {
-          if ('text' in block) {
+          // Stream thinking blocks
+          if ('thinking' in block && block.thinking) {
+            yield {
+              type: 'review_thinking',
+              data: { chunk: block.thinking }
+            }
+          }
+          // Stream text blocks
+          if ('text' in block && block.text) {
             fullResponse += block.text
+            yield {
+              type: 'review_stream',
+              data: { chunk: block.text }
+            }
           }
         }
       }
