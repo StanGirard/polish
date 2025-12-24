@@ -55,7 +55,7 @@ export async function GET(
       ))
 
       // If session is already done, close stream
-      if (session.status !== 'running' && session.status !== 'pending') {
+      if (!['running', 'pending', 'planning', 'awaiting_approval'].includes(session.status)) {
         controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
         controller.close()
         return
@@ -66,8 +66,8 @@ export async function GET(
         try {
           send(event)
 
-          // Close stream when session completes
-          if (event.type === 'result' || event.type === 'error') {
+          // Close stream when session completes, fails, or is aborted
+          if (event.type === 'result' || event.type === 'error' || event.type === 'aborted') {
             controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
             controller.close()
             unsubscribe()

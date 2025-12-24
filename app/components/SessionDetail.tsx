@@ -79,6 +79,7 @@ interface SessionDetailProps {
   onApprovePlan?: (sessionId: string, plan?: PlanStep[]) => Promise<void>
   onRejectPlan?: (sessionId: string, reason?: string) => Promise<void>
   onSendPlanMessage?: (sessionId: string, message: string) => Promise<void>
+  onAbortSession?: (sessionId: string) => Promise<void>
 }
 
 export function SessionDetail({
@@ -89,7 +90,8 @@ export function SessionDetail({
   onFeedbackSubmit,
   onApprovePlan,
   onRejectPlan,
-  onSendPlanMessage
+  onSendPlanMessage,
+  onAbortSession
 }: SessionDetailProps) {
   const [events, setEvents] = useState<PolishEvent[]>([])
   const [score, setScore] = useState<number | null>(session.finalScore ?? session.initialScore ?? null)
@@ -130,7 +132,7 @@ export function SessionDetail({
     const eventTypes = [
       'init', 'phase', 'implement_done', 'score', 'strategy',
       'agent', 'commit', 'rollback', 'result', 'error', 'status',
-      'worktree_created', 'worktree_cleanup', 'session_status', 'done',
+      'worktree_created', 'worktree_cleanup', 'session_status', 'done', 'aborted',
       // Planning phase events
       'plan', 'plan_message', 'plan_approved', 'plan_rejected'
     ]
@@ -254,6 +256,24 @@ export function SessionDetail({
           <div className="flex items-center gap-3">
             {session.status === 'running' && (
               <span className="text-green-400 text-sm blink">● RUNNING</span>
+            )}
+            {session.status === 'planning' && (
+              <span className="text-orange-400 text-sm animate-pulse">● PLANNING</span>
+            )}
+            {session.status === 'awaiting_approval' && (
+              <span className="text-yellow-400 text-sm">⏸ AWAITING APPROVAL</span>
+            )}
+            {['running', 'planning', 'awaiting_approval'].includes(session.status) && onAbortSession && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to abort this session?')) {
+                    onAbortSession(session.id)
+                  }
+                }}
+                className="px-4 py-2 text-sm text-red-400 border border-red-800 rounded hover:bg-red-900/30 transition-colors"
+              >
+                ✕ ABORT
+              </button>
             )}
             {session.status === 'completed' && session.branchName && (
               <button
