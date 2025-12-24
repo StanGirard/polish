@@ -2,29 +2,43 @@
   "extends": "base",
   "metrics": [
     {
-      "name": "lintErrors",
-      "weight": 30,
-      "command": "npx eslint . --format json 2>/dev/null | jq '[.[].errorCount] | add // 0'",
+      "name": "testCoverage",
+      "weight": 25,
+      "command": "pnpm test:coverage 2>&1 | grep 'All files' | awk '{print $4}' | tr -d '%' || echo 0",
+      "higherIsBetter": true,
+      "target": 80
+    },
+    {
+      "name": "testsFailing",
+      "weight": 20,
+      "command": "pnpm test 2>&1 | grep -c 'FAIL' || echo 0",
       "higherIsBetter": false,
       "target": 0
     },
     {
       "name": "typeErrors",
-      "weight": 30,
+      "weight": 20,
       "command": "npx tsc --noEmit 2>&1 | grep -c 'error TS' || echo 0",
       "higherIsBetter": false,
       "target": 0
     },
     {
+      "name": "lintErrors",
+      "weight": 15,
+      "command": "npx eslint . --format json 2>/dev/null | jq '[.[].errorCount] | add // 0'",
+      "higherIsBetter": false,
+      "target": 0
+    },
+    {
       "name": "codeDuplication",
-      "weight": 25,
+      "weight": 10,
       "command": "npx jscpd app/ lib/ --min-lines 5 --min-tokens 50 --ignore '**/*.json,**/*.md' 2>&1 | grep -o 'Found [0-9]* clones' | grep -o '[0-9]*' || echo 0",
       "higherIsBetter": false,
       "target": 0
     },
     {
       "name": "lintWarnings",
-      "weight": 15,
+      "weight": 10,
       "command": "npx eslint . --format json 2>/dev/null | jq '[.[].warningCount] | add // 0'",
       "higherIsBetter": false,
       "target": 0
@@ -32,24 +46,34 @@
   ],
   "strategies": [
     {
-      "name": "fix-lint",
-      "focus": "lintErrors",
-      "prompt": "Corrige une erreur ESLint. Exécute d'abord `npx eslint . --format stylish` pour voir les erreurs, puis corrige UNE seule erreur."
+      "name": "add-tests",
+      "focus": "testCoverage",
+      "prompt": "Augmente la couverture de tests. Exécute `pnpm test:coverage` pour voir le coverage actuel. Identifie UN fichier avec peu de coverage dans lib/ et ajoute des tests pour ses fonctions non couvertes. Crée le fichier de test dans lib/__tests__/."
+    },
+    {
+      "name": "fix-tests",
+      "focus": "testsFailing",
+      "prompt": "Corrige un test qui échoue. Exécute `pnpm test` pour voir les tests, identifie UN test qui fail, puis corrige-le."
     },
     {
       "name": "fix-types",
       "focus": "typeErrors",
-      "prompt": "Corrige une erreur TypeScript. Exécute d'abord `npx tsc --noEmit` pour voir les erreurs, puis corrige UNE seule erreur."
+      "prompt": "Corrige une erreur TypeScript. Exécute `npx tsc --noEmit` pour voir les erreurs, puis corrige UNE seule erreur."
+    },
+    {
+      "name": "fix-lint",
+      "focus": "lintErrors",
+      "prompt": "Corrige une erreur ESLint. Exécute `npx eslint . --format stylish` pour voir les erreurs, puis corrige UNE seule erreur."
     },
     {
       "name": "reduce-duplication",
       "focus": "codeDuplication",
-      "prompt": "Réduis la duplication de code. Exécute d'abord `npx jscpd app/ lib/ --min-lines 5 --min-tokens 50` pour voir les duplications. Identifie UNE duplication et extrais le code dupliqué dans une fonction réutilisable. Remplace les occurrences dupliquées par des appels à cette nouvelle fonction."
+      "prompt": "Réduis la duplication de code. Exécute `npx jscpd app/ lib/` pour voir les duplications, puis extrait UNE duplication en fonction réutilisable."
     },
     {
       "name": "fix-warnings",
       "focus": "lintWarnings",
-      "prompt": "Corrige un warning ESLint. Exécute d'abord `npx eslint . --format stylish` pour voir les warnings, puis corrige UN seul warning."
+      "prompt": "Corrige un warning ESLint. Exécute `npx eslint . --format stylish` pour voir les warnings, puis corrige UN seul warning."
     }
   ]
 }

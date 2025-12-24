@@ -17,7 +17,7 @@ import type {
 const DEFAULT_MAX_DURATION = 2 * 60 * 60 * 1000 // 2 hours
 const DEFAULT_MAX_ITERATIONS = 100
 const DEFAULT_MAX_STALLED = 5
-const DEFAULT_TARGET_SCORE = 90
+const DEFAULT_TARGET_SCORE = 100
 const MIN_IMPROVEMENT = 0.5 // Minimum score improvement to count as success
 
 // ============================================================================
