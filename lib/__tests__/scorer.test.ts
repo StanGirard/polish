@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { calculateScore, getWorstMetric, runMetric, getStrategyForMetric, runAllMetrics } from '../scorer'
+import { calculateScore, getWorstMetric, runMetric, getStrategyForMetric, runAllMetrics, loadPreset } from '../scorer'
 import type { MetricResult, Metric, Strategy } from '../types'
 import * as executor from '../executor'
 
@@ -206,5 +206,46 @@ describe('getStrategyForMetric', () => {
   it('should return null for empty strategies array', () => {
     const result = getStrategyForMetric('testCoverage', [])
     expect(result).toBeNull()
+  })
+})
+
+describe('loadPreset', () => {
+  it('should load nextjs preset with base preset merged', async () => {
+    const preset = await loadPreset(process.cwd())
+
+    // Should have metrics from nextjs preset
+    expect(preset.metrics).toBeDefined()
+    expect(preset.metrics!.length).toBeGreaterThan(0)
+
+    // Should have strategies from nextjs preset
+    expect(preset.strategies).toBeDefined()
+    expect(preset.strategies!.length).toBeGreaterThan(0)
+
+    // Should have rules from base preset
+    expect(preset.rules).toBeDefined()
+    expect(preset.rules!.length).toBeGreaterThan(0)
+    expect(preset.rules).toContain('Ne jamais casser les tests existants')
+
+    // Should have thresholds from base preset
+    expect(preset.thresholds).toBeDefined()
+    expect(preset.thresholds?.minImprovement).toBe(0.5)
+    expect(preset.thresholds?.maxStalled).toBe(5)
+    expect(preset.thresholds?.maxScore).toBe(100)
+  })
+
+  it('should merge rules from base and extended preset', async () => {
+    const preset = await loadPreset(process.cwd())
+
+    // Rules should be merged (base rules come first)
+    expect(preset.rules).toBeDefined()
+    expect(preset.rules!.length).toBeGreaterThan(0)
+  })
+
+  it('should prioritize extended preset metrics over base', async () => {
+    const preset = await loadPreset(process.cwd())
+
+    // nextjs preset has metrics, so they should be used
+    expect(preset.metrics).toBeDefined()
+    expect(preset.metrics!.some(m => m.name === 'testCoverage')).toBe(true)
   })
 })
