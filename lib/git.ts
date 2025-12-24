@@ -6,6 +6,142 @@ function getGit(cwd: string): SimpleGit {
   return simpleGit(cwd)
 }
 
+// ============================================================================
+// Status & Info
+// ============================================================================
+
+export interface GitStatus {
+  modified: string[]
+  added: string[]
+  deleted: string[]
+  renamed: string[]
+  hasChanges: boolean
+}
+
+export async function getStatus(projectPath: string): Promise<GitStatus> {
+  const git = getGit(projectPath)
+  const status = await git.status()
+
+  return {
+    modified: status.modified,
+    added: status.not_added,
+    deleted: status.deleted,
+    renamed: status.renamed.map(r => r.to),
+    hasChanges: !status.isClean()
+  }
+}
+
+export async function getCurrentBranch(projectPath: string): Promise<string> {
+  const git = getGit(projectPath)
+  const branch = await git.revparse(['--abbrev-ref', 'HEAD'])
+  return branch.trim()
+}
+
+export async function getLastCommitHash(projectPath: string): Promise<string> {
+  const git = getGit(projectPath)
+  const log = await git.log({ maxCount: 1 })
+  return log.latest?.hash || ''
+}
+
+// ============================================================================
+// Branch Operations
+// ============================================================================
+
+export async function createBranch(projectPath: string, branchName: string): Promise<void> {
+  const git = getGit(projectPath)
+  await git.checkoutLocalBranch(branchName)
+}
+
+export async function checkoutBranch(projectPath: string, branchName: string): Promise<void> {
+  const git = getGit(projectPath)
+  await git.checkout(branchName)
+}
+
+// ============================================================================
+// Commit Operations
+// ============================================================================
+
+export async function commit(projectPath: string, message: string): Promise<string> {
+  const git = getGit(projectPath)
+
+  // Stage all changes
+  await git.add('.')
+
+  // Commit
+  const result = await git.commit(message)
+
+  return result.commit || ''
+}
+
+export async function commitWithMessage(
+  projectPath: string,
+  message: string,
+  description?: string
+): Promise<string> {
+  const git = getGit(projectPath)
+
+  // Stage all changes
+  await git.add('.')
+
+  // Build full message
+  const fullMessage = description ? `${message}\n\n${description}` : message
+
+  // Commit
+  const result = await git.commit(fullMessage)
+
+  return result.commit || ''
+}
+
+// ============================================================================
+// Rollback Operations
+// ============================================================================
+
+export async function rollback(projectPath: string): Promise<void> {
+  const git = getGit(projectPath)
+
+  // Discard all changes in tracked files
+  await git.checkout(['.'])
+
+  // Clean untracked files
+  await git.clean('fd')
+}
+
+export async function rollbackToCommit(projectPath: string, commitHash: string): Promise<void> {
+  const git = getGit(projectPath)
+  await git.reset(['--hard', commitHash])
+}
+
+export async function undoLastCommit(projectPath: string): Promise<void> {
+  const git = getGit(projectPath)
+  await git.reset(['--soft', 'HEAD~1'])
+  await rollback(projectPath)
+}
+
+// ============================================================================
+// Stash Operations (for isolation)
+// ============================================================================
+
+export async function stash(projectPath: string): Promise<boolean> {
+  const git = getGit(projectPath)
+  const status = await git.status()
+
+  if (status.isClean()) {
+    return false // Nothing to stash
+  }
+
+  await git.stash(['push', '-m', 'polish-temp-stash'])
+  return true
+}
+
+export async function unstash(projectPath: string): Promise<void> {
+  const git = getGit(projectPath)
+  await git.stash(['pop'])
+}
+
+// ============================================================================
+// Remote Operations
+// ============================================================================
+
 export async function clone(
   repoUrl: string,
   targetPath: string,
@@ -22,33 +158,6 @@ export async function clone(
 
   const git = simpleGit()
   await git.clone(authUrl, targetPath, ['--depth', '1'])
-}
-
-export async function createBranch(projectPath: string, branchName: string): Promise<void> {
-  const git = getGit(projectPath)
-  await git.checkoutLocalBranch(branchName)
-}
-
-export async function commit(projectPath: string, message: string): Promise<string> {
-  const git = getGit(projectPath)
-
-  // Stage all changes
-  await git.add('.')
-
-  // Commit
-  const result = await git.commit(message)
-
-  return result.commit || ''
-}
-
-export async function rollback(projectPath: string): Promise<void> {
-  const git = getGit(projectPath)
-
-  // Discard all changes
-  await git.checkout(['.'])
-
-  // Clean untracked files
-  await git.clean('fd')
 }
 
 export async function push(projectPath: string, branch: string, token?: string): Promise<void> {
@@ -136,6 +245,10 @@ export async function createPR(
   const data = await response.json()
   return data.html_url
 }
+
+// ============================================================================
+// Temp Directory Management
+// ============================================================================
 
 export async function cleanupTempDir(tempPath: string): Promise<void> {
   try {
