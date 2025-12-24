@@ -3,21 +3,21 @@
   "metrics": [
     {
       "name": "testCoverage",
-      "weight": 25,
+      "weight": 20,
       "command": "pnpm test:coverage 2>&1 | grep 'All files' | awk '{print $4}' | tr -d '%' || echo 0",
       "higherIsBetter": true,
       "target": 80
     },
     {
       "name": "testsFailing",
-      "weight": 20,
+      "weight": 15,
       "command": "pnpm test 2>&1 | grep -c 'FAIL' || echo 0",
       "higherIsBetter": false,
       "target": 0
     },
     {
       "name": "typeErrors",
-      "weight": 20,
+      "weight": 15,
       "command": "npx tsc --noEmit 2>&1 | grep -c 'error TS' || echo 0",
       "higherIsBetter": false,
       "target": 0
@@ -28,6 +28,13 @@
       "command": "npx eslint . --format json 2>/dev/null | jq '[.[].errorCount] | add // 0'",
       "higherIsBetter": false,
       "target": 0
+    },
+    {
+      "name": "codeStyle",
+      "weight": 15,
+      "command": "npx tsx scripts/check-code-style.ts",
+      "higherIsBetter": true,
+      "target": 90
     },
     {
       "name": "codeDuplication",
@@ -64,6 +71,11 @@
       "name": "fix-lint",
       "focus": "lintErrors",
       "prompt": "Corrige une erreur ESLint. Exécute `npx eslint . --format stylish` pour voir les erreurs, puis corrige UNE seule erreur."
+    },
+    {
+      "name": "improve-code-style",
+      "focus": "codeStyle",
+      "prompt": "Améliore le style de code. Identifie UNE fonction trop longue (>50 lignes) ou UN fichier trop long (>500 lignes) dans lib/ ou app/, puis refactorise-le en extrayant des fonctions plus petites ou en divisant le fichier. Assure-toi que le code reste fonctionnel."
     },
     {
       "name": "reduce-duplication",
