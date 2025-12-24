@@ -230,7 +230,7 @@ describe('loadPreset', () => {
     expect(preset.thresholds).toBeDefined()
     expect(preset.thresholds?.minImprovement).toBe(0.5)
     expect(preset.thresholds?.maxStalled).toBe(5)
-    expect(preset.thresholds?.maxScore).toBe(100)
+    expect(preset.thresholds?.maxScore).toBe(90)
   })
 
   it('should merge rules from base and extended preset', async () => {

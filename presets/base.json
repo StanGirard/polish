@@ -8,6 +8,6 @@
   "thresholds": {
     "minImprovement": 0.5,
     "maxStalled": 5,
-    "maxScore": 100
+    "maxScore": 90
   }
 }
