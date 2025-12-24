@@ -11,23 +11,46 @@ import type { AgentEventData, PolishEvent } from './types'
 // Implementation Phase (Phase 1)
 // ============================================================================
 
-function buildImplementPrompt(mission: string): string {
-  return `Tu dois implémenter la fonctionnalité suivante dans ce projet:
+interface ImplementPromptOptions {
+  mission: string
+  feedback?: string
+  retryCount?: number
+}
+
+function buildImplementPrompt(options: ImplementPromptOptions): string {
+  const { mission, feedback, retryCount } = options
+
+  let prompt = `Tu dois implémenter la fonctionnalité suivante dans ce projet:
 
 ## Mission
 ${mission}
+`
 
+  // Ajouter le feedback si c'est un retry
+  if (feedback && retryCount && retryCount > 0) {
+    prompt += `
+## Feedback utilisateur (Tentative #${retryCount + 1})
+L'utilisateur n'était pas satisfait de l'implémentation précédente. Voici son feedback:
+
+> ${feedback}
+
+**Important**: Prends en compte ce feedback et corrige/améliore l'implémentation en conséquence.
+Analyse ce qui a été fait précédemment et applique les corrections demandées.
+`
+  }
+
+  prompt += `
 ## Instructions
 1. D'abord, explore le projet avec Glob et Read pour comprendre:
    - La structure du projet
    - Les patterns et conventions utilisés
    - Les fichiers pertinents à modifier ou créer
-
+${feedback ? '   - Ce qui a déjà été implémenté (pour le retry)\n' : ''}
 2. Ensuite, implémente la fonctionnalité:
    - Crée les nouveaux fichiers nécessaires avec Write
    - Modifie les fichiers existants avec Edit
    - Assure-toi que le code compile (pas d'erreurs de syntaxe)
-
+${feedback ? '   - Applique les corrections demandées dans le feedback\n' : ''}
 3. Le code peut être imparfait:
    - Des warnings sont acceptables
    - Des types incomplets sont acceptables
@@ -38,8 +61,10 @@ ${mission}
 - Utilise les patterns déjà en place
 - Préfère Edit à Write pour modifier des fichiers existants
 - Ne touche pas aux fichiers de config sans raison
-
+${feedback ? '- PRIORITÉ: Adresse le feedback utilisateur en premier\n' : ''}
 Commence par explorer le projet, puis implémente la fonctionnalité.`
+
+  return prompt
 }
 
 const IMPLEMENT_SYSTEM_PROMPT = `Tu es un développeur expert. Ta mission est d'implémenter une fonctionnalité dans un projet existant.
@@ -64,10 +89,17 @@ const IMPLEMENT_SYSTEM_PROMPT = `Tu es un développeur expert. Ta mission est d'
 - Les warnings et types incomplets sont acceptables
 - Préfère des changements incrémentaux`
 
-export async function* runImplementPhase(
-  mission: string,
+export interface ImplementPhaseOptions {
+  mission: string
   projectPath: string
+  feedback?: string
+  retryCount?: number
+}
+
+export async function* runImplementPhase(
+  options: ImplementPhaseOptions
 ): AsyncGenerator<PolishEvent> {
+  const { mission, projectPath, feedback, retryCount } = options
   // Track files modified by the agent
   const filesCreated: string[] = []
   const filesModified: string[] = []
@@ -132,7 +164,7 @@ export async function* runImplementPhase(
       const isResume = sessionId !== undefined
       const prompt = isResume
         ? 'Continue implementing the remaining features.'
-        : buildImplementPrompt(mission)
+        : buildImplementPrompt({ mission, feedback, retryCount })
 
       for await (const message of query({
         prompt,
@@ -142,6 +174,7 @@ export async function* runImplementPhase(
           allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
           permissionMode: 'acceptEdits',
           maxTurns: 30,
+          maxThinkingTokens: 16000,
           resume: sessionId,
           env: {
             ...process.env,

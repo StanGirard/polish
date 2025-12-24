@@ -76,8 +76,14 @@ export interface PolishConfig {
   maxIterations?: number
   maxStalled?: number
   targetScore?: number
+  maxThinkingTokens?: number // Extended thinking budget (default: 16000)
   isolation?: {
     enabled?: boolean // default: true - isolate changes in worktree
+    existingBranch?: string // Use existing branch instead of creating new one
+  }
+  retry?: {
+    feedback: string // User feedback explaining what to fix/improve
+    retryCount: number // Number of times this session has been retried
   }
 }
 
@@ -100,6 +106,7 @@ export type PolishEvent =
   | { type: 'worktree_created'; data: WorktreeCreatedEventData }
   | { type: 'worktree_cleanup'; data: WorktreeCleanupEventData }
   | { type: 'session_summary'; data: SessionSummaryEventData }
+  | { type: 'retry'; data: RetryEventData }
 
 export interface PhaseEventData {
   phase: 'implement' | 'polish'
@@ -196,4 +203,10 @@ export interface SessionSummaryEventData {
   achievements: string[]
   metrics: string
   explanation: string
+}
+
+export interface RetryEventData {
+  retryCount: number
+  feedback: string
+  originalMission?: string
 }

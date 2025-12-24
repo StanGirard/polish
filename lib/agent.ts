@@ -133,6 +133,7 @@ export async function* runSingleFix(
           allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
           permissionMode: 'acceptEdits',
           maxTurns: 30,
+          maxThinkingTokens: 16000,
           resume: sessionId,
           env: {
             ...process.env,
@@ -290,6 +291,7 @@ Commence maintenant.`,
         allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
         permissionMode: 'acceptEdits',
         maxTurns,
+        maxThinkingTokens: 16000,
         env: {
           ...process.env,
           ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api',

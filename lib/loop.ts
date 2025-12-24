@@ -3,7 +3,7 @@ import { commitWithMessage, getStatus, rollback, getLastCommitHash } from './git
 import { runImplementPhase } from './implement'
 import { loadPreset, runAllMetrics, calculateScore, getWorstMetric, getStrategyForMetric } from './scorer'
 import { exec } from './executor'
-import { createWorktree, cleanupWorktree, checkPreflight, type WorktreeConfig } from './worktree'
+import { createWorktree, createWorktreeFromBranch, cleanupWorktree, checkPreflight, branchExists, type WorktreeConfig } from './worktree'
 import { generateSessionSummary } from './summary-generator'
 import type {
   CommitInfo,
@@ -383,16 +383,27 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
 // ============================================================================
 
 export async function* runFullPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
-  const { projectPath, mission } = config
+  const { projectPath, mission, retry } = config
 
   // Phase 1: Implement (if mission provided)
   if (mission) {
+    const isRetry = retry && retry.retryCount > 0
     yield {
       type: 'status',
-      data: { phase: 'implement', message: 'Starting Phase 1: Implementation...' }
+      data: {
+        phase: 'implement',
+        message: isRetry
+          ? `Starting Phase 1: Implementation (Retry #${retry.retryCount + 1})...`
+          : 'Starting Phase 1: Implementation...'
+      }
     }
 
-    for await (const event of runImplementPhase(mission, projectPath)) {
+    for await (const event of runImplementPhase({
+      mission,
+      projectPath,
+      feedback: retry?.feedback,
+      retryCount: retry?.retryCount
+    })) {
       yield event
 
       // If implementation failed, stop
@@ -423,7 +434,7 @@ export async function* runFullPolish(config: PolishConfig): AsyncGenerator<Polis
 // ============================================================================
 
 export async function* runIsolatedPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
-  const { projectPath, isolation = { enabled: true } } = config
+  const { projectPath, isolation = { enabled: true }, retry } = config
 
   // Si isolation désactivée, exécuter directement
   if (isolation.enabled === false) {
@@ -441,25 +452,62 @@ export async function* runIsolatedPolish(config: PolishConfig): AsyncGenerator<P
     return
   }
 
-  // Créer le worktree
-  let wt: WorktreeConfig | null = null
-  try {
-    wt = await createWorktree(projectPath)
-
+  // Émettre l'événement retry si c'est une relance
+  if (retry) {
     yield {
-      type: 'worktree_created',
+      type: 'retry',
       data: {
-        worktreePath: wt.worktreePath,
-        branchName: wt.branchName,
-        baseBranch: wt.baseBranch
+        retryCount: retry.retryCount,
+        feedback: retry.feedback,
+        originalMission: config.mission
       }
     }
+  }
 
-    yield {
-      type: 'status',
-      data: {
-        phase: 'worktree',
-        message: `Working in isolated branch: ${wt.branchName}`
+  // Créer le worktree (nouveau ou depuis une branche existante)
+  let wt: WorktreeConfig | null = null
+  try {
+    const existingBranch = isolation.existingBranch
+
+    if (existingBranch && await branchExists(projectPath, existingBranch)) {
+      // Utiliser la branche existante pour un retry
+      wt = await createWorktreeFromBranch(projectPath, existingBranch)
+
+      yield {
+        type: 'worktree_created',
+        data: {
+          worktreePath: wt.worktreePath,
+          branchName: wt.branchName,
+          baseBranch: wt.baseBranch
+        }
+      }
+
+      yield {
+        type: 'status',
+        data: {
+          phase: 'worktree',
+          message: `Resuming work on existing branch: ${wt.branchName}`
+        }
+      }
+    } else {
+      // Créer une nouvelle branche
+      wt = await createWorktree(projectPath)
+
+      yield {
+        type: 'worktree_created',
+        data: {
+          worktreePath: wt.worktreePath,
+          branchName: wt.branchName,
+          baseBranch: wt.baseBranch
+        }
+      }
+
+      yield {
+        type: 'status',
+        data: {
+          phase: 'worktree',
+          message: `Working in isolated branch: ${wt.branchName}`
+        }
       }
     }
 

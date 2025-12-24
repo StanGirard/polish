@@ -41,13 +41,16 @@ export default function Home() {
   }, [loadSessions])
 
   // Create new session
-  const handleCreateSession = async (mission?: string) => {
+  const handleCreateSession = async (mission?: string, extendedThinking?: boolean) => {
     setIsCreating(true)
     try {
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mission })
+        body: JSON.stringify({
+          mission,
+          maxThinkingTokens: extendedThinking ? 16000 : undefined
+        })
       })
 
       if (res.ok) {
@@ -116,6 +119,45 @@ export default function Home() {
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to create PR'
       })
+    }
+  }
+
+  // Retry session with feedback
+  const handleRetrySession = async (sessionId: string, feedback: string) => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback })
+      })
+
+      if (res.ok) {
+        await loadSessions()
+        // La session est maintenant running, on reste dessus
+      }
+    } catch (error) {
+      console.error('Failed to retry session:', error)
+    }
+  }
+
+  // Submit feedback for session
+  const handleFeedbackSubmit = async (
+    sessionId: string,
+    rating: 'satisfied' | 'unsatisfied',
+    comment?: string
+  ) => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating, comment })
+      })
+
+      if (res.ok) {
+        await loadSessions()
+      }
+    } catch (error) {
+      console.error('Failed to submit feedback:', error)
     }
   }
 
@@ -287,6 +329,8 @@ export default function Home() {
           session={selectedSession}
           onClose={() => setSelectedSessionId(null)}
           onCreatePR={() => handleCreatePR(selectedSession)}
+          onRetry={handleRetrySession}
+          onFeedbackSubmit={handleFeedbackSubmit}
         />
       )}
     </main>

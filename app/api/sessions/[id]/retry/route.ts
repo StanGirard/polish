@@ -1,77 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  createSession,
-  getAllSessions,
+  getSession,
   updateSession,
-  addEvent,
-  type Session
+  addEvent
 } from '@/lib/session-store'
 import { runIsolatedPolish } from '@/lib/loop'
 import type { PolishConfig, PolishEvent } from '@/lib/types'
 
-export const maxDuration = 300 // 5 min max (Vercel limit)
+type RouteParams = { params: Promise<{ id: string }> }
 
-// GET /api/sessions - List all sessions
-export async function GET() {
-  try {
-    const sessions = getAllSessions()
-    return NextResponse.json({ sessions })
-  } catch (error) {
-    console.error('Failed to get sessions:', error)
-    return NextResponse.json(
-      { error: 'Failed to get sessions' },
-      { status: 500 }
-    )
-  }
+interface RetryRequest {
+  feedback: string
+  maxDuration?: number
 }
 
-// POST /api/sessions - Create and start a new session
-export async function POST(request: NextRequest) {
+// POST /api/sessions/[id]/retry - Retry a session with feedback
+export async function POST(
+  request: NextRequest,
+  { params }: RouteParams
+) {
   try {
-    const body = await request.json()
-    const {
-      mission,
-      projectPath = process.cwd(),
-      maxDuration: duration = 5 * 60 * 1000,
-      maxThinkingTokens = 16000
-    } = body
+    const { id } = await params
+    const session = getSession(id)
 
-    // Create session in DB
-    const session = createSession({
-      mission: mission?.trim() || undefined,
-      projectPath
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      )
+    }
+
+    // Only allow retry on completed or failed sessions
+    if (!['completed', 'failed'].includes(session.status)) {
+      return NextResponse.json(
+        { error: 'Can only retry completed or failed sessions' },
+        { status: 400 }
+      )
+    }
+
+    // Must have a mission to retry
+    if (!session.mission) {
+      return NextResponse.json(
+        { error: 'Cannot retry a session without a mission' },
+        { status: 400 }
+      )
+    }
+
+    const body = await request.json() as RetryRequest
+
+    if (!body.feedback || body.feedback.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Feedback is required for retry' },
+        { status: 400 }
+      )
+    }
+
+    // Update session for retry
+    const newRetryCount = session.retryCount + 1
+    updateSession(id, {
+      status: 'running',
+      retryCount: newRetryCount,
+      completedAt: undefined,
+      // Save the feedback
+      feedback: {
+        rating: 'unsatisfied',
+        comment: body.feedback,
+        createdAt: new Date()
+      }
     })
 
-    // Update to running
-    updateSession(session.id, { status: 'running' })
-
-    // Launch polish in background (fire and forget)
-    runPolishInBackground(session.id, {
-      projectPath,
-      mission: mission?.trim() || undefined,
-      maxDuration: duration,
-      maxThinkingTokens,
-      isolation: { enabled: true }
+    // Launch polish in background with feedback context
+    runRetryInBackground(id, {
+      projectPath: session.projectPath,
+      mission: session.mission,
+      maxDuration: body.maxDuration || 5 * 60 * 1000,
+      isolation: {
+        enabled: true,
+        existingBranch: session.branchName // Use existing branch if available
+      },
+      retry: {
+        feedback: body.feedback,
+        retryCount: newRetryCount
+      }
     })
 
     return NextResponse.json({
-      sessionId: session.id,
-      session: { ...session, status: 'running' }
+      success: true,
+      sessionId: id,
+      retryCount: newRetryCount,
+      message: `Session retry #${newRetryCount} started`
     })
   } catch (error) {
-    console.error('Failed to create session:', error)
+    console.error('Failed to retry session:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create session' },
+      { error: error instanceof Error ? error.message : 'Failed to retry session' },
       { status: 500 }
     )
   }
 }
 
-// Background job runner
-async function runPolishInBackground(sessionId: string, config: PolishConfig) {
+// Background job runner for retry
+async function runRetryInBackground(sessionId: string, config: PolishConfig) {
   const startTime = Date.now()
   let commits = 0
-  let initialScore: number | undefined
   let finalScore: number | undefined
   let branchName: string | undefined
 
@@ -81,11 +112,6 @@ async function runPolishInBackground(sessionId: string, config: PolishConfig) {
       addEvent(sessionId, event)
 
       // Track session state from events
-      if (event.type === 'init') {
-        initialScore = event.data.initialScore
-        updateSession(sessionId, { initialScore })
-      }
-
       if (event.type === 'score') {
         finalScore = event.data.score
         updateSession(sessionId, { finalScore })
@@ -138,7 +164,7 @@ async function runPolishInBackground(sessionId: string, config: PolishConfig) {
       })
     }
   } catch (error) {
-    console.error(`Session ${sessionId} failed:`, error)
+    console.error(`Session retry ${sessionId} failed:`, error)
 
     // Store error event
     const errorEvent: PolishEvent = {

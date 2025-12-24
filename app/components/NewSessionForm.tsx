@@ -3,16 +3,17 @@
 import { useState } from 'react'
 
 interface NewSessionFormProps {
-  onCreateSession: (mission?: string) => void
+  onCreateSession: (mission?: string, extendedThinking?: boolean) => void
   disabled?: boolean
 }
 
 export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProps) {
   const [mission, setMission] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [extendedThinking, setExtendedThinking] = useState(true)
 
   const handleSubmit = () => {
-    onCreateSession(mission.trim() || undefined)
+    onCreateSession(mission.trim() || undefined, extendedThinking)
     setMission('')
     setIsExpanded(false)
   }
@@ -67,6 +68,35 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             <div className="absolute bottom-2 right-2 text-[9px] text-gray-800 tracking-widest">
               {mission.length} CHARS
             </div>
+          </div>
+
+          {/* Extended Thinking Toggle */}
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setExtendedThinking(!extendedThinking)}
+              className={`
+                relative w-12 h-6 rounded-full transition-all
+                ${extendedThinking
+                  ? 'bg-green-600/40 border border-green-400'
+                  : 'bg-gray-800/50 border border-gray-700'}
+              `}
+            >
+              <span
+                className={`
+                  absolute top-0.5 w-5 h-5 rounded-full transition-all
+                  ${extendedThinking
+                    ? 'left-6 bg-green-400'
+                    : 'left-0.5 bg-gray-600'}
+                `}
+              />
+            </button>
+            <span className={`text-xs uppercase tracking-widest ${extendedThinking ? 'text-green-400' : 'text-gray-600'}`}>
+              Extended Thinking {extendedThinking ? 'ON' : 'OFF'}
+            </span>
+            <span className="text-[9px] text-gray-700 tracking-widest">
+              (ULTRATHINK MODE)
+            </span>
           </div>
 
           <div className="flex gap-3 mt-4">

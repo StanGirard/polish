@@ -106,3 +106,53 @@ export async function checkPreflight(
 
   return { ok: true, baseBranch }
 }
+
+/**
+ * Crée un worktree à partir d'une branche existante (pour les retries)
+ */
+export async function createWorktreeFromBranch(
+  projectPath: string,
+  existingBranch: string
+): Promise<WorktreeConfig> {
+  const git = simpleGit(projectPath)
+  const sessionId = generateSessionId()
+  const worktreePath = join(WORKTREE_DIR, sessionId)
+  const baseBranch = await getCurrentBranch(projectPath)
+
+  // Créer le répertoire parent si nécessaire
+  await mkdir(WORKTREE_DIR, { recursive: true })
+
+  // Créer le worktree en utilisant la branche existante
+  await git.raw(['worktree', 'add', worktreePath, existingBranch])
+
+  // Symlink node_modules depuis le projet original
+  const srcModules = join(projectPath, 'node_modules')
+  const dstModules = join(worktreePath, 'node_modules')
+  try {
+    await access(srcModules)
+    await symlink(srcModules, dstModules, 'dir')
+  } catch {
+    // Pas de node_modules dans le projet original - l'agent pourra faire npm install
+  }
+
+  return {
+    originalPath: projectPath,
+    worktreePath,
+    branchName: existingBranch,
+    baseBranch,
+    sessionId
+  }
+}
+
+/**
+ * Vérifie si une branche existe dans le repo
+ */
+export async function branchExists(projectPath: string, branchName: string): Promise<boolean> {
+  const git = simpleGit(projectPath)
+  try {
+    const branches = await git.branchLocal()
+    return branches.all.includes(branchName)
+  } catch {
+    return false
+  }
+}

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ScoreBar } from './ScoreBar'
 import { MetricsGrid } from './MetricCard'
 import { CommitTimeline } from './CommitTimeline'
 import { EventLog } from './EventLog'
+import { FeedbackPanel } from './FeedbackPanel'
 import type { Session } from '@/lib/session-store'
 import type { MetricResult } from '@/lib/types'
 
@@ -54,9 +55,11 @@ interface SessionDetailProps {
   session: Session
   onClose: () => void
   onCreatePR: () => void
+  onRetry?: (sessionId: string, feedback: string) => Promise<void>
+  onFeedbackSubmit?: (sessionId: string, rating: 'satisfied' | 'unsatisfied', comment?: string) => Promise<void>
 }
 
-export function SessionDetail({ session, onClose, onCreatePR }: SessionDetailProps) {
+export function SessionDetail({ session, onClose, onCreatePR, onRetry, onFeedbackSubmit }: SessionDetailProps) {
   const [events, setEvents] = useState<PolishEvent[]>([])
   const [score, setScore] = useState<number | null>(session.finalScore ?? session.initialScore ?? null)
   const [initialScore, setInitialScore] = useState<number | null>(session.initialScore ?? null)
@@ -217,6 +220,21 @@ export function SessionDetail({ session, onClose, onCreatePR }: SessionDetailPro
               active={currentPhase === 'polish'}
               complete={false}
               code="0x02"
+            />
+          </div>
+        )}
+
+        {/* Feedback Panel (when completed/failed with mission) */}
+        {['completed', 'failed'].includes(session.status) && session.mission && onRetry && onFeedbackSubmit && (
+          <div className="mb-6">
+            <FeedbackPanel
+              session={session}
+              onRetry={async (feedback) => {
+                await onRetry(session.id, feedback)
+              }}
+              onFeedbackSubmit={async (rating, comment) => {
+                await onFeedbackSubmit(session.id, rating, comment)
+              }}
             />
           </div>
         )}
