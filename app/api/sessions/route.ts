@@ -7,7 +7,7 @@ import {
   type Session
 } from '@/lib/session-store'
 import { runIsolatedPolish } from '@/lib/loop'
-import type { PolishConfig, PolishEvent, CapabilityOverride } from '@/lib/types'
+import type { PolishConfig, PolishEvent, CapabilityOverride, ImageAttachment } from '@/lib/types'
 
 export const maxDuration = 300 // 5 min max (Vercel limit)
 
@@ -31,12 +31,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       mission,
+      missionImages,
       projectPath = process.cwd(),
       maxDuration: duration = 5 * 60 * 1000,
       maxThinkingTokens = 16000,
       capabilityOverrides
     } = body as {
       mission?: string
+      missionImages?: ImageAttachment[]
       projectPath?: string
       maxDuration?: number
       maxThinkingTokens?: number
@@ -46,6 +48,7 @@ export async function POST(request: NextRequest) {
     // Create session in DB
     const session = createSession({
       mission: mission?.trim() || undefined,
+      missionImages: missionImages ? JSON.stringify(missionImages) : undefined,
       projectPath
     })
 
@@ -56,6 +59,7 @@ export async function POST(request: NextRequest) {
     runPolishInBackground(session.id, {
       projectPath,
       mission: mission?.trim() || undefined,
+      missionImages,
       maxDuration: duration,
       maxThinkingTokens,
       isolation: { enabled: true },

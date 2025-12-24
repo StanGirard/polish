@@ -6,7 +6,7 @@ import { SessionDetail } from './components/SessionDetail'
 import { NewSessionForm } from './components/NewSessionForm'
 import { SystemMonitor } from './components/SystemMonitor'
 import type { Session } from '@/lib/session-store'
-import type { CapabilityOverride } from '@/lib/types'
+import type { CapabilityOverride, ImageAttachment } from '@/lib/types'
 
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([])
@@ -45,7 +45,8 @@ export default function Home() {
   const handleCreateSession = async (
     mission?: string,
     extendedThinking?: boolean,
-    capabilityOverrides?: CapabilityOverride[]
+    capabilityOverrides?: CapabilityOverride[],
+    missionImages?: ImageAttachment[]
   ) => {
     setIsCreating(true)
     try {
@@ -54,6 +55,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mission,
+          missionImages,
           maxThinkingTokens: extendedThinking ? 16000 : undefined,
           capabilityOverrides
         })
@@ -129,12 +131,12 @@ export default function Home() {
   }
 
   // Retry session with feedback
-  const handleRetrySession = async (sessionId: string, feedback: string) => {
+  const handleRetrySession = async (sessionId: string, feedback: string, feedbackImages?: ImageAttachment[]) => {
     try {
       const res = await fetch(`/api/sessions/${sessionId}/retry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback })
+        body: JSON.stringify({ feedback, feedbackImages })
       })
 
       if (res.ok) {

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { CapabilitiesSelector } from './CapabilitiesSelector'
-import type { CapabilityOverride } from '@/lib/types'
+import { ImageUploader } from './ImageUploader'
+import type { CapabilityOverride, ImageAttachment } from '@/lib/types'
 
 interface CapabilitiesConfig {
   tools: string[]
@@ -12,12 +13,13 @@ interface CapabilitiesConfig {
 }
 
 interface NewSessionFormProps {
-  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[]) => void
+  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[], missionImages?: ImageAttachment[]) => void
   disabled?: boolean
 }
 
 export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProps) {
   const [mission, setMission] = useState('')
+  const [missionImages, setMissionImages] = useState<ImageAttachment[]>([])
   const [isExpanded, setIsExpanded] = useState(false)
   const [extendedThinking, setExtendedThinking] = useState(true)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -36,8 +38,10 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
 
   const handleSubmit = () => {
     const overrides = capabilityOverrides.length > 0 ? capabilityOverrides : undefined
-    onCreateSession(mission.trim() || undefined, extendedThinking, overrides)
+    const images = missionImages.length > 0 ? missionImages : undefined
+    onCreateSession(mission.trim() || undefined, extendedThinking, overrides, images)
     setMission('')
+    setMissionImages([])
     setIsExpanded(false)
     setShowAdvanced(false)
     setCapabilityOverrides([])
@@ -76,23 +80,32 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             <span className="text-gray-700 text-[9px]">MISSION PARAMETERS</span>
           </label>
 
-          <div className="relative">
-            <textarea
-              value={mission}
-              onChange={(e) => setMission(e.target.value)}
-              placeholder=">> Enter mission... (optional, e.g., Add dark mode support)"
-              className="
-                w-full bg-black/50 border border-green-800/50 rounded p-3
-                text-sm text-green-300 placeholder-green-900
-                resize-none focus:outline-none focus:border-green-400 focus:box-glow
-                font-mono leading-relaxed
-              "
-              rows={2}
-              autoFocus
-            />
-            <div className="absolute bottom-2 right-2 text-[9px] text-gray-800 tracking-widest">
-              {mission.length} CHARS
+          <div className="space-y-3">
+            <div className="relative">
+              <textarea
+                value={mission}
+                onChange={(e) => setMission(e.target.value)}
+                placeholder=">> Enter mission... (optional, e.g., Add dark mode support)"
+                className="
+                  w-full bg-black/50 border border-green-800/50 rounded p-3
+                  text-sm text-green-300 placeholder-green-900
+                  resize-none focus:outline-none focus:border-green-400 focus:box-glow
+                  font-mono leading-relaxed
+                "
+                rows={2}
+                autoFocus
+              />
+              <div className="absolute bottom-2 right-2 text-[9px] text-gray-800 tracking-widest">
+                {mission.length} CHARS
+              </div>
             </div>
+
+            {/* Image uploader */}
+            <ImageUploader
+              images={missionImages}
+              onImagesChange={setMissionImages}
+              label="Mission Images (optional)"
+            />
           </div>
 
           {/* Extended Thinking Toggle */}
@@ -177,7 +190,7 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             </button>
 
             <button
-              onClick={() => { setIsExpanded(false); setMission('') }}
+              onClick={() => { setIsExpanded(false); setMission(''); setMissionImages([]) }}
               className="
                 px-4 py-2.5 rounded font-bold transition-all
                 bg-gray-800/50 hover:bg-gray-800 border border-gray-700

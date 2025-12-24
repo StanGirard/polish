@@ -8,7 +8,7 @@ import { EventLog } from './EventLog'
 import { FeedbackPanel } from './FeedbackPanel'
 import { FileChangesSection } from './FileChangesSection'
 import type { Session } from '@/lib/session-store'
-import type { MetricResult } from '@/lib/types'
+import type { MetricResult, ImageAttachment } from '@/lib/types'
 
 interface PolishEvent {
   type: string
@@ -56,7 +56,7 @@ interface SessionDetailProps {
   session: Session
   onClose: () => void
   onCreatePR: () => void
-  onRetry?: (sessionId: string, feedback: string) => Promise<void>
+  onRetry?: (sessionId: string, feedback: string, feedbackImages?: ImageAttachment[]) => Promise<void>
   onFeedbackSubmit?: (sessionId: string, rating: 'satisfied' | 'unsatisfied', comment?: string) => Promise<void>
 }
 
@@ -230,8 +230,8 @@ export function SessionDetail({ session, onClose, onCreatePR, onRetry, onFeedbac
           <div className="mb-6">
             <FeedbackPanel
               session={session}
-              onRetry={async (feedback) => {
-                await onRetry(session.id, feedback)
+              onRetry={async (feedback, feedbackImages) => {
+                await onRetry(session.id, feedback, feedbackImages)
               }}
               onFeedbackSubmit={async (rating, comment) => {
                 await onFeedbackSubmit(session.id, rating, comment)

@@ -1,16 +1,19 @@
 'use client'
 
 import { useState } from 'react'
+import { ImageUploader } from './ImageUploader'
 import type { Session, SessionFeedback } from '@/lib/session-store'
+import type { ImageAttachment } from '@/lib/types'
 
 interface FeedbackPanelProps {
   session: Session
-  onRetry: (feedback: string) => Promise<void>
+  onRetry: (feedback: string, feedbackImages?: ImageAttachment[]) => Promise<void>
   onFeedbackSubmit: (rating: 'satisfied' | 'unsatisfied', comment?: string) => Promise<void>
 }
 
 export function FeedbackPanel({ session, onRetry, onFeedbackSubmit }: FeedbackPanelProps) {
   const [feedback, setFeedback] = useState('')
+  const [feedbackImages, setFeedbackImages] = useState<ImageAttachment[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [mode, setMode] = useState<'feedback' | 'retry' | null>(null)
@@ -31,7 +34,8 @@ export function FeedbackPanel({ session, onRetry, onFeedbackSubmit }: FeedbackPa
     if (!feedback.trim()) return
     setIsSubmitting(true)
     try {
-      await onRetry(feedback)
+      const images = feedbackImages.length > 0 ? feedbackImages : undefined
+      await onRetry(feedback, images)
     } finally {
       setIsSubmitting(false)
     }
@@ -111,7 +115,7 @@ export function FeedbackPanel({ session, onRetry, onFeedbackSubmit }: FeedbackPa
 
       {/* Mode retry - demander le feedback */}
       {mode === 'retry' && (
-        <div>
+        <div className="space-y-3">
           <div className="text-gray-300 text-sm mb-3">
             Décrivez ce qui ne va pas et ce que vous aimeriez changer :
           </div>
@@ -122,6 +126,15 @@ export function FeedbackPanel({ session, onRetry, onFeedbackSubmit }: FeedbackPa
             className="w-full h-32 px-4 py-3 bg-black/50 border border-orange-800 rounded text-gray-200 placeholder-gray-600 focus:border-orange-500 focus:outline-none resize-none font-mono text-sm"
             disabled={isSubmitting}
           />
+
+          {/* Image uploader for feedback */}
+          <ImageUploader
+            images={feedbackImages}
+            onImagesChange={setFeedbackImages}
+            label="Feedback Images (optional)"
+            maxImages={3}
+          />
+
           <div className="flex gap-3 mt-3">
             <button
               onClick={() => setMode(null)}

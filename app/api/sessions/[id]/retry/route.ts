@@ -5,12 +5,13 @@ import {
   addEvent
 } from '@/lib/session-store'
 import { runIsolatedPolish } from '@/lib/loop'
-import type { PolishConfig, PolishEvent } from '@/lib/types'
+import type { PolishConfig, PolishEvent, ImageAttachment } from '@/lib/types'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
 interface RetryRequest {
   feedback: string
+  feedbackImages?: ImageAttachment[]
   maxDuration?: number
 }
 
@@ -65,14 +66,21 @@ export async function POST(
       feedback: {
         rating: 'unsatisfied',
         comment: body.feedback,
+        images: body.feedbackImages ? JSON.stringify(body.feedbackImages) : undefined,
         createdAt: new Date()
       }
     })
+
+    // Parse mission images if stored
+    const missionImages = session.missionImages
+      ? JSON.parse(session.missionImages) as ImageAttachment[]
+      : undefined
 
     // Launch polish in background with feedback context
     runRetryInBackground(id, {
       projectPath: session.projectPath,
       mission: session.mission,
+      missionImages,
       maxDuration: body.maxDuration || 5 * 60 * 1000,
       isolation: {
         enabled: true,
@@ -80,6 +88,7 @@ export async function POST(
       },
       retry: {
         feedback: body.feedback,
+        feedbackImages: body.feedbackImages,
         retryCount: newRetryCount
       }
     })
