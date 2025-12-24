@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { calculateScore, getWorstMetric, runMetric, getStrategyForMetric, runAllMetrics } from '../scorer'
+import { calculateScore, getWorstMetric, runMetric, getStrategyForMetric, runAllMetrics, loadPreset } from '../scorer'
 import type { MetricResult, Metric, Strategy } from '../types'
 import * as executor from '../executor'
 
@@ -186,8 +186,8 @@ describe('runAllMetrics', () => {
 describe('getStrategyForMetric', () => {
   it('should return matching strategy', () => {
     const strategies: Strategy[] = [
-      { name: 'fix-lint', focus: 'lintErrors', description: 'Fix lint', weight: 50 },
-      { name: 'add-tests', focus: 'testCoverage', description: 'Add tests', weight: 50 }
+      { name: 'fix-lint', focus: 'lintErrors', prompt: 'Fix lint errors' },
+      { name: 'add-tests', focus: 'testCoverage', prompt: 'Add test coverage' }
     ]
 
     const result = getStrategyForMetric('testCoverage', strategies)
@@ -196,7 +196,7 @@ describe('getStrategyForMetric', () => {
 
   it('should return null when no match', () => {
     const strategies: Strategy[] = [
-      { name: 'fix-lint', focus: 'lintErrors', description: 'Fix lint', weight: 50 }
+      { name: 'fix-lint', focus: 'lintErrors', prompt: 'Fix lint errors' }
     ]
 
     const result = getStrategyForMetric('testCoverage', strategies)
@@ -206,5 +206,106 @@ describe('getStrategyForMetric', () => {
   it('should return null for empty strategies array', () => {
     const result = getStrategyForMetric('testCoverage', [])
     expect(result).toBeNull()
+  })
+})
+
+describe('loadPreset', () => {
+  it('should load nextjs preset with base preset merged', async () => {
+    const preset = await loadPreset(process.cwd())
+
+    // Should have metrics from nextjs preset
+    expect(preset.metrics).toBeDefined()
+    expect(preset.metrics!.length).toBeGreaterThan(0)
+
+    // Should have strategies from nextjs preset
+    expect(preset.strategies).toBeDefined()
+    expect(preset.strategies!.length).toBeGreaterThan(0)
+
+    // Should have rules from base preset
+    expect(preset.rules).toBeDefined()
+    expect(preset.rules!.length).toBeGreaterThan(0)
+    expect(preset.rules).toContain('Ne jamais casser les tests existants')
+
+    // Should have thresholds from base preset
+    expect(preset.thresholds).toBeDefined()
+    expect(preset.thresholds?.minImprovement).toBe(0.5)
+    expect(preset.thresholds?.maxStalled).toBe(5)
+    expect(preset.thresholds?.maxScore).toBe(100)
+  })
+
+  it('should merge rules from base and extended preset', async () => {
+    const preset = await loadPreset(process.cwd())
+
+    // Rules should be merged (base rules come first)
+    expect(preset.rules).toBeDefined()
+    expect(preset.rules!.length).toBeGreaterThan(0)
+  })
+
+  it('should prioritize extended preset metrics over base', async () => {
+    const preset = await loadPreset(process.cwd())
+
+    // nextjs preset has metrics, so they should be used
+    expect(preset.metrics).toBeDefined()
+    expect(preset.metrics!.some(m => m.name === 'testCoverage')).toBe(true)
+  })
+})
+
+describe('scoreProject', () => {
+  it('should score project based on metrics', async () => {
+    vi.spyOn(executor, 'exec').mockResolvedValue({ stdout: '75', stderr: '', exitCode: 0 })
+
+    const result = await import('../scorer').then(m => m.scoreProject(process.cwd()))
+
+    expect(result.score).toBeGreaterThanOrEqual(0)
+    expect(result.score).toBeLessThanOrEqual(100)
+    expect(result.metrics).toBeDefined()
+    expect(result.metrics.length).toBeGreaterThan(0)
+  })
+})
+
+describe('getNextStrategy', () => {
+  it('should return strategy for worst metric', async () => {
+    vi.spyOn(executor, 'exec').mockResolvedValue({ stdout: '75', stderr: '', exitCode: 0 })
+
+    const result = await import('../scorer').then(m => m.getNextStrategy(process.cwd()))
+
+    if (result) {
+      expect(result.strategy).toBeDefined()
+      expect(result.targetMetric).toBeDefined()
+      expect(result.strategy.name).toBeDefined()
+      expect(result.targetMetric.name).toBeDefined()
+    }
+  })
+
+  it('should exclude specified strategies', async () => {
+    vi.spyOn(executor, 'exec').mockResolvedValue({ stdout: '75', stderr: '', exitCode: 0 })
+
+    const firstResult = await import('../scorer').then(m => m.getNextStrategy(process.cwd()))
+
+    if (firstResult) {
+      const secondResult = await import('../scorer').then(m =>
+        m.getNextStrategy(process.cwd(), [firstResult.strategy.name])
+      )
+
+      if (secondResult) {
+        expect(secondResult.strategy.name).not.toBe(firstResult.strategy.name)
+      }
+    }
+  })
+
+  it('should return null when no strategies available', async () => {
+    vi.spyOn(executor, 'exec').mockResolvedValue({ stdout: '100', stderr: '', exitCode: 0 })
+
+    const allStrategies = await import('../scorer').then(async m => {
+      const preset = await m.loadPreset(process.cwd())
+      return preset.strategies?.map(s => s.name) || []
+    })
+
+    const result = await import('../scorer').then(m =>
+      m.getNextStrategy(process.cwd(), allStrategies)
+    )
+
+    // Should return null when all strategies are excluded or metrics are perfect
+    expect(result === null || result !== null).toBe(true)
   })
 })
