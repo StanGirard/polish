@@ -22,7 +22,7 @@ export function SessionCard({
 }: SessionCardProps) {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
 
-  const statusConfig = {
+  const statusConfig: Record<string, { color: string; border: string; bg: string; glow: string; icon: string; label: string }> = {
     pending: {
       color: 'text-gray-400',
       border: 'border-gray-600',
@@ -30,6 +30,22 @@ export function SessionCard({
       glow: '',
       icon: '◌',
       label: 'PENDING'
+    },
+    planning: {
+      color: 'text-orange-400',
+      border: 'border-orange-500/50',
+      bg: 'bg-orange-900/20',
+      glow: 'box-glow',
+      icon: '◆',
+      label: 'PLANNING'
+    },
+    awaiting_approval: {
+      color: 'text-orange-400',
+      border: 'border-orange-500/50',
+      bg: 'bg-orange-900/20',
+      glow: '',
+      icon: '⏳',
+      label: 'AWAITING'
     },
     running: {
       color: 'text-green-400',

@@ -18,8 +18,9 @@ import type {
 import { resolvePluginsToSdkFormat } from './plugin-loader'
 
 // Default tools for each phase (matches current hardcoded behavior)
-const DEFAULT_IMPLEMENT_TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch']
-const DEFAULT_POLISH_TOOLS = ['Read', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch']
+const DEFAULT_IMPLEMENT_TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task']
+const DEFAULT_POLISH_TOOLS = ['Read', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task']
+const DEFAULT_PLANNING_TOOLS = ['Read', 'Glob', 'Grep', 'Bash', 'Task'] // Read-only + exploration
 
 /**
  * Merge two PhaseCapabilities objects
@@ -136,14 +137,22 @@ export function resolveCapabilitiesForPhase(
   const caps = preset.capabilities
 
   // Get phase-specific config
-  const phaseConfig = phase === 'implement' ? caps?.implement : caps?.polish
+  const phaseConfig = phase === 'implement'
+    ? caps?.implement
+    : phase === 'planning'
+      ? (caps as { planning?: PhaseCapabilities })?.planning
+      : caps?.polish
 
   // Merge shared + phase-specific
   let merged = mergePhaseCapabilities(caps?.shared, phaseConfig)
 
   // Apply default tools if not specified
   if (!merged.tools) {
-    merged.tools = phase === 'implement' ? DEFAULT_IMPLEMENT_TOOLS : DEFAULT_POLISH_TOOLS
+    merged.tools = phase === 'implement'
+      ? DEFAULT_IMPLEMENT_TOOLS
+      : phase === 'planning'
+        ? DEFAULT_PLANNING_TOOLS
+        : DEFAULT_POLISH_TOOLS
   }
 
   // Apply session overrides

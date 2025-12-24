@@ -28,7 +28,7 @@ export interface PresetThresholds {
 // Capabilities Configuration (for SDK integration)
 // ============================================================================
 
-export type ExecutionPhase = 'implement' | 'polish' | 'both'
+export type ExecutionPhase = 'implement' | 'polish' | 'planning' | 'both'
 
 /** MCP Server configuration (matches SDK McpServerConfig) */
 export type McpServerConfig =
@@ -160,6 +160,9 @@ export interface PolishConfig {
     retryCount: number // Number of times this session has been retried
   }
   capabilityOverrides?: CapabilityOverride[] // Session-level capability overrides
+  // Planning phase options
+  enablePlanning?: boolean // Enable interactive planning phase before implementation
+  notifications?: NotificationConfig // Browser notification settings
 }
 
 // ============================================================================
@@ -182,9 +185,14 @@ export type PolishEvent =
   | { type: 'worktree_cleanup'; data: WorktreeCleanupEventData }
   | { type: 'session_summary'; data: SessionSummaryEventData }
   | { type: 'retry'; data: RetryEventData }
+  // Planning phase events
+  | { type: 'plan'; data: PlanEventData }
+  | { type: 'plan_message'; data: PlanMessageEventData }
+  | { type: 'plan_approved'; data: PlanApprovedEventData }
+  | { type: 'plan_rejected'; data: PlanRejectedEventData }
 
 export interface PhaseEventData {
-  phase: 'implement' | 'polish'
+  phase: 'implement' | 'polish' | 'planning'
   mission?: string
 }
 
@@ -285,3 +293,70 @@ export interface RetryEventData {
   feedback: string
   originalMission?: string
 }
+
+// ============================================================================
+// Planning Phase Types
+// ============================================================================
+
+/** A step in the implementation plan */
+export interface PlanStep {
+  id: string
+  title: string
+  description: string
+  files: string[]
+  order: number
+}
+
+/** Message in the planning conversation */
+export interface PlanMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
+/** Plan event data - sent when plan is generated/updated */
+export interface PlanEventData {
+  plan: PlanStep[]
+  summary: string
+  estimatedChanges: {
+    filesCreated: string[]
+    filesModified: string[]
+    filesDeleted: string[]
+  }
+  risks: string[]
+  questions?: string[]  // Clarifying questions for the user
+}
+
+/** Plan message event - chat message during planning */
+export interface PlanMessageEventData {
+  message: PlanMessage
+}
+
+/** Plan approved event */
+export interface PlanApprovedEventData {
+  plan: PlanStep[]
+  approvedAt: string
+}
+
+/** Plan rejected event */
+export interface PlanRejectedEventData {
+  reason?: string  // If provided, triggers re-planning. If empty, aborts session.
+  rejectedAt: string
+}
+
+// ============================================================================
+// Browser Notification Types
+// ============================================================================
+
+export interface NotificationConfig {
+  enabled: boolean
+  events: NotificationEventType[]
+}
+
+export type NotificationEventType =
+  | 'plan_ready'           // Plan ready for review
+  | 'awaiting_approval'    // Waiting for user action
+  | 'session_completed'    // Session finished successfully
+  | 'session_failed'       // Session failed
+  | 'error'                // Error occurred

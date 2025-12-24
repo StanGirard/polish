@@ -28,12 +28,16 @@ export function SessionList({
   const [filter, setFilter] = useState<FilterStatus>('all')
   const [autoRefresh, setAutoRefresh] = useState(true)
 
-  // Auto-refresh when running sessions exist
+  // Active session statuses
+  const isActiveStatus = (status: string) =>
+    ['running', 'pending', 'planning', 'awaiting_approval'].includes(status)
+
+  // Auto-refresh when active sessions exist
   useEffect(() => {
     if (!autoRefresh) return
 
-    const hasRunning = sessions.some(s => s.status === 'running' || s.status === 'pending')
-    if (!hasRunning) return
+    const hasActive = sessions.some(s => isActiveStatus(s.status))
+    if (!hasActive) return
 
     const interval = setInterval(onRefresh, 2000)
     return () => clearInterval(interval)
@@ -41,7 +45,7 @@ export function SessionList({
 
   const filteredSessions = sessions.filter(s => {
     if (filter === 'all') return true
-    if (filter === 'running') return s.status === 'running' || s.status === 'pending'
+    if (filter === 'running') return isActiveStatus(s.status)
     if (filter === 'completed') return s.status === 'completed'
     if (filter === 'failed') return s.status === 'failed' || s.status === 'cancelled'
     return true
@@ -49,7 +53,7 @@ export function SessionList({
 
   const counts = {
     all: sessions.length,
-    running: sessions.filter(s => s.status === 'running' || s.status === 'pending').length,
+    running: sessions.filter(s => isActiveStatus(s.status)).length,
     completed: sessions.filter(s => s.status === 'completed').length,
     failed: sessions.filter(s => s.status === 'failed' || s.status === 'cancelled').length
   }

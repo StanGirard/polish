@@ -1,13 +1,13 @@
 import Database from 'better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
-import type { PolishEvent } from './types'
+import type { PolishEvent, PlanStep, PlanMessage } from './types'
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export type SessionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type SessionStatus = 'pending' | 'planning' | 'awaiting_approval' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export type FeedbackRating = 'satisfied' | 'unsatisfied'
 
@@ -31,6 +31,9 @@ export interface Session {
   duration?: number
   feedback?: SessionFeedback
   retryCount: number // Nombre de fois que cette session a été relancée
+  // Planning phase
+  enablePlanning?: boolean // Whether planning is enabled for this session
+  approvedPlan?: PlanStep[] // The approved plan (if any)
 }
 
 export interface SessionEvent {
@@ -63,7 +66,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   feedback_rating TEXT,
   feedback_comment TEXT,
   feedback_created_at TEXT,
-  retry_count INTEGER DEFAULT 0
+  retry_count INTEGER DEFAULT 0,
+  enable_planning INTEGER DEFAULT 0,
+  approved_plan TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session_events (
@@ -75,8 +80,19 @@ CREATE TABLE IF NOT EXISTS session_events (
   FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS plan_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_events_session ON session_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON session_events(timestamp);
+CREATE INDEX IF NOT EXISTS idx_plan_messages_session ON plan_messages(session_id);
 `
 
 let db: Database.Database | null = null
@@ -115,6 +131,30 @@ function runMigrations(db: Database.Database): void {
   if (!columnNames.includes('retry_count')) {
     db.exec('ALTER TABLE sessions ADD COLUMN retry_count INTEGER DEFAULT 0')
   }
+  // Planning phase columns
+  if (!columnNames.includes('enable_planning')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN enable_planning INTEGER DEFAULT 0')
+  }
+  if (!columnNames.includes('approved_plan')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN approved_plan TEXT')
+  }
+
+  // Check if plan_messages table exists
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_messages'").all()
+  if (tables.length === 0) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS plan_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_plan_messages_session ON plan_messages(session_id);
+    `)
+  }
 }
 
 // ============================================================================
@@ -125,25 +165,30 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function createSession(config: { mission?: string; projectPath: string }): Session {
+export function createSession(config: {
+  mission?: string
+  projectPath: string
+  enablePlanning?: boolean
+}): Session {
   const db = getDb()
   const id = generateId()
   const now = new Date()
 
   const session: Session = {
     id,
-    status: 'pending',
+    status: config.enablePlanning ? 'planning' : 'pending',
     mission: config.mission,
     projectPath: config.projectPath,
     startedAt: now,
     commits: 0,
-    retryCount: 0
+    retryCount: 0,
+    enablePlanning: config.enablePlanning
   }
 
   db.prepare(`
-    INSERT INTO sessions (id, status, mission, project_path, started_at, commits, retry_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, session.status, session.mission || null, session.projectPath, now.toISOString(), 0, 0)
+    INSERT INTO sessions (id, status, mission, project_path, started_at, commits, retry_count, enable_planning)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, session.status, session.mission || null, session.projectPath, now.toISOString(), 0, 0, config.enablePlanning ? 1 : 0)
 
   return session
 }
@@ -208,6 +253,14 @@ export function updateSession(id: string, updates: Partial<Session>): void {
   if (updates.retryCount !== undefined) {
     fields.push('retry_count = ?')
     values.push(updates.retryCount)
+  }
+  if (updates.enablePlanning !== undefined) {
+    fields.push('enable_planning = ?')
+    values.push(updates.enablePlanning ? 1 : 0)
+  }
+  if (updates.approvedPlan !== undefined) {
+    fields.push('approved_plan = ?')
+    values.push(JSON.stringify(updates.approvedPlan))
   }
 
   if (fields.length === 0) return
@@ -306,10 +359,59 @@ export function subscribeToSession(
 }
 
 // ============================================================================
+// Plan Messages
+// ============================================================================
+
+export function addPlanMessage(sessionId: string, message: PlanMessage): void {
+  const db = getDb()
+
+  db.prepare(`
+    INSERT INTO plan_messages (session_id, message_id, role, content, timestamp)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(sessionId, message.id, message.role, message.content, message.timestamp)
+
+  // Also emit as event for SSE
+  addEvent(sessionId, {
+    type: 'plan_message',
+    data: { message }
+  })
+}
+
+export function getPlanMessages(sessionId: string): PlanMessage[] {
+  const db = getDb()
+  const rows = db.prepare(`
+    SELECT * FROM plan_messages
+    WHERE session_id = ?
+    ORDER BY id ASC
+  `).all(sessionId) as Record<string, unknown>[]
+
+  return rows.map(row => ({
+    id: row.message_id as string,
+    role: row.role as 'user' | 'assistant',
+    content: row.content as string,
+    timestamp: row.timestamp as string
+  }))
+}
+
+export function clearPlanMessages(sessionId: string): void {
+  const db = getDb()
+  db.prepare('DELETE FROM plan_messages WHERE session_id = ?').run(sessionId)
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
 function rowToSession(row: Record<string, unknown>): Session {
+  let approvedPlan: PlanStep[] | undefined
+  if (row.approved_plan) {
+    try {
+      approvedPlan = JSON.parse(row.approved_plan as string)
+    } catch {
+      approvedPlan = undefined
+    }
+  }
+
   return {
     id: row.id as string,
     status: row.status as SessionStatus,
@@ -327,7 +429,9 @@ function rowToSession(row: Record<string, unknown>): Session {
       comment: row.feedback_comment as string | undefined,
       createdAt: new Date(row.feedback_created_at as string)
     } : undefined,
-    retryCount: (row.retry_count as number) ?? 0
+    retryCount: (row.retry_count as number) ?? 0,
+    enablePlanning: Boolean(row.enable_planning),
+    approvedPlan
   }
 }
 

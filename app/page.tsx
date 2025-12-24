@@ -45,7 +45,8 @@ export default function Home() {
   const handleCreateSession = async (
     mission?: string,
     extendedThinking?: boolean,
-    capabilityOverrides?: CapabilityOverride[]
+    capabilityOverrides?: CapabilityOverride[],
+    enablePlanning?: boolean
   ) => {
     setIsCreating(true)
     try {
@@ -55,7 +56,8 @@ export default function Home() {
         body: JSON.stringify({
           mission,
           maxThinkingTokens: extendedThinking ? 16000 : undefined,
-          capabilityOverrides
+          capabilityOverrides,
+          enablePlanning
         })
       })
 
@@ -167,15 +169,68 @@ export default function Home() {
     }
   }
 
+  // Approve plan and start implementation
+  const handleApprovePlan = async (sessionId: string, plan?: unknown[]) => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan })
+      })
+
+      if (res.ok) {
+        await loadSessions()
+      }
+    } catch (error) {
+      console.error('Failed to approve plan:', error)
+    }
+  }
+
+  // Reject plan (with or without reason)
+  const handleRejectPlan = async (sessionId: string, reason?: string) => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      })
+
+      if (res.ok) {
+        await loadSessions()
+      }
+    } catch (error) {
+      console.error('Failed to reject plan:', error)
+    }
+  }
+
+  // Send message during planning phase
+  const handleSendPlanMessage = async (sessionId: string, message: string) => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      })
+
+      if (res.ok) {
+        await loadSessions()
+      }
+    } catch (error) {
+      console.error('Failed to send plan message:', error)
+    }
+  }
+
   const selectedSession = sessions.find(s => s.id === selectedSessionId)
-  const runningSessions = sessions.filter(s => s.status === 'running' || s.status === 'pending')
+  const activeSessions = sessions.filter(s =>
+    ['running', 'pending', 'planning', 'awaiting_approval'].includes(s.status)
+  )
 
   return (
     <main className="min-h-screen bg-black text-white p-8 font-mono relative">
       {/* System Monitor - Fixed Position */}
       <SystemMonitor
-        running={runningSessions.length > 0}
-        phase={runningSessions.length > 0 ? 'polish' : 'idle'}
+        running={activeSessions.length > 0}
+        phase={activeSessions.length > 0 ? 'polish' : 'idle'}
         eventsCount={sessions.length}
         commitsCount={sessions.reduce((acc, s) => acc + s.commits, 0)}
       />
@@ -199,12 +254,12 @@ export default function Home() {
               </div>
             </div>
             <div className="text-right">
-              {runningSessions.length > 0 ? (
+              {activeSessions.length > 0 ? (
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex items-center gap-2 px-3 py-1.5 border border-green-500/30 rounded bg-green-950/20">
                     <span className="text-green-400 blink">●</span>
                     <span className="text-green-400 text-sm font-bold">
-                      {runningSessions.length} ACTIVE
+                      {activeSessions.length} ACTIVE
                     </span>
                   </div>
                   <span className="text-[10px] text-green-700 tracking-widest">
@@ -337,6 +392,9 @@ export default function Home() {
           onCreatePR={() => handleCreatePR(selectedSession)}
           onRetry={handleRetrySession}
           onFeedbackSubmit={handleFeedbackSubmit}
+          onApprovePlan={handleApprovePlan}
+          onRejectPlan={handleRejectPlan}
+          onSendPlanMessage={handleSendPlanMessage}
         />
       )}
     </main>

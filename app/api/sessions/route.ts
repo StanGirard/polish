@@ -4,9 +4,13 @@ import {
   getAllSessions,
   updateSession,
   addEvent,
+  addPlanMessage,
   type Session
 } from '@/lib/session-store'
 import { runIsolatedPolish } from '@/lib/loop'
+import { runPlanningPhase, type PlanningContext } from '@/lib/planner'
+import { loadPreset } from '@/lib/scorer'
+import { resolveCapabilitiesForPhase } from '@/lib/capabilities'
 import type { PolishConfig, PolishEvent, CapabilityOverride } from '@/lib/types'
 
 export const maxDuration = 300 // 5 min max (Vercel limit)
@@ -34,22 +38,37 @@ export async function POST(request: NextRequest) {
       projectPath = process.cwd(),
       maxDuration: duration = 5 * 60 * 1000,
       maxThinkingTokens = 16000,
-      capabilityOverrides
+      capabilityOverrides,
+      enablePlanning = false  // Enable interactive planning phase
     } = body as {
       mission?: string
       projectPath?: string
       maxDuration?: number
       maxThinkingTokens?: number
       capabilityOverrides?: CapabilityOverride[]
+      enablePlanning?: boolean
     }
 
     // Create session in DB
     const session = createSession({
       mission: mission?.trim() || undefined,
-      projectPath
+      projectPath,
+      enablePlanning
     })
 
-    // Update to running
+    if (enablePlanning && mission) {
+      // Start in planning mode - don't run implementation yet
+      // Launch planning in background
+      runPlanningInBackground(session.id, mission.trim(), projectPath)
+
+      return NextResponse.json({
+        sessionId: session.id,
+        session,
+        message: 'Session created in planning mode. Review the plan and approve to start implementation.'
+      })
+    }
+
+    // Standard flow: Update to running and start implementation
     updateSession(session.id, { status: 'running' })
 
     // Launch polish in background (fire and forget)
@@ -160,5 +179,59 @@ async function runPolishInBackground(sessionId: string, config: PolishConfig) {
       completedAt: new Date(),
       duration: Date.now() - startTime
     })
+  }
+}
+
+// Background job for planning phase
+async function runPlanningInBackground(
+  sessionId: string,
+  mission: string,
+  projectPath: string
+) {
+  try {
+    // Load preset for capabilities
+    const preset = await loadPreset(projectPath)
+    const planningOptions = resolveCapabilitiesForPhase(preset, 'planning')
+
+    const context: PlanningContext = {
+      mission,
+      projectPath,
+      messages: []
+    }
+
+    // Emit phase event
+    addEvent(sessionId, {
+      type: 'phase',
+      data: { phase: 'planning', mission }
+    })
+
+    // Run planning phase
+    for await (const event of runPlanningPhase(context, planningOptions)) {
+      addEvent(sessionId, event)
+
+      // If we got a plan, update status to awaiting_approval
+      if (event.type === 'plan') {
+        updateSession(sessionId, { status: 'awaiting_approval' })
+      }
+
+      // Store assistant messages
+      if (event.type === 'plan_message' && event.data.message.role === 'assistant') {
+        addPlanMessage(sessionId, event.data.message)
+      }
+
+      if (event.type === 'error') {
+        updateSession(sessionId, { status: 'failed' })
+      }
+    }
+  } catch (error) {
+    console.error(`Planning for session ${sessionId} failed:`, error)
+
+    const errorEvent: PolishEvent = {
+      type: 'error',
+      data: { message: error instanceof Error ? error.message : 'Unknown error' }
+    }
+    addEvent(sessionId, errorEvent)
+
+    updateSession(sessionId, { status: 'failed' })
   }
 }

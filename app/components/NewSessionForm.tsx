@@ -12,7 +12,7 @@ interface CapabilitiesConfig {
 }
 
 interface NewSessionFormProps {
-  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[]) => void
+  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[], enablePlanning?: boolean) => void
   disabled?: boolean
 }
 
@@ -20,6 +20,7 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
   const [mission, setMission] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const [extendedThinking, setExtendedThinking] = useState(true)
+  const [enablePlanning, setEnablePlanning] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [capabilities, setCapabilities] = useState<CapabilitiesConfig | null>(null)
   const [capabilityOverrides, setCapabilityOverrides] = useState<CapabilityOverride[]>([])
@@ -36,11 +37,12 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
 
   const handleSubmit = () => {
     const overrides = capabilityOverrides.length > 0 ? capabilityOverrides : undefined
-    onCreateSession(mission.trim() || undefined, extendedThinking, overrides)
+    onCreateSession(mission.trim() || undefined, extendedThinking, overrides, enablePlanning)
     setMission('')
     setIsExpanded(false)
     setShowAdvanced(false)
     setCapabilityOverrides([])
+    setEnablePlanning(false)
   }
 
   return (
@@ -124,6 +126,37 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             </span>
           </div>
 
+          {/* Planning Mode Toggle - only visible when mission is provided */}
+          {mission.trim() && (
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setEnablePlanning(!enablePlanning)}
+                className={`
+                  relative w-12 h-6 rounded-full transition-all
+                  ${enablePlanning
+                    ? 'bg-orange-600/40 border border-orange-400'
+                    : 'bg-gray-800/50 border border-gray-700'}
+                `}
+              >
+                <span
+                  className={`
+                    absolute top-0.5 w-5 h-5 rounded-full transition-all
+                    ${enablePlanning
+                      ? 'left-6 bg-orange-400'
+                      : 'left-0.5 bg-gray-600'}
+                  `}
+                />
+              </button>
+              <span className={`text-xs uppercase tracking-widest ${enablePlanning ? 'text-orange-400' : 'text-gray-600'}`}>
+                Planning Mode {enablePlanning ? 'ON' : 'OFF'}
+              </span>
+              <span className="text-[9px] text-gray-700 tracking-widest">
+                (REVIEW PLAN BEFORE EXECUTION)
+              </span>
+            </div>
+          )}
+
           {/* Advanced Options Toggle */}
           <div className="mt-4">
             <button
@@ -164,16 +197,24 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             <button
               onClick={handleSubmit}
               disabled={disabled}
-              className="
+              className={`
                 flex-1 px-5 py-2.5 rounded font-bold transition-all
-                bg-green-600/20 hover:bg-green-600/30 border border-green-400
-                text-green-400 hover:box-glow uppercase text-sm tracking-wider
+                ${enablePlanning
+                  ? 'bg-orange-600/20 hover:bg-orange-600/30 border border-orange-400 text-orange-400'
+                  : 'bg-green-600/20 hover:bg-green-600/30 border border-green-400 text-green-400'}
+                hover:box-glow uppercase text-sm tracking-wider
                 flex items-center justify-center gap-2 group
                 disabled:opacity-50 disabled:cursor-not-allowed
-              "
+              `}
             >
-              <span className="group-hover:animate-pulse">▶</span>
-              <span>{mission.trim() ? 'Launch with Mission' : 'Launch Polish Only'}</span>
+              <span className="group-hover:animate-pulse">{enablePlanning ? '◆' : '▶'}</span>
+              <span>
+                {enablePlanning
+                  ? 'Start Planning'
+                  : mission.trim()
+                    ? 'Launch with Mission'
+                    : 'Launch Polish Only'}
+              </span>
             </button>
 
             <button
