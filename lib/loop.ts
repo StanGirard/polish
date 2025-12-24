@@ -425,6 +425,7 @@ export async function* runIsolatedPolish(config: PolishConfig): AsyncGenerator<P
     }
 
     let hasCommits = false
+    let hasAgentActivity = false
     for await (const event of runFullPolish(worktreeConfig)) {
       yield event
 
@@ -432,20 +433,25 @@ export async function* runIsolatedPolish(config: PolishConfig): AsyncGenerator<P
       if (event.type === 'commit') {
         hasCommits = true
       }
+      // Tracker si l'agent a fait des modifications (même non commitées)
+      if (event.type === 'agent' && event.data.tool === 'Edit') {
+        hasAgentActivity = true
+      }
     }
 
-    // Cleanup - garder la branche si des commits ont été faits
-    await cleanupWorktree(wt, hasCommits)
+    // Garder la branche si commits OU si l'agent a modifié des fichiers
+    const keepBranch = hasCommits || hasAgentActivity
+    await cleanupWorktree(wt, keepBranch)
 
     yield {
       type: 'worktree_cleanup',
       data: {
         branchName: wt.branchName,
-        kept: hasCommits
+        kept: keepBranch
       }
     }
 
-    if (hasCommits) {
+    if (keepBranch) {
       yield {
         type: 'status',
         data: {

@@ -6,6 +6,43 @@ function getGit(cwd: string): SimpleGit {
   return simpleGit(cwd)
 }
 
+/**
+ * Parse GitHub owner/repo from various URL formats
+ * Supports:
+ * - SSH: git@github.com:owner/repo.git
+ * - HTTPS: https://github.com/owner/repo
+ * - HTTPS with .git: https://github.com/owner/repo.git
+ */
+function parseGitHubRepo(url: string): { owner: string; repo: string } | null {
+  // SSH format: git@github.com:owner/repo.git
+  const sshMatch = url.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/)
+  if (sshMatch) {
+    return { owner: sshMatch[1], repo: sshMatch[2] }
+  }
+
+  // HTTPS format: https://github.com/owner/repo or https://github.com/owner/repo.git
+  const httpsMatch = url.match(/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/)
+  if (httpsMatch) {
+    return { owner: httpsMatch[1], repo: httpsMatch[2] }
+  }
+
+  return null
+}
+
+/**
+ * Convert any GitHub URL format to HTTPS URL with optional auth token
+ */
+function toAuthenticatedHttpsUrl(url: string, token?: string): string {
+  const parsed = parseGitHubRepo(url)
+  if (!parsed) return url
+
+  const { owner, repo } = parsed
+  if (token) {
+    return `https://${token}@github.com/${owner}/${repo}.git`
+  }
+  return `https://github.com/${owner}/${repo}.git`
+}
+
 // ============================================================================
 // Status & Info
 // ============================================================================
@@ -150,11 +187,10 @@ export async function clone(
   // Ensure target directory exists
   await mkdir(targetPath, { recursive: true })
 
-  // Insert token into URL if provided
-  let authUrl = repoUrl
-  if (token && repoUrl.startsWith('https://github.com/')) {
-    authUrl = repoUrl.replace('https://github.com/', `https://${token}@github.com/`)
-  }
+  // Convert to HTTPS URL with token if provided (handles both SSH and HTTPS)
+  const authUrl = token && repoUrl.includes('github.com')
+    ? toAuthenticatedHttpsUrl(repoUrl, token)
+    : repoUrl
 
   const git = simpleGit()
   await git.clone(authUrl, targetPath, ['--depth', '1'])
@@ -168,11 +204,8 @@ export async function push(projectPath: string, branch: string, token?: string):
   const origin = remotes.find((r) => r.name === 'origin')
 
   if (origin && token && origin.refs.push.includes('github.com')) {
-    // Update remote URL with token for authentication
-    const authUrl = origin.refs.push.replace(
-      'https://github.com/',
-      `https://${token}@github.com/`
-    )
+    // Convert to HTTPS URL with token for authentication (handles both SSH and HTTPS)
+    const authUrl = toAuthenticatedHttpsUrl(origin.refs.push, token)
     await git.remote(['set-url', 'origin', authUrl])
   }
 
@@ -186,13 +219,13 @@ export async function createPR(
   body: string,
   token: string
 ): Promise<string> {
-  // Parse repo from URL: https://github.com/owner/repo
-  const match = repo.match(/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/)
-  if (!match) {
+  // Parse repo from URL (supports both SSH and HTTPS formats)
+  const parsed = parseGitHubRepo(repo)
+  if (!parsed) {
     throw new Error(`Invalid GitHub repo URL: ${repo}`)
   }
 
-  const [, owner, repoName] = match
+  const { owner, repo: repoName } = parsed
 
   const response = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pulls`, {
     method: 'POST',
