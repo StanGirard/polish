@@ -99,6 +99,7 @@ export type PolishEvent =
   | { type: 'status'; data: StatusEventData }
   | { type: 'worktree_created'; data: WorktreeCreatedEventData }
   | { type: 'worktree_cleanup'; data: WorktreeCleanupEventData }
+  | { type: 'session_summary'; data: SessionSummaryEventData }
 
 export interface PhaseEventData {
   phase: 'implement' | 'polish'
@@ -188,4 +189,11 @@ export interface WorktreeCreatedEventData {
 export interface WorktreeCleanupEventData {
   branchName: string
   kept: boolean
+}
+
+export interface SessionSummaryEventData {
+  overview: string
+  achievements: string[]
+  metrics: string
+  explanation: string
 }
