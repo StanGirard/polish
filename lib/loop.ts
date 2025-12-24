@@ -1,6 +1,7 @@
 import { runSingleFix, type SingleFixContext } from './agent'
 import { commitWithMessage, getStatus, rollback, getLastCommitHash } from './git'
 import { runImplementPhase } from './implement'
+import { runReviewPhase, type ReviewContext, DEFAULT_REVIEW_CONFIG } from './review'
 import { loadPreset, runAllMetrics, calculateScore, getWorstMetric, getStrategyForMetric } from './scorer'
 import { exec } from './executor'
 import { createWorktree, createWorktreeFromBranch, cleanupWorktree, checkPreflight, branchExists, type WorktreeConfig } from './worktree'
@@ -11,7 +12,9 @@ import type {
   FailedAttempt,
   PolishConfig,
   PolishEvent,
-  ResolvedQueryOptions
+  ResolvedQueryOptions,
+  ReviewPhaseResult,
+  ReviewConfig,
 } from './types'
 
 // ============================================================================
@@ -23,6 +26,9 @@ const DEFAULT_MAX_ITERATIONS = 100
 const DEFAULT_MAX_STALLED = 5
 const DEFAULT_TARGET_SCORE = 100
 const MIN_IMPROVEMENT = 0.5 // Minimum score improvement to count as success
+
+// Review phase defaults
+const DEFAULT_MAX_REVIEW_ITERATIONS = 3
 
 // ============================================================================
 // Helper: Generate Session Summary
@@ -36,6 +42,7 @@ interface SummaryParams {
   duration: number
   iterations: number
   stoppedReason?: string
+  reviewIterations?: number
 }
 
 async function* generateAndYieldSummary(params: SummaryParams): AsyncGenerator<PolishEvent> {
@@ -46,7 +53,7 @@ async function* generateAndYieldSummary(params: SummaryParams): AsyncGenerator<P
   // - max_score reached: always success (we achieved the target)
   // - score improved: success
   // - no regression: also considered success if we started at target
-  const isSuccess = stoppedReason === 'max_score' || finalScore >= initialScore
+  const isSuccess = stoppedReason === 'max_score' || stoppedReason === 'review_approved' || finalScore >= initialScore
 
   yield {
     type: 'result',
@@ -91,13 +98,20 @@ async function* generateAndYieldSummary(params: SummaryParams): AsyncGenerator<P
 }
 
 // ============================================================================
-// Main Polish Loop
+// Phase 2: Testing Loop (formerly Polish Loop)
 // ============================================================================
 
-export async function* runPolishLoop(
+export interface TestingLoopResult {
+  finalScore: number
+  totalCommits: number
+  iterations: number
+  stoppedReason?: 'max_score' | 'timeout' | 'plateau' | 'max_iterations'
+}
+
+export async function* runTestingLoop(
   config: PolishConfig,
   queryOptions?: ResolvedQueryOptions
-): AsyncGenerator<PolishEvent> {
+): AsyncGenerator<PolishEvent, TestingLoopResult> {
   const {
     projectPath,
     maxDuration = DEFAULT_MAX_DURATION,
@@ -124,7 +138,7 @@ export async function* runPolishLoop(
       type: 'error',
       data: { message: 'No metrics configured in preset' }
     }
-    return
+    return { finalScore: 0, totalCommits: 0, iterations: 0 }
   }
 
   // Calculate initial score
@@ -152,6 +166,7 @@ export async function* runPolishLoop(
 
   let currentScore = initialScore
   let currentMetrics = initialMetrics
+  let stoppedReason: 'max_score' | 'timeout' | 'plateau' | 'max_iterations' | undefined
 
   // Main loop
   while (true) {
@@ -169,16 +184,8 @@ export async function* runPolishLoop(
           message: `Stopping: timeout after ${durationMin} minutes`
         }
       }
-      yield* generateAndYieldSummary({
-        mission: config.mission,
-        initialScore,
-        finalScore: currentScore,
-        commits,
-        duration: elapsed,
-        iterations: iteration - 1,
-        stoppedReason: 'timeout'
-      })
-      return
+      stoppedReason = 'timeout'
+      break
     }
 
     if (currentScore >= actualTargetScore) {
@@ -186,19 +193,11 @@ export async function* runPolishLoop(
         type: 'status',
         data: {
           phase: 'complete',
-          message: `Score ${currentScore.toFixed(1)} already meets target (${actualTargetScore}). Nothing to polish!`
+          message: `Score ${currentScore.toFixed(1)} meets target (${actualTargetScore}).`
         }
       }
-      yield* generateAndYieldSummary({
-        mission: config.mission,
-        initialScore,
-        finalScore: currentScore,
-        commits,
-        duration: elapsed,
-        iterations: iteration - 1,
-        stoppedReason: 'max_score'
-      })
-      return
+      stoppedReason = 'max_score'
+      break
     }
 
     if (stalledCount >= actualMaxStalled) {
@@ -209,16 +208,8 @@ export async function* runPolishLoop(
           message: `Stopping: ${actualMaxStalled} consecutive attempts without improvement`
         }
       }
-      yield* generateAndYieldSummary({
-        mission: config.mission,
-        initialScore,
-        finalScore: currentScore,
-        commits,
-        duration: elapsed,
-        iterations: iteration - 1,
-        stoppedReason: 'plateau'
-      })
-      return
+      stoppedReason = 'plateau'
+      break
     }
 
     if (iteration > maxIterations) {
@@ -229,31 +220,15 @@ export async function* runPolishLoop(
           message: `Stopping: reached maximum iterations (${maxIterations})`
         }
       }
-      yield* generateAndYieldSummary({
-        mission: config.mission,
-        initialScore,
-        finalScore: currentScore,
-        commits,
-        duration: elapsed,
-        iterations: iteration - 1,
-        stoppedReason: 'max_iterations'
-      })
-      return
+      stoppedReason = 'max_iterations'
+      break
     }
 
     // Find worst metric and corresponding strategy
     const worstMetric = getWorstMetric(currentMetrics)
     if (!worstMetric) {
-      yield* generateAndYieldSummary({
-        mission: config.mission,
-        initialScore,
-        finalScore: currentScore,
-        commits,
-        duration: elapsed,
-        iterations: iteration - 1,
-        stoppedReason: 'max_score'
-      })
-      return
+      stoppedReason = 'max_score'
+      break
     }
 
     const strategy = getStrategyForMetric(worstMetric.name, preset.strategies || [])
@@ -416,67 +391,355 @@ export async function* runPolishLoop(
       }
     }
   }
+
+  // Emit testing_done event
+  yield {
+    type: 'testing_done',
+    data: {
+      finalScore: currentScore,
+      totalCommits: commits.length,
+      iterations: iteration - 1,
+      stoppedReason
+    }
+  }
+
+  return {
+    finalScore: currentScore,
+    totalCommits: commits.length,
+    iterations: iteration - 1,
+    stoppedReason
+  }
 }
 
+// Keep old name for backward compatibility
+export const runPolishLoop = runTestingLoop
+
 // ============================================================================
-// Full Polish: Phase 1 (Implement) + Phase 2 (Polish)
+// Full Polish: Phase 1 (Implement) + Phase 2 (Testing) + Phase 3 (Review)
 // ============================================================================
 
+interface FullPolishState {
+  commits: CommitInfo[]
+  initialScore: number
+  finalScore: number
+  iterations: number
+  reviewIterations: number
+}
+
 export async function* runFullPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
-  const { projectPath, mission, retry, capabilityOverrides = [] } = config
+  const {
+    projectPath,
+    mission,
+    retry,
+    capabilityOverrides = [],
+    review: reviewConfig = {}
+  } = config
 
   // Load preset for capabilities resolution
   const preset = await loadPreset(projectPath)
 
-  // Phase 1: Implement (if mission provided)
-  if (mission) {
-    const isRetry = retry && retry.retryCount > 0
+  // Merge review config with defaults
+  const effectiveReviewConfig: ReviewConfig = {
+    ...DEFAULT_REVIEW_CONFIG,
+    ...reviewConfig
+  }
+
+  const maxReviewIterations = effectiveReviewConfig.maxIterations || DEFAULT_MAX_REVIEW_ITERATIONS
+  let reviewIteration = 0
+  let currentPhase: 'implement' | 'testing' = retry?.fromPhase || 'implement'
+
+  // Track state across iterations
+  const state: FullPolishState = {
+    commits: [],
+    initialScore: 0,
+    finalScore: 0,
+    iterations: 0,
+    reviewIterations: 0
+  }
+
+  // Main loop: can iterate between phases based on review feedback
+  while (reviewIteration < maxReviewIterations) {
+    reviewIteration++
+    state.reviewIterations = reviewIteration
+
+    // ========================================================================
+    // Phase 1: Implement (if mission provided and we're starting from implement)
+    // ========================================================================
+    if (mission && currentPhase === 'implement') {
+      const isRetry = (retry && retry.retryCount > 0) || reviewIteration > 1
+      yield {
+        type: 'phase',
+        data: { phase: 'implement', mission }
+      }
+
+      yield {
+        type: 'status',
+        data: {
+          phase: 'implement',
+          message: isRetry
+            ? `Starting Phase 1: Implementation (Iteration #${reviewIteration})...`
+            : 'Starting Phase 1: Implementation...'
+        }
+      }
+
+      // Resolve capabilities for implement phase
+      const implementOptions = resolveCapabilitiesForPhase(preset, 'implement', capabilityOverrides)
+
+      for await (const event of runImplementPhase({
+        mission,
+        projectPath,
+        feedback: retry?.feedback,
+        retryCount: retry?.retryCount,
+        queryOptions: implementOptions
+      })) {
+        yield event
+
+        // If implementation failed, stop
+        if (event.type === 'error') {
+          return
+        }
+      }
+
+      yield {
+        type: 'implement_done',
+        data: {
+          commitHash: await getLastCommitHash(projectPath),
+          message: 'Implementation complete',
+          filesCreated: [],
+          filesModified: []
+        }
+      }
+    }
+
+    // ========================================================================
+    // Phase 2: Testing (formerly Polish)
+    // ========================================================================
+    yield {
+      type: 'phase',
+      data: { phase: 'testing', mission }
+    }
+
     yield {
       type: 'status',
       data: {
-        phase: 'implement',
-        message: isRetry
-          ? `Starting Phase 1: Implementation (Retry #${retry.retryCount + 1})...`
-          : 'Starting Phase 1: Implementation...'
+        phase: 'testing',
+        message: currentPhase === 'testing' && reviewIteration > 1
+          ? `Starting Phase 2: Testing (Iteration #${reviewIteration})...`
+          : 'Starting Phase 2: Testing...'
       }
     }
 
-    // Resolve capabilities for implement phase
-    const implementOptions = resolveCapabilitiesForPhase(preset, 'implement', capabilityOverrides)
+    // Resolve capabilities for testing phase (use 'testing' or fallback to 'polish')
+    const testingOptions = resolveCapabilitiesForPhase(preset, 'testing', capabilityOverrides)
 
-    for await (const event of runImplementPhase({
-      mission,
-      projectPath,
-      feedback: retry?.feedback,
-      retryCount: retry?.retryCount,
-      queryOptions: implementOptions
-    })) {
-      yield event
+    let testingResult: TestingLoopResult = { finalScore: 0, totalCommits: 0, iterations: 0 }
+    const testingGen = runTestingLoop(config, testingOptions)
 
-      // If implementation failed, stop
-      if (event.type === 'error') {
-        return
+    // Iterate through the generator, yielding events and capturing the final return value
+    let testingIterResult = await testingGen.next()
+    while (!testingIterResult.done) {
+      const event = testingIterResult.value
+
+      // Capture score events
+      if (event.type === 'init') {
+        state.initialScore = event.data.initialScore
       }
+      if (event.type === 'score') {
+        state.finalScore = event.data.score
+      }
+      if (event.type === 'commit') {
+        state.commits.push({
+          hash: event.data.hash,
+          message: event.data.message,
+          scoreDelta: event.data.scoreDelta,
+          timestamp: new Date()
+        })
+      }
+
+      yield event
+      testingIterResult = await testingGen.next()
+    }
+
+    // The final value is the return value of the generator
+    if (testingIterResult.value) {
+      testingResult = testingIterResult.value
+      state.finalScore = testingResult.finalScore
+      state.iterations += testingResult.iterations
+    }
+
+    // ========================================================================
+    // Phase 3: Review (Strict Code Review)
+    // ========================================================================
+    if (!mission) {
+      // No mission = no review needed, just testing
+      yield* generateAndYieldSummary({
+        mission,
+        initialScore: state.initialScore,
+        finalScore: state.finalScore,
+        commits: state.commits,
+        duration: Date.now(),
+        iterations: state.iterations,
+        stoppedReason: testingResult.stoppedReason,
+        reviewIterations: state.reviewIterations
+      })
+      return
+    }
+
+    yield {
+      type: 'phase',
+      data: { phase: 'review', mission }
     }
 
     yield {
       type: 'status',
-      data: { phase: 'implement', message: 'Phase 1 complete. Starting Phase 2: Polish...' }
+      data: {
+        phase: 'review',
+        message: `Starting Phase 3: Code Review (Iteration #${reviewIteration})...`
+      }
+    }
+
+    // Resolve capabilities for review phase
+    const reviewOptions = resolveCapabilitiesForPhase(preset, 'review', capabilityOverrides)
+
+    const reviewContext: ReviewContext = {
+      projectPath,
+      mission,
+      config: effectiveReviewConfig,
+      iteration: reviewIteration
+    }
+
+    let reviewResult: ReviewPhaseResult | null = null
+    const reviewGen = runReviewPhase({ context: reviewContext, queryOptions: reviewOptions })
+
+    // Iterate through the generator, yielding events and capturing the final return value
+    let reviewIterResult = await reviewGen.next()
+    while (!reviewIterResult.done) {
+      yield reviewIterResult.value
+      reviewIterResult = await reviewGen.next()
+    }
+
+    // The final value is the return value of the generator
+    if (reviewIterResult.value) {
+      reviewResult = reviewIterResult.value
+    }
+
+    // ========================================================================
+    // Handle Review Verdict
+    // ========================================================================
+    if (!reviewResult) {
+      yield {
+        type: 'error',
+        data: { message: 'Review phase failed to produce a result' }
+      }
+      return
+    }
+
+    // Check verdict
+    if (reviewResult.finalVerdict === 'approved') {
+      yield {
+        type: 'status',
+        data: {
+          phase: 'complete',
+          message: `All reviewers approved! Mission completed successfully after ${reviewIteration} review iteration(s).`
+        }
+      }
+      yield* generateAndYieldSummary({
+        mission,
+        initialScore: state.initialScore,
+        finalScore: state.finalScore,
+        commits: state.commits,
+        duration: Date.now(),
+        iterations: state.iterations,
+        stoppedReason: 'review_approved',
+        reviewIterations: state.reviewIterations
+      })
+      return
+    }
+
+    if (reviewResult.finalVerdict === 'rejected') {
+      yield {
+        type: 'status',
+        data: {
+          phase: 'complete',
+          message: 'Mission rejected by reviewers. The implementation has fundamental issues.'
+        }
+      }
+      yield {
+        type: 'error',
+        data: {
+          message: `Review rejected: ${reviewResult.mustFixItems.join(', ')}`
+        }
+      }
+      return
+    }
+
+    // Handle needs_implementation or needs_testing
+    if (reviewResult.returnToPhase && effectiveReviewConfig.autoRetry !== false) {
+      currentPhase = reviewResult.returnToPhase
+
+      yield {
+        type: 'review_iteration',
+        data: {
+          iteration: reviewIteration,
+          totalIterations: maxReviewIterations,
+          returnToPhase: reviewResult.returnToPhase,
+          feedback: reviewResult.feedbackForNextPhase || ''
+        }
+      }
+
+      yield {
+        type: 'status',
+        data: {
+          phase: 'review',
+          message: `Reviewers request changes. Returning to ${currentPhase} phase (${reviewIteration}/${maxReviewIterations})...`
+        }
+      }
+
+      // Update config with review feedback for next iteration
+      if (reviewResult.feedbackForNextPhase) {
+        config.retry = {
+          feedback: reviewResult.feedbackForNextPhase,
+          retryCount: reviewIteration,
+          fromPhase: currentPhase
+        }
+      }
+
+      // Continue loop to retry
+      continue
+    }
+
+    // Auto-retry disabled or no return phase specified
+    yield {
+      type: 'status',
+      data: {
+        phase: 'complete',
+        message: `Review completed with verdict: ${reviewResult.finalVerdict}. Auto-retry disabled.`
+      }
+    }
+    break
+  }
+
+  // Max review iterations reached
+  if (reviewIteration >= maxReviewIterations) {
+    yield {
+      type: 'status',
+      data: {
+        phase: 'complete',
+        message: `Maximum review iterations (${maxReviewIterations}) reached. Please review manually.`
+      }
     }
   }
 
-  // Phase 2: Polish
-  yield {
-    type: 'phase',
-    data: { phase: 'polish' }
-  }
-
-  // Resolve capabilities for polish phase
-  const polishOptions = resolveCapabilitiesForPhase(preset, 'polish', capabilityOverrides)
-
-  for await (const event of runPolishLoop(config, polishOptions)) {
-    yield event
-  }
+  yield* generateAndYieldSummary({
+    mission,
+    initialScore: state.initialScore,
+    finalScore: state.finalScore,
+    commits: state.commits,
+    duration: Date.now(),
+    iterations: state.iterations,
+    stoppedReason: 'max_review_iterations',
+    reviewIterations: state.reviewIterations
+  })
 }
 
 // ============================================================================

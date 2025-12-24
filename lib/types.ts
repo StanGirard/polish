@@ -28,7 +28,74 @@ export interface PresetThresholds {
 // Capabilities Configuration (for SDK integration)
 // ============================================================================
 
-export type ExecutionPhase = 'implement' | 'polish' | 'planning' | 'both'
+export type ExecutionPhase = 'implement' | 'testing' | 'review' | 'planning' | 'both'
+
+// ============================================================================
+// Review Phase Types
+// ============================================================================
+
+/** Types of reviewer agents available */
+export type ReviewerType =
+  | 'code_reviewer'      // Clean code, patterns, DRY, readability
+  | 'senior_engineer'    // Architecture, scalability, maintainability
+  | 'security_auditor'   // OWASP, vulnerabilities, secrets
+  | 'mission_validator'  // Does the implementation fulfill the mission?
+
+/** Verdict from a single reviewer */
+export type ReviewVerdict =
+  | 'approved'              // Good to go
+  | 'needs_implementation'  // Return to Phase 1 - significant changes needed
+  | 'needs_testing'         // Return to Phase 2 - improve tests/coverage
+  | 'rejected'              // Mission impossible or fundamentally flawed
+
+/** Severity of an issue found during review */
+export type IssueSeverity = 'critical' | 'major' | 'minor' | 'suggestion'
+
+/** An issue found during code review */
+export interface ReviewIssue {
+  id: string
+  severity: IssueSeverity
+  category: string           // e.g., 'security', 'architecture', 'code-quality'
+  file?: string
+  line?: number
+  description: string
+  suggestion?: string        // How to fix it
+  reviewer: ReviewerType
+}
+
+/** Result from a single reviewer agent */
+export interface ReviewerResult {
+  reviewer: ReviewerType
+  verdict: ReviewVerdict
+  confidence: number         // 0-100, how confident the reviewer is
+  issues: ReviewIssue[]
+  summary: string
+  mustFix: string[]          // Critical items that MUST be fixed
+  suggestions: string[]      // Nice-to-have improvements
+  timestamp: Date
+}
+
+/** Aggregated result from all reviewers */
+export interface ReviewPhaseResult {
+  finalVerdict: ReviewVerdict
+  reviewers: ReviewerResult[]
+  totalIssues: number
+  criticalIssues: number
+  mustFixItems: string[]
+  iterationNumber: number
+  returnToPhase?: 'implement' | 'testing'  // If not approved, which phase to return to
+  feedbackForNextPhase?: string            // Detailed feedback for the retry
+}
+
+/** Configuration for the review phase */
+export interface ReviewConfig {
+  maxIterations?: number      // Max review cycles (default: 3)
+  maxDuration?: number        // Max review time in ms (default: 30 min)
+  reviewers?: ReviewerType[]  // Which reviewers to use (default: all)
+  approvalThreshold?: 'all' | 'majority' | 'any'  // How many must approve (default: 'all')
+  strictMode?: boolean        // Extra strict review (default: true)
+  autoRetry?: boolean         // Auto-retry on needs_implementation/needs_testing (default: true)
+}
 
 /** MCP Server configuration (matches SDK McpServerConfig) */
 export type McpServerConfig =
@@ -113,8 +180,10 @@ export interface PhaseCapabilities {
 /** Capabilities configuration in a preset */
 export interface PresetCapabilities {
   implement?: PhaseCapabilities    // Phase 1: Implementation
-  polish?: PhaseCapabilities       // Phase 2: Polish loop
-  shared?: PhaseCapabilities       // Applied to both phases
+  testing?: PhaseCapabilities      // Phase 2: Testing (metrics & fixes)
+  review?: PhaseCapabilities       // Phase 3: Code Review
+  polish?: PhaseCapabilities       // @deprecated - use 'testing' instead
+  shared?: PhaseCapabilities       // Applied to all phases
 }
 
 /** Session-level capability override */
@@ -204,6 +273,7 @@ export interface PolishConfig {
   retry?: {
     feedback: string // User feedback explaining what to fix/improve
     retryCount: number // Number of times this session has been retried
+    fromPhase?: 'implement' | 'testing' // Which phase to restart from
   }
   capabilityOverrides?: CapabilityOverride[] // Session-level capability overrides
   // Planning phase options
@@ -211,6 +281,8 @@ export interface PolishConfig {
   planningThoroughness?: PlanningThoroughness // Level of exploration depth (default: 'medium')
   planningMode?: PlanningMode // How to use sub-agents (default: 'agent-driven')
   notifications?: NotificationConfig // Browser notification settings
+  // Review phase options
+  review?: ReviewConfig // Review phase configuration
 }
 
 // ============================================================================
@@ -221,6 +293,7 @@ export type PolishEvent =
   | { type: 'init'; data: InitEventData }
   | { type: 'phase'; data: PhaseEventData }
   | { type: 'implement_done'; data: ImplementDoneEventData }
+  | { type: 'testing_done'; data: TestingDoneEventData }
   | { type: 'score'; data: ScoreEventData }
   | { type: 'strategy'; data: StrategyEventData }
   | { type: 'agent'; data: AgentEventData }
@@ -242,10 +315,23 @@ export type PolishEvent =
   // Planning streaming events (real-time text and thinking)
   | { type: 'plan_stream'; data: PlanStreamEventData }
   | { type: 'plan_thinking'; data: PlanThinkingEventData }
+  // Review phase events
+  | { type: 'review_start'; data: ReviewStartEventData }
+  | { type: 'reviewer_start'; data: ReviewerStartEventData }
+  | { type: 'reviewer_result'; data: ReviewerResultEventData }
+  | { type: 'review_verdict'; data: ReviewVerdictEventData }
+  | { type: 'review_iteration'; data: ReviewIterationEventData }
 
 export interface PhaseEventData {
-  phase: 'implement' | 'polish' | 'planning'
+  phase: 'implement' | 'testing' | 'review' | 'planning'
   mission?: string
+}
+
+export interface TestingDoneEventData {
+  finalScore: number
+  totalCommits: number
+  iterations: number
+  stoppedReason?: 'max_score' | 'timeout' | 'plateau' | 'max_iterations'
 }
 
 export interface ImplementDoneEventData {
@@ -413,6 +499,48 @@ export interface PlanThinkingEventData {
   chunk: string           // Thinking text chunk
   isThinking: boolean     // Always true (for type discrimination)
   subAgentType?: string   // If from a sub-agent, which type
+}
+
+// ============================================================================
+// Review Phase Event Types
+// ============================================================================
+
+/** Review phase started */
+export interface ReviewStartEventData {
+  iteration: number
+  reviewers: ReviewerType[]
+  config: ReviewConfig
+}
+
+/** Individual reviewer started their review */
+export interface ReviewerStartEventData {
+  reviewer: ReviewerType
+  iteration: number
+}
+
+/** Individual reviewer completed their review */
+export interface ReviewerResultEventData {
+  result: ReviewerResult
+  iteration: number
+}
+
+/** Final verdict from review phase */
+export interface ReviewVerdictEventData {
+  verdict: ReviewVerdict
+  totalIssues: number
+  criticalIssues: number
+  mustFixItems: string[]
+  returnToPhase?: 'implement' | 'testing'
+  feedbackSummary: string
+  iteration: number
+}
+
+/** Review iteration completed (when returning to previous phase) */
+export interface ReviewIterationEventData {
+  iteration: number
+  totalIterations: number
+  returnToPhase: 'implement' | 'testing'
+  feedback: string
 }
 
 // ============================================================================

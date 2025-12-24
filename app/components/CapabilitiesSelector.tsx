@@ -17,9 +17,10 @@ interface CapabilitiesSelectorProps {
 }
 
 const PHASE_OPTIONS: { value: ExecutionPhase[]; label: string }[] = [
-  { value: ['both'], label: 'Both' },
+  { value: ['both'], label: 'All Phases' },
   { value: ['implement'], label: 'Implement' },
-  { value: ['polish'], label: 'Polish' }
+  { value: ['testing'], label: 'Testing' },
+  { value: ['review'], label: 'Review' }
 ]
 
 export function CapabilitiesSelector({

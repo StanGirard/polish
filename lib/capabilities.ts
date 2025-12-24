@@ -19,8 +19,12 @@ import { resolvePluginsToSdkFormat } from './plugin-loader'
 
 // Default tools for each phase (matches current hardcoded behavior)
 const DEFAULT_IMPLEMENT_TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task']
-const DEFAULT_POLISH_TOOLS = ['Read', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task']
+const DEFAULT_TESTING_TOOLS = ['Read', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task']
+const DEFAULT_REVIEW_TOOLS = ['Read', 'Glob', 'Grep', 'Bash'] // Read-only for reviewers
 const DEFAULT_PLANNING_TOOLS = ['Read', 'Glob', 'Grep', 'Bash', 'Task'] // Read-only + exploration
+
+// @deprecated - use DEFAULT_TESTING_TOOLS instead
+const DEFAULT_POLISH_TOOLS = DEFAULT_TESTING_TOOLS
 
 /**
  * Merge two PhaseCapabilities objects
@@ -122,10 +126,54 @@ function applyOverrides(
 }
 
 /**
+ * Get phase-specific capabilities config from preset
+ */
+function getPhaseConfig(caps: Preset['capabilities'], phase: ExecutionPhase): PhaseCapabilities | undefined {
+  if (!caps) return undefined
+
+  switch (phase) {
+    case 'implement':
+      return caps.implement
+    case 'testing':
+      // Use 'testing' config if available, fallback to 'polish' for backward compatibility
+      return caps.testing || caps.polish
+    case 'review':
+      return caps.review
+    case 'planning':
+      return (caps as { planning?: PhaseCapabilities })?.planning
+    case 'both':
+      // 'both' is a special case, return shared
+      return caps.shared
+    default:
+      return caps.polish
+  }
+}
+
+/**
+ * Get default tools for a specific phase
+ */
+function getDefaultToolsForPhase(phase: ExecutionPhase): string[] {
+  switch (phase) {
+    case 'implement':
+      return DEFAULT_IMPLEMENT_TOOLS
+    case 'testing':
+      return DEFAULT_TESTING_TOOLS
+    case 'review':
+      return DEFAULT_REVIEW_TOOLS
+    case 'planning':
+      return DEFAULT_PLANNING_TOOLS
+    case 'both':
+      return DEFAULT_IMPLEMENT_TOOLS
+    default:
+      return DEFAULT_TESTING_TOOLS
+  }
+}
+
+/**
  * Resolve capabilities for a specific execution phase
  *
  * @param preset - The loaded preset configuration
- * @param phase - Current execution phase ('implement' or 'polish')
+ * @param phase - Current execution phase ('implement', 'testing', 'review', or 'planning')
  * @param overrides - Session-level capability overrides
  * @returns Resolved options ready for SDK query() call
  */
@@ -137,22 +185,14 @@ export function resolveCapabilitiesForPhase(
   const caps = preset.capabilities
 
   // Get phase-specific config
-  const phaseConfig = phase === 'implement'
-    ? caps?.implement
-    : phase === 'planning'
-      ? (caps as { planning?: PhaseCapabilities })?.planning
-      : caps?.polish
+  const phaseConfig = getPhaseConfig(caps, phase)
 
   // Merge shared + phase-specific
   let merged = mergePhaseCapabilities(caps?.shared, phaseConfig)
 
   // Apply default tools if not specified
   if (!merged.tools) {
-    merged.tools = phase === 'implement'
-      ? DEFAULT_IMPLEMENT_TOOLS
-      : phase === 'planning'
-        ? DEFAULT_PLANNING_TOOLS
-        : DEFAULT_POLISH_TOOLS
+    merged.tools = getDefaultToolsForPhase(phase)
   }
 
   // Apply session overrides
@@ -218,20 +258,23 @@ export function getAvailableCapabilities(preset: Preset): {
   const caps = preset.capabilities
   const shared = caps?.shared || {}
   const implement = caps?.implement || {}
-  const polish = caps?.polish || {}
+  const testing = caps?.testing || caps?.polish || {}
+  const review = caps?.review || {}
 
   // Collect all unique tools
   const tools = new Set<string>([
     ...(shared.tools || DEFAULT_IMPLEMENT_TOOLS),
     ...(implement.tools || []),
-    ...(polish.tools || [])
+    ...(testing.tools || []),
+    ...(review.tools || DEFAULT_REVIEW_TOOLS)
   ])
 
   // Collect all MCP servers
   const mcpServers = new Set<string>([
     ...Object.keys(shared.mcpServers || {}),
     ...Object.keys(implement.mcpServers || {}),
-    ...Object.keys(polish.mcpServers || {})
+    ...Object.keys(testing.mcpServers || {}),
+    ...Object.keys(review.mcpServers || {})
   ])
 
   // Collect all plugins
@@ -239,7 +282,8 @@ export function getAvailableCapabilities(preset: Preset): {
   const allPlugins = [
     ...(shared.plugins || []),
     ...(implement.plugins || []),
-    ...(polish.plugins || [])
+    ...(testing.plugins || []),
+    ...(review.plugins || [])
   ]
   const seenPlugins = new Set<string>()
 
@@ -258,7 +302,8 @@ export function getAvailableCapabilities(preset: Preset): {
   const agents = new Set<string>([
     ...Object.keys(shared.agents || {}),
     ...Object.keys(implement.agents || {}),
-    ...Object.keys(polish.agents || {})
+    ...Object.keys(testing.agents || {}),
+    ...Object.keys(review.agents || {})
   ])
 
   return {
