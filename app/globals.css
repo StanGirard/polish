@@ -195,6 +195,7 @@
       rgba(0, 255, 0, 0.1) 50%,
       transparent 100%);
     animation: stream 3s linear infinite;
+    pointer-events: none;
   }
 
   @keyframes stream {
