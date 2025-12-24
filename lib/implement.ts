@@ -6,6 +6,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { commitWithMessage, getStatus } from './git'
 import type { AgentEventData, PolishEvent, ResolvedQueryOptions } from './types'
+import { createToolLogger } from './tool-logger'
 
 // ============================================================================
 // Implementation Phase (Phase 1)
@@ -106,10 +107,17 @@ export async function* runImplementPhase(
   const filesModified: string[] = []
   const hookEvents: PolishEvent[] = []
 
+  // Initialize tool logger
+  const logLevel = process.env.TOOL_LOG_LEVEL as 'minimal' | 'normal' | 'verbose' | 'debug' || 'normal'
+  const { tracker: toolTracker, hook: toolLoggerHook } = createToolLogger(logLevel)
+
   const toolHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PreToolUse' && input.hook_event_name !== 'PostToolUse') {
       return {}
     }
+
+    // Log tool call with enhanced logger
+    await toolLoggerHook(input)
 
     const toolInput = input as PreToolUseHookInput | PostToolUseHookInput
     const eventData: AgentEventData = {
@@ -287,6 +295,12 @@ export async function* runImplementPhase(
         phase: 'implement',
         message: `Committed: ${commitMessage}`
       }
+    }
+
+    // Log tool call statistics at the end
+    if (logLevel === 'verbose' || logLevel === 'debug') {
+      const summary = toolTracker.getSummary()
+      console.log(summary)
     }
 
   } catch (error) {

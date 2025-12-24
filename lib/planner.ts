@@ -26,6 +26,7 @@ import type {
   PlanningThoroughness,
   PlanningMode
 } from './types'
+import { createToolLogger } from './tool-logger'
 
 // Re-export types for convenience
 export type { PlanningThoroughness, PlanningMode }
@@ -358,10 +359,17 @@ export async function* runPlanningPhase(
   let fullResponse = ''
   let lastPlan: PlanningResult | null = null
 
+  // Initialize tool logger
+  const logLevel = process.env.TOOL_LOG_LEVEL as 'minimal' | 'normal' | 'verbose' | 'debug' || 'normal'
+  const { tracker: toolTracker, hook: toolLoggerHook } = createToolLogger(logLevel)
+
   const toolHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PreToolUse' && input.hook_event_name !== 'PostToolUse') {
       return {}
     }
+
+    // Log tool call with enhanced logger
+    await toolLoggerHook(input)
 
     const toolInput = input as PreToolUseHookInput | PostToolUseHookInput
 
@@ -533,6 +541,12 @@ export async function* runPlanningPhase(
           }
         }
       }
+    }
+
+    // Log tool call statistics at the end
+    if (logLevel === 'verbose' || logLevel === 'debug') {
+      const summary = toolTracker.getSummary()
+      console.log(summary)
     }
   } catch (error) {
     yield {
