@@ -1,7 +1,11 @@
-import { describe, it, expect, vi } from 'vitest'
-import { calculateScore, getWorstMetric, runMetric, getStrategyForMetric } from '../scorer'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { calculateScore, getWorstMetric, runMetric, getStrategyForMetric, runAllMetrics } from '../scorer'
 import type { MetricResult, Metric, Strategy } from '../types'
 import * as executor from '../executor'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('calculateScore', () => {
   it('should return 0 when no metrics', () => {
@@ -149,6 +153,33 @@ describe('runMetric', () => {
     const result = await runMetric(metric, '/test/dir')
     expect(result.rawValue).toBe(42.5)
     expect(result.normalizedScore).toBe(42.5)
+  })
+})
+
+describe('runAllMetrics', () => {
+  it('should run multiple metrics in parallel', async () => {
+    const execSpy = vi.spyOn(executor, 'exec')
+    execSpy.mockResolvedValueOnce({ stdout: '75', stderr: '', exitCode: 0 })
+    execSpy.mockResolvedValueOnce({ stdout: '5', stderr: '', exitCode: 0 })
+
+    const metrics: Metric[] = [
+      { name: 'testCoverage', command: 'echo 75', target: 100, weight: 50, higherIsBetter: true },
+      { name: 'lintErrors', command: 'echo 5', target: 0, weight: 50, higherIsBetter: false }
+    ]
+
+    const results = await runAllMetrics(metrics, '/test/dir')
+
+    expect(results).toHaveLength(2)
+    expect(results[0].name).toBe('testCoverage')
+    expect(results[0].rawValue).toBe(75)
+    expect(results[1].name).toBe('lintErrors')
+    expect(results[1].rawValue).toBe(5)
+    expect(execSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('should return empty array for empty metrics', async () => {
+    const results = await runAllMetrics([], '/test/dir')
+    expect(results).toEqual([])
   })
 })
 

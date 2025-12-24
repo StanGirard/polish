@@ -111,52 +111,90 @@ export async function* runSingleFix(
   }
 
   try {
-    const prompt = buildSingleFixPrompt(context)
     const systemPrompt = buildSystemPrompt(rules)
 
-    for await (const message of query({
-      prompt,
-      options: {
-        cwd: projectPath,
-        systemPrompt,
-        allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
-        permissionMode: 'acceptEdits',
-        maxTurns: 10, // Limité pour un seul fix
-        env: {
-          ...process.env,
-          ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api',
-          ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || process.env.OPENROUTER_API_KEY,
-          ANTHROPIC_API_KEY: ''
-        },
-        hooks: {
-          PreToolUse: [{ hooks: [toolHook] }],
-          PostToolUse: [{ hooks: [toolHook] }]
-        }
-      }
-    })) {
-      // Yield hook events
-      while (hookEvents.length > 0) {
-        yield hookEvents.shift()!
-      }
+    // Auto-continuation support (same as implement.ts)
+    const MAX_CONTINUATIONS = 5
+    let sessionId: string | undefined
+    let continuationCount = 0
+    let shouldContinue = true
 
-      // Process SDK messages
-      if (message.type === 'assistant' && message.message?.content) {
-        for (const block of message.message.content) {
-          if ('text' in block) {
-            yield {
-              type: 'agent',
-              data: { message: block.text }
+    while (shouldContinue && continuationCount <= MAX_CONTINUATIONS) {
+      const isResume = sessionId !== undefined
+      const prompt = isResume
+        ? 'Continue le fix en cours.'
+        : buildSingleFixPrompt(context)
+
+      for await (const message of query({
+        prompt,
+        options: {
+          cwd: projectPath,
+          systemPrompt,
+          allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
+          permissionMode: 'acceptEdits',
+          maxTurns: 30,
+          resume: sessionId,
+          env: {
+            ...process.env,
+            ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api',
+            ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || process.env.OPENROUTER_API_KEY,
+            ANTHROPIC_API_KEY: ''
+          },
+          hooks: {
+            PreToolUse: [{ hooks: [toolHook] }],
+            PostToolUse: [{ hooks: [toolHook] }]
+          }
+        }
+      })) {
+        // Yield hook events
+        while (hookEvents.length > 0) {
+          yield hookEvents.shift()!
+        }
+
+        // Process SDK messages
+        if (message.type === 'assistant' && message.message?.content) {
+          for (const block of message.message.content) {
+            if ('text' in block) {
+              yield {
+                type: 'agent',
+                data: { message: block.text }
+              }
             }
           }
-        }
-      } else if (message.type === 'result') {
-        yield {
-          type: 'agent',
-          data: {
-            message: message.subtype === 'success'
-              ? 'Fix applied successfully'
-              : `Agent stopped: ${message.subtype}`
+        } else if (message.type === 'result') {
+          if (message.subtype === 'error_max_turns') {
+            // Hit max turns - capture session and continue
+            sessionId = message.session_id
+            continuationCount++
+
+            yield {
+              type: 'agent',
+              data: {
+                message: `Continuing fix (${continuationCount}/${MAX_CONTINUATIONS})...`
+              }
+            }
+            break // Break inner loop, continue outer while loop
+          } else {
+            // Success or other completion - exit
+            yield {
+              type: 'agent',
+              data: {
+                message: message.subtype === 'success'
+                  ? 'Fix applied successfully'
+                  : `Agent stopped: ${message.subtype}`
+              }
+            }
+            shouldContinue = false
           }
+        }
+      }
+    }
+
+    if (continuationCount > MAX_CONTINUATIONS) {
+      yield {
+        type: 'agent',
+        data: {
+          message: 'Fix reached maximum continuations limit'
         }
       }
     }
