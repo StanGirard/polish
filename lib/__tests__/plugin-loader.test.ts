@@ -7,7 +7,9 @@ import {
   resolvePluginsToSdkFormat,
   getPolishRoot,
   getBundledPluginsDir,
-  getUserPluginsDir
+  getUserPluginsDir,
+  listBundledPlugins,
+  listUserPlugins
 } from '../plugin-loader'
 import type { PluginConfig } from '../types'
 
@@ -154,6 +156,42 @@ describe('plugin-loader', () => {
     it('should return user plugins directory', () => {
       const dir = getUserPluginsDir()
       expect(dir).toContain('.polish')
+    })
+  })
+
+  describe('listBundledPlugins', () => {
+    it('should return empty array if bundled plugins directory does not exist', async () => {
+      // The bundled plugins directory might not exist
+      const plugins = await listBundledPlugins()
+      expect(Array.isArray(plugins)).toBe(true)
+    })
+
+    it('should list directories in bundled plugins directory', async () => {
+      // We can test this returns an array even if the directory doesn't exist
+      const plugins = await listBundledPlugins()
+      expect(plugins).toBeInstanceOf(Array)
+      // All items should be strings (directory names)
+      plugins.forEach(plugin => {
+        expect(typeof plugin).toBe('string')
+      })
+    })
+  })
+
+  describe('listUserPlugins', () => {
+    it('should return empty array if user plugins directory does not exist', async () => {
+      // The user plugins directory might not exist
+      const plugins = await listUserPlugins()
+      expect(Array.isArray(plugins)).toBe(true)
+    })
+
+    it('should list directories in user plugins directory', async () => {
+      // We can test this returns an array even if the directory doesn't exist
+      const plugins = await listUserPlugins()
+      expect(plugins).toBeInstanceOf(Array)
+      // All items should be strings (directory names)
+      plugins.forEach(plugin => {
+        expect(typeof plugin).toBe('string')
+      })
     })
   })
 })

@@ -220,6 +220,22 @@ export default function Home() {
     }
   }
 
+  // Abort session (planning or running)
+  const handleAbortSession = async (sessionId: string) => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/abort`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (res.ok) {
+        await loadSessions()
+      }
+    } catch (error) {
+      console.error('Failed to abort session:', error)
+    }
+  }
+
   const selectedSession = sessions.find(s => s.id === selectedSessionId)
   const activeSessions = sessions.filter(s =>
     ['running', 'pending', 'planning', 'awaiting_approval'].includes(s.status)
@@ -395,6 +411,7 @@ export default function Home() {
           onApprovePlan={handleApprovePlan}
           onRejectPlan={handleRejectPlan}
           onSendPlanMessage={handleSendPlanMessage}
+          onAbortSession={handleAbortSession}
         />
       )}
     </main>

@@ -233,6 +233,7 @@ export type PolishEvent =
   | { type: 'worktree_cleanup'; data: WorktreeCleanupEventData }
   | { type: 'session_summary'; data: SessionSummaryEventData }
   | { type: 'retry'; data: RetryEventData }
+  | { type: 'aborted'; data: AbortedEventData }
   // Planning phase events
   | { type: 'plan'; data: PlanEventData }
   | { type: 'plan_message'; data: PlanMessageEventData }
@@ -340,6 +341,11 @@ export interface RetryEventData {
   retryCount: number
   feedback: string
   originalMission?: string
+}
+
+export interface AbortedEventData {
+  reason?: string
+  abortedAt: string
 }
 
 // ============================================================================
