@@ -12,6 +12,19 @@ const SUB_AGENT_CONFIG: Record<string, { icon: string; color: string; borderColo
   'test-analysis': { icon: '🧪', color: 'text-yellow-400', borderColor: 'border-yellow-600/50', bgColor: 'bg-yellow-900/10' },
 }
 
+// Review agent configuration
+const REVIEW_AGENT_CONFIG: Record<string, { icon: string; name: string }> = {
+  'mission_reviewer': { icon: '🎯', name: 'Mission Reviewer' },
+  'senior_engineer': { icon: '🏗', name: 'Senior Engineer' },
+  'code_reviewer': { icon: '🔍', name: 'Code Reviewer' },
+}
+
+const VERDICT_CONFIG: Record<string, { icon: string; color: string }> = {
+  'approved': { icon: '✓', color: 'text-green-400' },
+  'needs_changes': { icon: '⚠', color: 'text-orange-400' },
+  'rejected': { icon: '✗', color: 'text-red-400' },
+}
+
 interface AgentEvent {
   type: string
   data: {
@@ -91,9 +104,17 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
 
   const stats = calculateStats()
 
-  // Filter to only show agent-related events and result
+  // Filter to only show agent-related events, result, and review events
   const agentEvents = events
-    .filter(e => e.type === 'agent' || e.type === 'status' || e.type === 'result')
+    .filter(e =>
+      e.type === 'agent' ||
+      e.type === 'status' ||
+      e.type === 'result' ||
+      e.type === 'review_start' ||
+      e.type === 'review_result' ||
+      e.type === 'review_redirect' ||
+      e.type === 'review_complete'
+    )
     .slice(-maxDisplay)
 
   if (agentEvents.length === 0) {
@@ -137,6 +158,20 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
       if (config) return config.icon
     }
 
+    // Review event icons
+    if (event.type === 'review_start') {
+      const agentConfig = REVIEW_AGENT_CONFIG[event.data.agent as string]
+      return agentConfig?.icon || '◆'
+    }
+    if (event.type === 'review_result') {
+      const verdictConfig = VERDICT_CONFIG[event.data.verdict as string]
+      return verdictConfig?.icon || '●'
+    }
+    if (event.type === 'review_redirect') return '↩'
+    if (event.type === 'review_complete') {
+      return event.data.approved ? '✓' : '⚠'
+    }
+
     if (event.data.tool) {
       return event.data.phase === 'PreToolUse' ? '▸' : '✓'
     }
@@ -152,6 +187,17 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     if (isSubAgentEvent(event)) {
       const config = getSubAgentConfig(event.data.subAgentType)
       if (config) return config.color
+    }
+
+    // Review event colors
+    if (event.type === 'review_start') return 'text-fuchsia-400'
+    if (event.type === 'review_result') {
+      const verdictConfig = VERDICT_CONFIG[event.data.verdict as string]
+      return verdictConfig?.color || 'text-fuchsia-400'
+    }
+    if (event.type === 'review_redirect') return 'text-orange-400'
+    if (event.type === 'review_complete') {
+      return event.data.approved ? 'text-green-400' : 'text-orange-400'
     }
 
     if (event.data.tool) {
@@ -172,6 +218,25 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
       if (config) {
         return `${config.borderColor} ${config.bgColor}`
       }
+    }
+
+    // Review event borders
+    if (event.type === 'review_start') {
+      return 'border-fuchsia-600/50 bg-fuchsia-900/10'
+    }
+    if (event.type === 'review_result') {
+      const verdict = event.data.verdict as string
+      if (verdict === 'approved') return 'border-green-500/50 bg-green-900/10'
+      if (verdict === 'rejected') return 'border-red-500/50 bg-red-900/10'
+      return 'border-orange-500/50 bg-orange-900/10'
+    }
+    if (event.type === 'review_redirect') {
+      return 'border-orange-500/50 bg-orange-900/10'
+    }
+    if (event.type === 'review_complete') {
+      return event.data.approved
+        ? 'border-green-400/70 bg-green-900/10'
+        : 'border-orange-400/70 bg-orange-900/10'
     }
 
     if (event.type === 'result') {
@@ -267,6 +332,35 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
       const reason = formatStoppedReason(event.data.stoppedReason as string)
       const success = event.data.success ? 'SUCCESS' : 'STOPPED'
       return `${success}: ${reason} | Score: ${event.data.initialScore} → ${event.data.finalScore}`
+    }
+
+    // Review events formatting
+    if (event.type === 'review_start') {
+      const agentConfig = REVIEW_AGENT_CONFIG[event.data.agent as string]
+      const agentName = agentConfig?.name || String(event.data.agent)
+      return `REVIEW GATE → ${agentName} starting review...`
+    }
+
+    if (event.type === 'review_result') {
+      const agentConfig = REVIEW_AGENT_CONFIG[event.data.agent as string]
+      const agentName = agentConfig?.name || String(event.data.agent)
+      const verdict = event.data.verdict as string
+      const feedback = (event.data.feedback as string || '').slice(0, isExpanded ? 300 : 60)
+      const score = event.data.score !== undefined ? ` (${event.data.score}/100)` : ''
+      const feedbackStr = feedback ? ` - ${feedback}${(event.data.feedback as string)?.length > (isExpanded ? 300 : 60) ? '...' : ''}` : ''
+      return `${agentName} → ${verdict?.toUpperCase()}${score}${feedbackStr}`
+    }
+
+    if (event.type === 'review_redirect') {
+      const redirectTo = event.data.redirectTo as string
+      const phase = redirectTo === 'implement' ? 'Phase 1: Implement' : 'Phase 2: Testing'
+      return `CHANGES NEEDED → Redirecting to ${phase}`
+    }
+
+    if (event.type === 'review_complete') {
+      const approved = event.data.approved
+      const status = approved ? 'APPROVED' : 'NOT APPROVED'
+      return `REVIEW ${status} after ${event.data.iterations} iteration(s)`
     }
 
     if (event.data.message) {
