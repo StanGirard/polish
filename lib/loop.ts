@@ -40,10 +40,16 @@ async function* generateAndYieldSummary(params: SummaryParams): AsyncGenerator<P
   const { mission, initialScore, finalScore, commits, duration, iterations, stoppedReason } = params
 
   // Yield result event first
+  // Success is determined by:
+  // - max_score reached: always success (we achieved the target)
+  // - score improved: success
+  // - no regression: also considered success if we started at target
+  const isSuccess = stoppedReason === 'max_score' || finalScore >= initialScore
+
   yield {
     type: 'result',
     data: {
-      success: finalScore > initialScore,
+      success: isSuccess,
       initialScore,
       finalScore,
       commits,
@@ -150,6 +156,14 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
     const elapsed = Date.now() - startTime
 
     if (elapsed >= maxDuration) {
+      const durationMin = Math.round(elapsed / 60000)
+      yield {
+        type: 'status',
+        data: {
+          phase: 'complete',
+          message: `Stopping: timeout after ${durationMin} minutes`
+        }
+      }
       yield* generateAndYieldSummary({
         mission: config.mission,
         initialScore,
@@ -163,6 +177,13 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
     }
 
     if (currentScore >= actualTargetScore) {
+      yield {
+        type: 'status',
+        data: {
+          phase: 'complete',
+          message: `Score ${currentScore.toFixed(1)} already meets target (${actualTargetScore}). Nothing to polish!`
+        }
+      }
       yield* generateAndYieldSummary({
         mission: config.mission,
         initialScore,
@@ -176,6 +197,13 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
     }
 
     if (stalledCount >= actualMaxStalled) {
+      yield {
+        type: 'status',
+        data: {
+          phase: 'complete',
+          message: `Stopping: ${actualMaxStalled} consecutive attempts without improvement`
+        }
+      }
       yield* generateAndYieldSummary({
         mission: config.mission,
         initialScore,
@@ -189,6 +217,13 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
     }
 
     if (iteration > maxIterations) {
+      yield {
+        type: 'status',
+        data: {
+          phase: 'complete',
+          message: `Stopping: reached maximum iterations (${maxIterations})`
+        }
+      }
       yield* generateAndYieldSummary({
         mission: config.mission,
         initialScore,

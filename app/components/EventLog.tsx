@@ -27,9 +27,9 @@ export function EventLog({ events, maxDisplay = 20 }: EventLogProps) {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [events])
 
-  // Filter to only show agent-related events
+  // Filter to only show agent-related events and result
   const agentEvents = events
-    .filter(e => e.type === 'agent' || e.type === 'status')
+    .filter(e => e.type === 'agent' || e.type === 'status' || e.type === 'result')
     .slice(-maxDisplay)
 
   if (agentEvents.length === 0) {
@@ -44,6 +44,9 @@ export function EventLog({ events, maxDisplay = 20 }: EventLogProps) {
     if (event.data.tool) {
       return event.data.phase === 'PreToolUse' ? '▸' : '✓'
     }
+    if (event.type === 'result') {
+      return event.data.success ? '✓' : '■'
+    }
     if (event.type === 'status') return '►'
     return '●'
   }
@@ -52,6 +55,9 @@ export function EventLog({ events, maxDisplay = 20 }: EventLogProps) {
     if (event.data.tool) {
       if (event.data.phase === 'PreToolUse') return 'text-cyan-400'
       return 'text-green-600'
+    }
+    if (event.type === 'result') {
+      return event.data.success ? 'text-green-400' : 'text-orange-400'
     }
     if (event.type === 'status') return 'text-yellow-400'
     return 'text-gray-400'
@@ -65,6 +71,16 @@ export function EventLog({ events, maxDisplay = 20 }: EventLogProps) {
     const s = date.getSeconds().toString().padStart(2, '0')
     const ms = date.getMilliseconds().toString().padStart(3, '0')
     return `${h}:${m}:${s}.${ms}`
+  }
+
+  const formatStoppedReason = (reason: string | undefined): string => {
+    switch (reason) {
+      case 'max_score': return 'Target score reached'
+      case 'timeout': return 'Timeout'
+      case 'plateau': return 'No more improvements possible'
+      case 'max_iterations': return 'Max iterations reached'
+      default: return reason || 'Unknown'
+    }
   }
 
   const formatEvent = (event: AgentEvent) => {
@@ -83,6 +99,12 @@ export function EventLog({ events, maxDisplay = 20 }: EventLogProps) {
       }
     }
 
+    if (event.type === 'result') {
+      const reason = formatStoppedReason(event.data.stoppedReason as string)
+      const success = event.data.success ? 'SUCCESS' : 'STOPPED'
+      return `${success}: ${reason} | Score: ${event.data.initialScore} → ${event.data.finalScore}`
+    }
+
     if (event.data.message) {
       return event.data.message.slice(0, 180)
     }
@@ -94,7 +116,9 @@ export function EventLog({ events, maxDisplay = 20 }: EventLogProps) {
     <div className="font-mono text-xs space-y-0.5 max-h-64 overflow-y-auto hex-pattern p-2 rounded">
       {agentEvents.map((event, i) => (
         <div key={i} className={`${getColor(event)} flex gap-2 items-start p-1.5 rounded hover:bg-gray-900/30 transition-colors border-l-2 ${
-          event.data.tool && event.data.phase === 'PreToolUse'
+          event.type === 'result'
+            ? event.data.success ? 'border-green-400/70 bg-green-900/10' : 'border-orange-400/70 bg-orange-900/10'
+            : event.data.tool && event.data.phase === 'PreToolUse'
             ? 'border-cyan-600/50'
             : event.data.tool
             ? 'border-green-600/30'
