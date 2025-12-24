@@ -103,23 +103,31 @@ ${mission}
 Commence par explorer le projet, puis génère ton plan au format JSON.`
 }
 
-function buildContinuationPrompt(userMessage: string, previousPlan?: PlanningResult): string {
-  let prompt = `## Feedback utilisateur
-${userMessage}
+function buildContinuationPrompt(
+  messages: PlanMessage[],
+  mission: string
+): string {
+  let prompt = `## Mission originale
+${mission}
 
-## Instructions
-Prends en compte le feedback et:`
+## Historique de la conversation de planification
+`
 
-  if (previousPlan) {
-    prompt += `
-- Modifie le plan existant si nécessaire
-- Réponds aux questions posées
-- Clarifie les points soulevés`
+  // Include all previous messages as context
+  for (const msg of messages) {
+    const role = msg.role === 'user' ? '👤 Utilisateur' : '🤖 Assistant'
+    prompt += `\n### ${role}\n${msg.content}\n`
   }
 
   prompt += `
+## Instructions
+Prends en compte tout le contexte et le feedback ci-dessus.
+- Analyse les retours de l'utilisateur
+- Modifie le plan si nécessaire
+- Réponds aux questions soulevées
+- Clarifie les points demandés
 
-Génère un plan mis à jour au format JSON.`
+Génère un plan révisé au format JSON.`
 
   return prompt
 }
@@ -217,7 +225,7 @@ export async function* runPlanningPhase(
     const isInitial = messages.length === 0
     const prompt = isInitial
       ? buildInitialPlanningPrompt(mission)
-      : buildContinuationPrompt(messages[messages.length - 1].content, lastPlan || undefined)
+      : buildContinuationPrompt(messages, mission)
 
     // Default planning tools (read-only)
     const defaultAllowedTools = ['Read', 'Glob', 'Grep', 'Bash', 'Task']
@@ -259,22 +267,26 @@ export async function* runPlanningPhase(
         for (const block of message.message.content) {
           if ('text' in block) {
             fullResponse += block.text
-
-            // Yield as plan_message for streaming
-            yield {
-              type: 'plan_message',
-              data: {
-                message: {
-                  id: `msg-${Date.now()}`,
-                  role: 'assistant',
-                  content: block.text,
-                  timestamp: new Date().toISOString()
-                }
+            // Note: We don't emit individual chunks as plan_message
+            // Instead, we'll emit the full response once at the end
+          }
+        }
+      } else if (message.type === 'result') {
+        // Emit the full assistant response as a single message
+        if (fullResponse.trim()) {
+          yield {
+            type: 'plan_message',
+            data: {
+              message: {
+                id: `msg-${Date.now()}`,
+                role: 'assistant',
+                content: fullResponse,
+                timestamp: new Date().toISOString()
               }
             }
           }
         }
-      } else if (message.type === 'result') {
+
         // Parse the plan from the full response
         lastPlan = parsePlanFromResponse(fullResponse)
 
@@ -329,7 +341,6 @@ export async function* runPlanningPhase(
 export async function* continuePlanning(
   context: PlanningContext,
   userMessage: string,
-  previousPlan: PlanningResult | null,
   queryOptions?: ResolvedQueryOptions
 ): AsyncGenerator<PolishEvent> {
   // Add user message to context
