@@ -196,46 +196,57 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-8 font-mono">
-      <div className="max-w-4xl mx-auto">
+    <main className="min-h-screen bg-black text-white p-8 font-mono relative">
+      <div className="max-w-4xl mx-auto relative z-10">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-8 border-b border-green-900/30 pb-4">
           <div>
-            <h1 className="text-3xl font-bold">POLISH</h1>
-            <p className="text-gray-500 text-sm">Automated code quality improvement</p>
+            <h1 className="text-4xl font-bold glow-green tracking-wider">
+              <span className="text-green-400">&gt;&gt;</span> POLISH.SYS
+            </h1>
+            <p className="text-green-600 text-xs mt-1 uppercase tracking-widest">
+              [v0.1.0] // Autonomous Code Quality Enhancement
+            </p>
           </div>
           {running && (
-            <span className="flex items-center gap-2 text-green-400">
-              <span className="animate-pulse">{'\u25A0'}</span>
-              {currentPhase === 'implement' ? 'Implementing...' : 'Polishing...'}
-            </span>
+            <div className="flex items-center gap-3 px-4 py-2 border border-green-500/30 box-glow rounded">
+              <span className="text-green-400 blink text-xl">\u25A0</span>
+              <div className="flex flex-col">
+                <span className="text-green-400 text-sm font-bold uppercase">
+                  {currentPhase === 'implement' ? '[ IMPLEMENTING ]' : '[ POLISHING ]'}
+                </span>
+                <span className="text-green-600 text-xs">SYSTEM ACTIVE</span>
+              </div>
+            </div>
           )}
         </div>
 
         {/* Mission Input */}
         {!running && (
-          <div className="mb-6 p-4 bg-gray-900 rounded-lg border border-gray-800">
-            <label className="text-gray-500 text-sm block mb-2">
-              Mission (optional)
+          <div className="mb-6 p-5 bg-black rounded border border-green-500/30 box-glow relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-green-400 to-transparent"></div>
+            <label className="text-green-400 text-xs block mb-3 uppercase tracking-widest flex items-center gap-2">
+              <span>\u25B6</span> Mission Parameters
             </label>
             <textarea
               value={mission}
               onChange={(e) => setMission(e.target.value)}
-              placeholder="Describe what you want to implement... e.g., Add a /api/health endpoint that returns status and uptime"
-              className="w-full bg-gray-950 border border-gray-700 rounded p-3 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500"
+              placeholder=">> Enter implementation directive... (e.g., Add /api/health endpoint with system metrics)"
+              className="w-full bg-black/50 border border-green-800/50 rounded p-3 text-sm text-green-300 placeholder-green-900 resize-none focus:outline-none focus:border-green-400 focus:box-glow font-mono"
               rows={3}
             />
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => startPolish(false)}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium transition-colors"
+                className="px-6 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-400 text-green-400 rounded font-bold transition-all hover:box-glow uppercase text-sm tracking-wider"
               >
-                {mission.trim() ? 'Implement & Polish' : 'Start Polish'}
+                <span className="mr-2">\u25B6</span>
+                {mission.trim() ? 'Execute Mission' : 'Start Polish'}
               </button>
               {mission.trim() && (
                 <button
                   onClick={() => startPolish(true)}
-                  className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded font-medium transition-colors"
+                  className="px-6 py-2 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-400 text-cyan-400 rounded font-bold transition-all hover:box-glow-cyan uppercase text-sm tracking-wider"
                 >
                   Polish Only
                 </button>
@@ -249,9 +260,10 @@ export default function Home() {
           <div className="mb-6">
             <button
               onClick={stopPolish}
-              className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded font-medium transition-colors"
+              className="px-6 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-400 text-red-400 rounded font-bold transition-all uppercase text-sm tracking-wider"
             >
-              Stop
+              <span className="mr-2">\u25A0</span>
+              Abort Execution
             </button>
           </div>
         )}
@@ -259,33 +271,54 @@ export default function Home() {
         {/* Phase Indicator */}
         {running && (
           <div className="mb-6 flex gap-4">
-            <div className={`flex items-center gap-2 px-3 py-1 rounded ${
-              currentPhase === 'implement' ? 'bg-purple-900/50 text-purple-300' : 'bg-gray-800 text-gray-500'
+            <div className={`flex items-center gap-3 px-4 py-2 rounded border ${
+              currentPhase === 'implement'
+                ? 'bg-magenta-600/10 text-magenta-300 border-magenta-400/50 box-glow-magenta'
+                : 'bg-gray-900/30 text-gray-600 border-gray-800'
             }`}>
-              <span>{currentPhase === 'implement' ? '\u25B6' : '\u2713'}</span>
-              Phase 1: Implement
+              <span className={currentPhase === 'implement' ? 'pulse-glow' : ''}>
+                {currentPhase === 'implement' ? '\u25B6' : '\u2713'}
+              </span>
+              <span className="font-bold uppercase text-xs tracking-widest">
+                Phase 1: Implement
+              </span>
             </div>
-            <div className={`flex items-center gap-2 px-3 py-1 rounded ${
-              currentPhase === 'polish' ? 'bg-blue-900/50 text-blue-300' : 'bg-gray-800 text-gray-500'
+            <div className={`flex items-center gap-3 px-4 py-2 rounded border ${
+              currentPhase === 'polish'
+                ? 'bg-cyan-600/10 text-cyan-300 border-cyan-400/50 box-glow-cyan'
+                : 'bg-gray-900/30 text-gray-600 border-gray-800'
             }`}>
-              <span>{currentPhase === 'polish' ? '\u25B6' : '\u25CB'}</span>
-              Phase 2: Polish
+              <span className={currentPhase === 'polish' ? 'pulse-glow' : ''}>
+                {currentPhase === 'polish' ? '\u25B6' : '\u25CB'}
+              </span>
+              <span className="font-bold uppercase text-xs tracking-widest">
+                Phase 2: Polish
+              </span>
             </div>
           </div>
         )}
 
         {/* Implement Result */}
         {implementResult && (
-          <div className="mb-6 p-4 bg-purple-900/20 rounded-lg border border-purple-800">
-            <div className="text-purple-300 font-medium mb-2">Implementation Complete</div>
-            <div className="text-sm text-gray-400">
+          <div className="mb-6 p-4 bg-magenta-600/10 rounded border border-magenta-400/50 box-glow-magenta">
+            <div className="text-magenta-300 font-bold mb-3 uppercase text-sm tracking-widest flex items-center gap-2">
+              <span>\u2713</span> Implementation Complete
+            </div>
+            <div className="text-sm text-magenta-200/80 space-y-1 font-mono">
               {implementResult.filesCreated.length > 0 && (
-                <div>Created: {implementResult.filesCreated.length} files</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-magenta-500">+</span>
+                  Created: {implementResult.filesCreated.length} files
+                </div>
               )}
               {implementResult.filesModified.length > 0 && (
-                <div>Modified: {implementResult.filesModified.length} files</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-magenta-500">~</span>
+                  Modified: {implementResult.filesModified.length} files
+                </div>
               )}
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-magenta-500 mt-2 flex items-center gap-2">
+                <span>\u25A0</span>
                 Commit: {implementResult.commitHash.slice(0, 7)}
               </div>
             </div>
@@ -294,31 +327,41 @@ export default function Home() {
 
         {/* Score Section */}
         {score !== null && (
-          <div className="mb-8 p-4 bg-gray-900 rounded-lg border border-gray-800">
-            <div className="text-gray-500 text-sm mb-2">Score</div>
+          <div className="mb-8 p-5 bg-black rounded border border-cyan-500/30 box-glow-cyan relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
+            <div className="text-cyan-400 text-xs mb-3 uppercase tracking-widest flex items-center gap-2">
+              <span>\u25C6</span> Quality Score
+            </div>
             <ScoreBar score={score} initialScore={initialScore ?? undefined} />
           </div>
         )}
 
         {/* Metrics Grid */}
         {metrics.length > 0 && (
-          <div className="mb-8 p-4 bg-gray-900 rounded-lg border border-gray-800">
-            <div className="text-gray-500 text-sm mb-3">Metrics</div>
+          <div className="mb-8 p-5 bg-black rounded border border-green-500/30 box-glow relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-green-400 to-transparent"></div>
+            <div className="text-green-400 text-xs mb-4 uppercase tracking-widest flex items-center gap-2">
+              <span>\u25C6</span> System Metrics
+            </div>
             <MetricsGrid metrics={metrics} currentStrategy={currentStrategy ?? undefined} />
           </div>
         )}
 
         {/* Commits Timeline */}
         {commits.length > 0 && (
-          <div className="mb-8 p-4 bg-gray-900 rounded-lg border border-gray-800">
+          <div className="mb-8 p-5 bg-black rounded border border-yellow-500/30 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-400 to-transparent"></div>
             <CommitTimeline commits={commits} />
           </div>
         )}
 
         {/* Agent Log */}
         {events.length > 0 && (
-          <div className="mb-8 p-4 bg-gray-900 rounded-lg border border-gray-800">
-            <div className="text-gray-500 text-sm mb-3">Agent Activity</div>
+          <div className="mb-8 p-5 bg-black rounded border border-blue-500/30 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-400 to-transparent"></div>
+            <div className="text-blue-400 text-xs mb-4 uppercase tracking-widest flex items-center gap-2">
+              <span>\u25C6</span> Agent Activity Log
+            </div>
             <EventLog events={events} />
           </div>
         )}
