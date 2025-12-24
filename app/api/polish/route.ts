@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { runPolishLoop } from '@/lib/loop'
+import { runPolishLoop, runFullPolish } from '@/lib/loop'
 import type { PolishConfig, PolishEvent } from '@/lib/types'
 
 export const maxDuration = 300 // 5 min max (Vercel limit)
@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
   const {
     projectPath = process.cwd(),
     mission,
+    polishOnly = false,
     maxDuration: duration = 5 * 60 * 1000 // 5 min default for web UI
   } = body
 
@@ -22,21 +23,30 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        const hasMission = mission && mission.trim() && !polishOnly
+
         send({
           type: 'status',
           data: {
             phase: 'starting',
-            message: `Starting Polish on ${projectPath}...`
+            message: hasMission
+              ? `Starting Polish with mission on ${projectPath}...`
+              : `Starting Polish on ${projectPath}...`
           }
         })
 
         const config: PolishConfig = {
           projectPath,
-          mission,
+          mission: hasMission ? mission : undefined,
           maxDuration: duration
         }
 
-        for await (const event of runPolishLoop(config)) {
+        // Use runFullPolish if mission provided, otherwise runPolishLoop
+        const polishGenerator = hasMission
+          ? runFullPolish(config)
+          : runPolishLoop(config)
+
+        for await (const event of polishGenerator) {
           send(event)
         }
 

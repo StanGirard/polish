@@ -84,6 +84,8 @@ export interface PolishConfig {
 
 export type PolishEvent =
   | { type: 'init'; data: InitEventData }
+  | { type: 'phase'; data: PhaseEventData }
+  | { type: 'implement_done'; data: ImplementDoneEventData }
   | { type: 'score'; data: ScoreEventData }
   | { type: 'strategy'; data: StrategyEventData }
   | { type: 'agent'; data: AgentEventData }
@@ -92,6 +94,18 @@ export type PolishEvent =
   | { type: 'result'; data: ResultEventData }
   | { type: 'error'; data: ErrorEventData }
   | { type: 'status'; data: StatusEventData }
+
+export interface PhaseEventData {
+  phase: 'implement' | 'polish'
+  mission?: string
+}
+
+export interface ImplementDoneEventData {
+  commitHash: string
+  message: string
+  filesCreated: string[]
+  filesModified: string[]
+}
 
 export interface InitEventData {
   projectPath: string

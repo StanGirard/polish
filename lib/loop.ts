@@ -1,14 +1,13 @@
 import { runSingleFix, type SingleFixContext } from './agent'
 import { commitWithMessage, getStatus, rollback, getLastCommitHash } from './git'
+import { runImplementPhase } from './implement'
 import { loadPreset, runAllMetrics, calculateScore, getWorstMetric, getStrategyForMetric } from './scorer'
 import { exec } from './executor'
 import type {
   CommitInfo,
   FailedAttempt,
-  MetricResult,
   PolishConfig,
-  PolishEvent,
-  ScoreResult
+  PolishEvent
 } from './types'
 
 // ============================================================================
@@ -333,19 +332,61 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
 }
 
 // ============================================================================
+// Full Polish: Phase 1 (Implement) + Phase 2 (Polish)
+// ============================================================================
+
+export async function* runFullPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
+  const { projectPath, mission } = config
+
+  // Phase 1: Implement (if mission provided)
+  if (mission) {
+    yield {
+      type: 'status',
+      data: { phase: 'implement', message: 'Starting Phase 1: Implementation...' }
+    }
+
+    for await (const event of runImplementPhase(mission, projectPath)) {
+      yield event
+
+      // If implementation failed, stop
+      if (event.type === 'error') {
+        return
+      }
+    }
+
+    yield {
+      type: 'status',
+      data: { phase: 'implement', message: 'Phase 1 complete. Starting Phase 2: Polish...' }
+    }
+  }
+
+  // Phase 2: Polish
+  yield {
+    type: 'phase',
+    data: { phase: 'polish' }
+  }
+
+  for await (const event of runPolishLoop(config)) {
+    yield event
+  }
+}
+
+// ============================================================================
 // Helper: Run polish on current directory
 // ============================================================================
 
 export async function* polishCurrentProject(
   projectPath: string = process.cwd(),
+  mission?: string,
   maxDuration?: number
 ): AsyncGenerator<PolishEvent> {
   const config: PolishConfig = {
     projectPath,
+    mission,
     maxDuration
   }
 
-  for await (const event of runPolishLoop(config)) {
+  for await (const event of runFullPolish(config)) {
     yield event
   }
 }

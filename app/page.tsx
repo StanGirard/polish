@@ -63,10 +63,17 @@ export default function Home() {
     iterations: number
     stoppedReason?: string
   } | null>(null)
+  const [mission, setMission] = useState('')
+  const [currentPhase, setCurrentPhase] = useState<'idle' | 'implement' | 'polish'>('idle')
+  const [implementResult, setImplementResult] = useState<{
+    filesCreated: string[]
+    filesModified: string[]
+    commitHash: string
+  } | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
 
-  const startPolish = async () => {
+  const startPolish = async (polishOnly = false) => {
     setRunning(true)
     setEvents([])
     setScore(null)
@@ -75,6 +82,8 @@ export default function Home() {
     setCommits([])
     setCurrentStrategy(null)
     setResult(null)
+    setCurrentPhase(polishOnly || !mission.trim() ? 'polish' : 'implement')
+    setImplementResult(null)
     abortRef.current = new AbortController()
 
     try {
@@ -83,6 +92,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectPath: process.cwd(),
+          mission: mission.trim() || undefined,
+          polishOnly,
           maxDuration: 5 * 60 * 1000 // 5 minutes
         }),
         signal: abortRef.current.signal
@@ -121,7 +132,16 @@ export default function Home() {
               setEvents(prev => [...prev, event])
 
               // Handle different event types
-              if (currentEventType === 'init') {
+              if (currentEventType === 'phase') {
+                setCurrentPhase(data.phase as 'implement' | 'polish')
+              } else if (currentEventType === 'implement_done') {
+                setImplementResult({
+                  filesCreated: data.filesCreated || [],
+                  filesModified: data.filesModified || [],
+                  commitHash: data.commitHash || ''
+                })
+                setCurrentPhase('polish')
+              } else if (currentEventType === 'init') {
                 setInitialScore(data.initialScore)
                 setScore(data.initialScore)
                 if (data.metrics) setMetrics(data.metrics)
@@ -147,6 +167,7 @@ export default function Home() {
                   stoppedReason: data.stoppedReason
                 })
                 if (data.finalScore) setScore(data.finalScore)
+                setCurrentPhase('idle')
               }
             } catch {
               // Ignore JSON parse errors
@@ -179,30 +200,98 @@ export default function Home() {
     <main className="min-h-screen bg-gray-950 text-white p-8 font-mono">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold">POLISH</h1>
             <p className="text-gray-500 text-sm">Automated code quality improvement</p>
           </div>
-          <div className="flex items-center gap-4">
-            {running && (
-              <span className="flex items-center gap-2 text-green-400">
-                <span className="animate-pulse">\u25A0</span>
-                Running
-              </span>
-            )}
+          {running && (
+            <span className="flex items-center gap-2 text-green-400">
+              <span className="animate-pulse">{'\u25A0'}</span>
+              {currentPhase === 'implement' ? 'Implementing...' : 'Polishing...'}
+            </span>
+          )}
+        </div>
+
+        {/* Mission Input */}
+        {!running && (
+          <div className="mb-6 p-4 bg-gray-900 rounded-lg border border-gray-800">
+            <label className="text-gray-500 text-sm block mb-2">
+              Mission (optional)
+            </label>
+            <textarea
+              value={mission}
+              onChange={(e) => setMission(e.target.value)}
+              placeholder="Describe what you want to implement... e.g., Add a /api/health endpoint that returns status and uptime"
+              className="w-full bg-gray-950 border border-gray-700 rounded p-3 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500"
+              rows={3}
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => startPolish(false)}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium transition-colors"
+              >
+                {mission.trim() ? 'Implement & Polish' : 'Start Polish'}
+              </button>
+              {mission.trim() && (
+                <button
+                  onClick={() => startPolish(true)}
+                  className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded font-medium transition-colors"
+                >
+                  Polish Only
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Running Controls */}
+        {running && (
+          <div className="mb-6">
             <button
-              onClick={running ? stopPolish : startPolish}
-              className={`px-6 py-2 rounded font-medium transition-colors ${
-                running
-                  ? 'bg-red-600 hover:bg-red-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
+              onClick={stopPolish}
+              className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded font-medium transition-colors"
             >
-              {running ? 'Stop' : 'Start Polish'}
+              Stop
             </button>
           </div>
-        </div>
+        )}
+
+        {/* Phase Indicator */}
+        {running && (
+          <div className="mb-6 flex gap-4">
+            <div className={`flex items-center gap-2 px-3 py-1 rounded ${
+              currentPhase === 'implement' ? 'bg-purple-900/50 text-purple-300' : 'bg-gray-800 text-gray-500'
+            }`}>
+              <span>{currentPhase === 'implement' ? '\u25B6' : '\u2713'}</span>
+              Phase 1: Implement
+            </div>
+            <div className={`flex items-center gap-2 px-3 py-1 rounded ${
+              currentPhase === 'polish' ? 'bg-blue-900/50 text-blue-300' : 'bg-gray-800 text-gray-500'
+            }`}>
+              <span>{currentPhase === 'polish' ? '\u25B6' : '\u25CB'}</span>
+              Phase 2: Polish
+            </div>
+          </div>
+        )}
+
+        {/* Implement Result */}
+        {implementResult && (
+          <div className="mb-6 p-4 bg-purple-900/20 rounded-lg border border-purple-800">
+            <div className="text-purple-300 font-medium mb-2">Implementation Complete</div>
+            <div className="text-sm text-gray-400">
+              {implementResult.filesCreated.length > 0 && (
+                <div>Created: {implementResult.filesCreated.length} files</div>
+              )}
+              {implementResult.filesModified.length > 0 && (
+                <div>Modified: {implementResult.filesModified.length} files</div>
+              )}
+              <div className="text-xs text-gray-500 mt-1">
+                Commit: {implementResult.commitHash.slice(0, 7)}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Score Section */}
         {score !== null && (
@@ -263,12 +352,10 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty State */}
-        {!running && events.length === 0 && (
-          <div className="text-center py-16 text-gray-600">
-            <div className="text-6xl mb-4">{'\u2728'}</div>
-            <p>Click &quot;Start Polish&quot; to improve your code quality</p>
-            <p className="text-sm mt-2">Polish will analyze, fix, and commit improvements automatically</p>
+        {/* Empty State - only show when not running and no events and no result */}
+        {!running && events.length === 0 && !result && (
+          <div className="text-center py-8 text-gray-600">
+            <p className="text-sm">Enter a mission to implement new features, or start Polish to improve existing code</p>
           </div>
         )}
 
