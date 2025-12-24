@@ -74,6 +74,12 @@ export async function getCurrentBranch(projectPath: string): Promise<string> {
   return branch.trim()
 }
 
+export async function getAllBranches(projectPath: string): Promise<string[]> {
+  const git = getGit(projectPath)
+  const branches = await git.branchLocal()
+  return branches.all
+}
+
 export async function getLastCommitHash(projectPath: string): Promise<string> {
   const git = getGit(projectPath)
   const log = await git.log({ maxCount: 1 })

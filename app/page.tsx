@@ -41,13 +41,13 @@ export default function Home() {
   }, [loadSessions])
 
   // Create new session
-  const handleCreateSession = async (mission?: string) => {
+  const handleCreateSession = async (mission?: string, sourceBranch?: string) => {
     setIsCreating(true)
     try {
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mission })
+        body: JSON.stringify({ mission, sourceBranch })
       })
 
       if (res.ok) {

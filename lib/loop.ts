@@ -377,7 +377,7 @@ export async function* runFullPolish(config: PolishConfig): AsyncGenerator<Polis
 // ============================================================================
 
 export async function* runIsolatedPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
-  const { projectPath, isolation = { enabled: true } } = config
+  const { projectPath, sourceBranch, isolation = { enabled: true } } = config
 
   // Si isolation désactivée, exécuter directement
   if (isolation.enabled === false) {
@@ -398,7 +398,7 @@ export async function* runIsolatedPolish(config: PolishConfig): AsyncGenerator<P
   // Créer le worktree
   let wt: WorktreeConfig | null = null
   try {
-    wt = await createWorktree(projectPath)
+    wt = await createWorktree(projectPath, sourceBranch)
 
     yield {
       type: 'worktree_created',

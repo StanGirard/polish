@@ -23,12 +23,15 @@ function generateSessionId(): string {
 /**
  * Crée un worktree git pour isoler les changements Polish
  */
-export async function createWorktree(projectPath: string): Promise<WorktreeConfig> {
+export async function createWorktree(
+  projectPath: string,
+  sourceBranch?: string
+): Promise<WorktreeConfig> {
   const git = simpleGit(projectPath)
   const sessionId = generateSessionId()
   const branchName = `polish/session-${sessionId}`
   const worktreePath = join(WORKTREE_DIR, sessionId)
-  const baseBranch = await getCurrentBranch(projectPath)
+  const baseBranch = sourceBranch || await getCurrentBranch(projectPath)
 
   // Créer le répertoire parent si nécessaire
   await mkdir(WORKTREE_DIR, { recursive: true })

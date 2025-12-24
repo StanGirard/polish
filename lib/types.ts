@@ -72,6 +72,7 @@ export interface CommitInfo {
 export interface PolishConfig {
   projectPath: string
   mission?: string
+  sourceBranch?: string
   maxDuration?: number // ms, default 2 hours
   maxIterations?: number
   maxStalled?: number

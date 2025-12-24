@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       mission,
+      sourceBranch,
       projectPath = process.cwd(),
       maxDuration: duration = 5 * 60 * 1000
     } = body
@@ -49,7 +50,8 @@ export async function POST(request: NextRequest) {
       projectPath,
       mission: mission?.trim() || undefined,
       maxDuration: duration,
-      isolation: { enabled: true }
+      isolation: { enabled: true },
+      sourceBranch: sourceBranch?.trim() || undefined
     })
 
     return NextResponse.json({
