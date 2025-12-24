@@ -4,6 +4,7 @@ import { runImplementPhase } from './implement'
 import { loadPreset, runAllMetrics, calculateScore, getWorstMetric, getStrategyForMetric } from './scorer'
 import { exec } from './executor'
 import { createWorktree, cleanupWorktree, checkPreflight, type WorktreeConfig } from './worktree'
+import { generateSessionSummary } from './summary-generator'
 import type {
   CommitInfo,
   FailedAttempt,
@@ -20,6 +21,66 @@ const DEFAULT_MAX_ITERATIONS = 100
 const DEFAULT_MAX_STALLED = 5
 const DEFAULT_TARGET_SCORE = 100
 const MIN_IMPROVEMENT = 0.5 // Minimum score improvement to count as success
+
+// ============================================================================
+// Helper: Generate Session Summary
+// ============================================================================
+
+interface SummaryParams {
+  mission?: string
+  initialScore: number
+  finalScore: number
+  commits: CommitInfo[]
+  duration: number
+  iterations: number
+  stoppedReason?: string
+}
+
+async function* generateAndYieldSummary(params: SummaryParams): AsyncGenerator<PolishEvent> {
+  const { mission, initialScore, finalScore, commits, duration, iterations, stoppedReason } = params
+
+  // Yield result event first
+  yield {
+    type: 'result',
+    data: {
+      success: finalScore > initialScore,
+      initialScore,
+      finalScore,
+      commits,
+      iterations,
+      duration,
+      stoppedReason: stoppedReason as 'max_score' | 'timeout' | 'plateau' | 'max_iterations' | undefined
+    }
+  }
+
+  // Generate AI summary if there are commits
+  if (commits.length > 0) {
+    try {
+      yield {
+        type: 'status',
+        data: { phase: 'summary', message: 'Generating session summary...' }
+      }
+
+      const summary = await generateSessionSummary({
+        mission,
+        initialScore,
+        finalScore,
+        commits,
+        duration,
+        iterations,
+        stoppedReason
+      })
+
+      yield {
+        type: 'session_summary',
+        data: summary
+      }
+    } catch (error) {
+      // Summary generation is optional, don't fail the whole session
+      console.error('Failed to generate session summary:', error)
+    }
+  }
+}
 
 // ============================================================================
 // Main Polish Loop
@@ -89,84 +150,69 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
     const elapsed = Date.now() - startTime
 
     if (elapsed >= maxDuration) {
-      yield {
-        type: 'result',
-        data: {
-          success: currentScore > initialScore,
-          initialScore,
-          finalScore: currentScore,
-          commits,
-          iterations: iteration - 1,
-          duration: elapsed,
-          stoppedReason: 'timeout'
-        }
-      }
+      yield* generateAndYieldSummary({
+        mission: config.mission,
+        initialScore,
+        finalScore: currentScore,
+        commits,
+        duration: elapsed,
+        iterations: iteration - 1,
+        stoppedReason: 'timeout'
+      })
       return
     }
 
     if (currentScore >= actualTargetScore) {
-      yield {
-        type: 'result',
-        data: {
-          success: true,
-          initialScore,
-          finalScore: currentScore,
-          commits,
-          iterations: iteration - 1,
-          duration: elapsed,
-          stoppedReason: 'max_score'
-        }
-      }
+      yield* generateAndYieldSummary({
+        mission: config.mission,
+        initialScore,
+        finalScore: currentScore,
+        commits,
+        duration: elapsed,
+        iterations: iteration - 1,
+        stoppedReason: 'max_score'
+      })
       return
     }
 
     if (stalledCount >= actualMaxStalled) {
-      yield {
-        type: 'result',
-        data: {
-          success: currentScore > initialScore,
-          initialScore,
-          finalScore: currentScore,
-          commits,
-          iterations: iteration - 1,
-          duration: elapsed,
-          stoppedReason: 'plateau'
-        }
-      }
+      yield* generateAndYieldSummary({
+        mission: config.mission,
+        initialScore,
+        finalScore: currentScore,
+        commits,
+        duration: elapsed,
+        iterations: iteration - 1,
+        stoppedReason: 'plateau'
+      })
       return
     }
 
     if (iteration > maxIterations) {
-      yield {
-        type: 'result',
-        data: {
-          success: currentScore > initialScore,
-          initialScore,
-          finalScore: currentScore,
-          commits,
-          iterations: iteration - 1,
-          duration: elapsed,
-          stoppedReason: 'max_iterations'
-        }
-      }
+      yield* generateAndYieldSummary({
+        mission: config.mission,
+        initialScore,
+        finalScore: currentScore,
+        commits,
+        duration: elapsed,
+        iterations: iteration - 1,
+        stoppedReason: 'max_iterations'
+      })
       return
     }
 
     // Find worst metric and corresponding strategy
     const worstMetric = getWorstMetric(currentMetrics)
     if (!worstMetric) {
-      yield {
-        type: 'result',
-        data: {
-          success: true,
-          initialScore,
-          finalScore: currentScore,
-          commits,
-          iterations: iteration - 1,
-          duration: elapsed,
-          stoppedReason: 'max_score'
-        }
-      }
+      yield* generateAndYieldSummary({
+        mission: config.mission,
+        initialScore,
+        finalScore: currentScore,
+        commits,
+        duration: elapsed,
+        iterations: iteration - 1,
+        stoppedReason: 'max_score'
+      })
       return
     }
 
