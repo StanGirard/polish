@@ -14,6 +14,7 @@ export type FeedbackRating = 'satisfied' | 'unsatisfied'
 export interface SessionFeedback {
   rating: FeedbackRating
   comment?: string
+  images?: string // JSON array of image data (base64)
   createdAt: Date
 }
 
@@ -21,6 +22,7 @@ export interface Session {
   id: string
   status: SessionStatus
   mission?: string
+  missionImages?: string // JSON array of image data (base64)
   projectPath: string
   branchName?: string
   startedAt: Date
@@ -52,6 +54,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   status TEXT NOT NULL,
   mission TEXT,
+  mission_images TEXT,
   project_path TEXT NOT NULL,
   branch_name TEXT,
   started_at TEXT NOT NULL,
@@ -62,6 +65,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   duration INTEGER,
   feedback_rating TEXT,
   feedback_comment TEXT,
+  feedback_images TEXT,
   feedback_created_at TEXT,
   retry_count INTEGER DEFAULT 0
 );
@@ -115,6 +119,12 @@ function runMigrations(db: Database.Database): void {
   if (!columnNames.includes('retry_count')) {
     db.exec('ALTER TABLE sessions ADD COLUMN retry_count INTEGER DEFAULT 0')
   }
+  if (!columnNames.includes('mission_images')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN mission_images TEXT')
+  }
+  if (!columnNames.includes('feedback_images')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN feedback_images TEXT')
+  }
 }
 
 // ============================================================================
@@ -125,7 +135,7 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function createSession(config: { mission?: string; projectPath: string }): Session {
+export function createSession(config: { mission?: string; missionImages?: string; projectPath: string }): Session {
   const db = getDb()
   const id = generateId()
   const now = new Date()
@@ -134,6 +144,7 @@ export function createSession(config: { mission?: string; projectPath: string })
     id,
     status: 'pending',
     mission: config.mission,
+    missionImages: config.missionImages,
     projectPath: config.projectPath,
     startedAt: now,
     commits: 0,
@@ -141,9 +152,9 @@ export function createSession(config: { mission?: string; projectPath: string })
   }
 
   db.prepare(`
-    INSERT INTO sessions (id, status, mission, project_path, started_at, commits, retry_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, session.status, session.mission || null, session.projectPath, now.toISOString(), 0, 0)
+    INSERT INTO sessions (id, status, mission, mission_images, project_path, started_at, commits, retry_count)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, session.status, session.mission || null, session.missionImages || null, session.projectPath, now.toISOString(), 0, 0)
 
   return session
 }
@@ -202,6 +213,8 @@ export function updateSession(id: string, updates: Partial<Session>): void {
     values.push(updates.feedback.rating)
     fields.push('feedback_comment = ?')
     values.push(updates.feedback.comment || null)
+    fields.push('feedback_images = ?')
+    values.push(updates.feedback.images || null)
     fields.push('feedback_created_at = ?')
     values.push(updates.feedback.createdAt.toISOString())
   }
@@ -314,6 +327,7 @@ function rowToSession(row: Record<string, unknown>): Session {
     id: row.id as string,
     status: row.status as SessionStatus,
     mission: row.mission as string | undefined,
+    missionImages: row.mission_images as string | undefined,
     projectPath: row.project_path as string,
     branchName: row.branch_name as string | undefined,
     startedAt: new Date(row.started_at as string),
@@ -325,6 +339,7 @@ function rowToSession(row: Record<string, unknown>): Session {
     feedback: row.feedback_rating ? {
       rating: row.feedback_rating as FeedbackRating,
       comment: row.feedback_comment as string | undefined,
+      images: row.feedback_images as string | undefined,
       createdAt: new Date(row.feedback_created_at as string)
     } : undefined,
     retryCount: (row.retry_count as number) ?? 0

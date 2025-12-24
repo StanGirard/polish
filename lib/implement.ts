@@ -5,7 +5,7 @@ import {
   type PostToolUseHookInput
 } from '@anthropic-ai/claude-agent-sdk'
 import { commitWithMessage, getStatus } from './git'
-import type { AgentEventData, PolishEvent, ResolvedQueryOptions } from './types'
+import type { AgentEventData, PolishEvent, ResolvedQueryOptions, ImageAttachment } from './types'
 
 // ============================================================================
 // Implementation Phase (Phase 1)
@@ -13,22 +13,30 @@ import type { AgentEventData, PolishEvent, ResolvedQueryOptions } from './types'
 
 interface ImplementPromptOptions {
   mission: string
+  missionImages?: ImageAttachment[]
   feedback?: string
+  feedbackImages?: ImageAttachment[]
   retryCount?: number
 }
 
 function buildImplementPrompt(options: ImplementPromptOptions): string {
-  const { mission, feedback, retryCount } = options
+  const { mission, missionImages, feedback, feedbackImages, retryCount } = options
 
-  let prompt = `Tu dois implémenter la fonctionnalité suivante dans ce projet:
+  let textPrompt = `Tu dois implémenter la fonctionnalité suivante dans ce projet:
 
 ## Mission
 ${mission}
 `
 
+  // Ajouter les images de mission si présentes
+  const missionImgs = missionImages || []
+  if (missionImgs.length > 0) {
+    textPrompt += `\n**Note**: ${missionImgs.length} image(s) attachée(s) à la mission pour référence visuelle.\n`
+  }
+
   // Ajouter le feedback si c'est un retry
   if (feedback && retryCount && retryCount > 0) {
-    prompt += `
+    textPrompt += `
 ## Feedback utilisateur (Tentative #${retryCount + 1})
 L'utilisateur n'était pas satisfait de l'implémentation précédente. Voici son feedback:
 
@@ -37,9 +45,14 @@ L'utilisateur n'était pas satisfait de l'implémentation précédente. Voici so
 **Important**: Prends en compte ce feedback et corrige/améliore l'implémentation en conséquence.
 Analyse ce qui a été fait précédemment et applique les corrections demandées.
 `
+    // Ajouter les images de feedback si présentes
+    const feedbackImgs = feedbackImages || []
+    if (feedbackImgs.length > 0) {
+      textPrompt += `\n**Note**: ${feedbackImgs.length} image(s) attachée(s) au feedback pour illustrer les problèmes.\n`
+    }
   }
 
-  prompt += `
+  textPrompt += `
 ## Instructions
 1. D'abord, explore le projet avec Glob et Read pour comprendre:
    - La structure du projet
@@ -64,7 +77,7 @@ ${feedback ? '   - Applique les corrections demandées dans le feedback\n' : ''}
 ${feedback ? '- PRIORITÉ: Adresse le feedback utilisateur en premier\n' : ''}
 Commence par explorer le projet, puis implémente la fonctionnalité.`
 
-  return prompt
+  return textPrompt
 }
 
 const IMPLEMENT_SYSTEM_PROMPT = `Tu es un développeur expert. Ta mission est d'implémenter une fonctionnalité dans un projet existant.
@@ -91,8 +104,10 @@ const IMPLEMENT_SYSTEM_PROMPT = `Tu es un développeur expert. Ta mission est d'
 
 export interface ImplementPhaseOptions {
   mission: string
+  missionImages?: ImageAttachment[]
   projectPath: string
   feedback?: string
+  feedbackImages?: ImageAttachment[]
   retryCount?: number
   queryOptions?: ResolvedQueryOptions
 }
@@ -100,7 +115,7 @@ export interface ImplementPhaseOptions {
 export async function* runImplementPhase(
   options: ImplementPhaseOptions
 ): AsyncGenerator<PolishEvent> {
-  const { mission, projectPath, feedback, retryCount, queryOptions } = options
+  const { mission, missionImages, projectPath, feedback, feedbackImages, retryCount, queryOptions } = options
   // Track files modified by the agent
   const filesCreated: string[] = []
   const filesModified: string[] = []
@@ -165,10 +180,13 @@ export async function* runImplementPhase(
       const isResume = sessionId !== undefined
       const prompt = isResume
         ? 'Continue implementing the remaining features.'
-        : buildImplementPrompt({ mission, feedback, retryCount })
+        : buildImplementPrompt({ mission, missionImages, feedback, feedbackImages, retryCount })
 
       // Default tools for implement phase
       const defaultAllowedTools = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep']
+
+      // Note: Image support will be added when SDK supports multimodal content in query()
+      // For now, images are mentioned in the text prompt
 
       for await (const message of query({
         prompt,

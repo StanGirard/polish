@@ -140,12 +140,23 @@ export interface CommitInfo {
 }
 
 // ============================================================================
+// Image Support
+// ============================================================================
+
+export interface ImageAttachment {
+  data: string // base64 encoded image data
+  mediaType: string // e.g. "image/png", "image/jpeg"
+  source?: string // optional: original filename
+}
+
+// ============================================================================
 // Polish Configuration
 // ============================================================================
 
 export interface PolishConfig {
   projectPath: string
   mission?: string
+  missionImages?: ImageAttachment[] // Images attached to the mission
   maxDuration?: number // ms, default 2 hours
   maxIterations?: number
   maxStalled?: number
@@ -157,6 +168,7 @@ export interface PolishConfig {
   }
   retry?: {
     feedback: string // User feedback explaining what to fix/improve
+    feedbackImages?: ImageAttachment[] // Images attached to feedback
     retryCount: number // Number of times this session has been retried
   }
   capabilityOverrides?: CapabilityOverride[] // Session-level capability overrides
