@@ -55,6 +55,14 @@ export function SessionCard({
       icon: '▶',
       label: 'RUNNING'
     },
+    reviewing: {
+      color: 'text-fuchsia-400',
+      border: 'border-fuchsia-500/50',
+      bg: 'bg-fuchsia-900/20',
+      glow: 'box-glow',
+      icon: '◆',
+      label: 'REVIEWING'
+    },
     completed: {
       color: 'text-cyan-400',
       border: 'border-cyan-500/50',
@@ -169,12 +177,19 @@ export function SessionCard({
         <span>📦 {session.commits} COMMITS</span>
       </div>
 
+      {/* Review Iteration */}
+      {session.status === 'reviewing' && session.reviewIteration && (
+        <div className="text-[10px] text-fuchsia-400 tracking-widest mt-2">
+          REVIEW ITERATION {session.reviewIteration}/3
+        </div>
+      )}
+
       {/* Actions */}
       <div
         className="mt-3 pt-3 border-t border-gray-800 flex items-center gap-2"
         onClick={(e) => e.stopPropagation()}
       >
-        {session.status === 'running' && (
+        {(session.status === 'running' || session.status === 'reviewing') && (
           <button
             onClick={(e) => { e.stopPropagation(); e.preventDefault(); onCancel() }}
             className="px-3 py-1 text-xs text-red-400 border border-red-800 rounded hover:bg-red-900/30 transition-colors"

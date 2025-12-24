@@ -14,9 +14,9 @@ describe('resolveCapabilitiesForPhase', () => {
     expect(result.tools).toEqual(['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task'])
   })
 
-  it('should return default polish tools when no capabilities configured', () => {
+  it('should return default testing tools when no capabilities configured', () => {
     const preset: Preset = {}
-    const result = resolveCapabilitiesForPhase(preset, 'polish')
+    const result = resolveCapabilitiesForPhase(preset, 'testing')
 
     expect(result.tools).toEqual(['Read', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task'])
   })
@@ -27,7 +27,7 @@ describe('resolveCapabilitiesForPhase', () => {
         implement: {
           tools: ['Read', 'Write', 'CustomTool']
         },
-        polish: {
+        testing: {
           tools: ['Read', 'Edit']
         }
       }
@@ -36,8 +36,8 @@ describe('resolveCapabilitiesForPhase', () => {
     const implementResult = resolveCapabilitiesForPhase(preset, 'implement')
     expect(implementResult.tools).toEqual(['Read', 'Write', 'CustomTool'])
 
-    const polishResult = resolveCapabilitiesForPhase(preset, 'polish')
-    expect(polishResult.tools).toEqual(['Read', 'Edit'])
+    const testingResult = resolveCapabilitiesForPhase(preset, 'testing')
+    expect(testingResult.tools).toEqual(['Read', 'Edit'])
   })
 
   it('should merge shared and phase-specific capabilities', () => {
@@ -95,14 +95,14 @@ describe('resolveCapabilitiesForPhase', () => {
     }
 
     const overrides: CapabilityOverride[] = [
-      { type: 'tool', id: 'Write', enabled: false, phases: ['polish'] }
+      { type: 'tool', id: 'Write', enabled: false, phases: ['testing'] }
     ]
 
     const implementResult = resolveCapabilitiesForPhase(preset, 'implement', overrides)
     expect(implementResult.disallowedTools || []).not.toContain('Write')
 
-    const polishResult = resolveCapabilitiesForPhase(preset, 'polish', overrides)
-    expect(polishResult.disallowedTools).toContain('Write')
+    const testingResult = resolveCapabilitiesForPhase(preset, 'testing', overrides)
+    expect(testingResult.disallowedTools).toContain('Write')
   })
 
   it('should remove disabled MCP servers', () => {
@@ -185,7 +185,7 @@ describe('getAvailableCapabilities', () => {
         implement: {
           tools: ['Write']
         },
-        polish: {
+        testing: {
           tools: ['Glob']
         }
       }
