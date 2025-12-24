@@ -186,8 +186,8 @@ describe('runAllMetrics', () => {
 describe('getStrategyForMetric', () => {
   it('should return matching strategy', () => {
     const strategies: Strategy[] = [
-      { name: 'fix-lint', focus: 'lintErrors', description: 'Fix lint', weight: 50 },
-      { name: 'add-tests', focus: 'testCoverage', description: 'Add tests', weight: 50 }
+      { name: 'fix-lint', focus: 'lintErrors', prompt: 'Fix lint errors' },
+      { name: 'add-tests', focus: 'testCoverage', prompt: 'Add test coverage' }
     ]
 
     const result = getStrategyForMetric('testCoverage', strategies)
@@ -196,7 +196,7 @@ describe('getStrategyForMetric', () => {
 
   it('should return null when no match', () => {
     const strategies: Strategy[] = [
-      { name: 'fix-lint', focus: 'lintErrors', description: 'Fix lint', weight: 50 }
+      { name: 'fix-lint', focus: 'lintErrors', prompt: 'Fix lint errors' }
     ]
 
     const result = getStrategyForMetric('testCoverage', strategies)
