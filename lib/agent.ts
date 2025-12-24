@@ -12,6 +12,7 @@ import type {
   Strategy,
   ResolvedQueryOptions
 } from './types'
+import { createToolLogger } from './tool-logger'
 
 // ============================================================================
 // Single Fix Agent
@@ -92,10 +93,17 @@ export async function* runSingleFix(
   // Queue pour les events des hooks
   const hookEvents: PolishEvent[] = []
 
+  // Initialize tool logger
+  const logLevel = process.env.TOOL_LOG_LEVEL as 'minimal' | 'normal' | 'verbose' | 'debug' || 'normal'
+  const { tracker: toolTracker, hook: toolLoggerHook } = createToolLogger(logLevel)
+
   const toolHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PreToolUse' && input.hook_event_name !== 'PostToolUse') {
       return {}
     }
+
+    // Log tool call with enhanced logger
+    await toolLoggerHook(input)
 
     const toolInput = input as PreToolUseHookInput | PostToolUseHookInput
     const eventData: AgentEventData = {
@@ -213,6 +221,12 @@ export async function* runSingleFix(
         }
       }
     }
+
+    // Log tool call statistics at the end
+    if (logLevel === 'verbose' || logLevel === 'debug') {
+      const summary = toolTracker.getSummary()
+      console.log(summary)
+    }
   } catch (error) {
     yield {
       type: 'error',
@@ -260,10 +274,17 @@ export async function* runPolishAgent(
 ): AsyncGenerator<PolishEvent> {
   const hookEvents: PolishEvent[] = []
 
+  // Initialize tool logger
+  const logLevel = process.env.TOOL_LOG_LEVEL as 'minimal' | 'normal' | 'verbose' | 'debug' || 'normal'
+  const { tracker: toolTracker, hook: toolLoggerHook } = createToolLogger(logLevel)
+
   const toolHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PreToolUse' && input.hook_event_name !== 'PostToolUse') {
       return {}
     }
+
+    // Log tool call with enhanced logger
+    await toolLoggerHook(input)
 
     const toolInput = input as PreToolUseHookInput | PostToolUseHookInput
     const event: PolishEvent = {
@@ -356,6 +377,12 @@ Commence maintenant.`,
           }
         }
       }
+    }
+
+    // Log tool call statistics at the end
+    if (logLevel === 'verbose' || logLevel === 'debug') {
+      const summary = toolTracker.getSummary()
+      console.log(summary)
     }
   } catch (error) {
     yield {

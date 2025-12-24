@@ -29,15 +29,67 @@ interface AgentEvent {
 interface EventLogProps {
   events: AgentEvent[]
   maxDisplay?: number
+  showStats?: boolean
 }
 
-export function EventLog({ events, maxDisplay = 30 }: EventLogProps) {
+interface ToolStats {
+  totalCalls: number
+  toolCounts: Record<string, number>
+  averageDuration: number
+  subAgentCalls: number
+}
+
+export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLogProps) {
   const endRef = useRef<HTMLDivElement>(null)
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set())
+  const [showStatsPanel, setShowStatsPanel] = useState(false)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [events])
+
+  // Calculate tool call statistics
+  const calculateStats = (): ToolStats => {
+    const toolEvents = events.filter(e => e.type === 'agent' && e.data.tool)
+    const stats: ToolStats = {
+      totalCalls: 0,
+      toolCounts: {},
+      averageDuration: 0,
+      subAgentCalls: 0
+    }
+
+    const durations: number[] = []
+    const seenCalls = new Set<string>()
+
+    for (const event of toolEvents) {
+      // Count only PostToolUse to avoid double counting
+      if (event.data.phase === 'PostToolUse') {
+        const key = `${event.data.tool}-${event.timestamp?.getTime() || Date.now()}`
+        if (!seenCalls.has(key)) {
+          stats.totalCalls++
+          seenCalls.add(key)
+
+          // Count by tool
+          const tool = event.data.tool as string
+          stats.toolCounts[tool] = (stats.toolCounts[tool] || 0) + 1
+
+          // Track sub-agent calls
+          if (event.data.subAgentType) {
+            stats.subAgentCalls++
+          }
+        }
+      }
+    }
+
+    // Calculate average duration (mock for now, would need timing data)
+    if (durations.length > 0) {
+      stats.averageDuration = durations.reduce((a, b) => a + b, 0) / durations.length
+    }
+
+    return stats
+  }
+
+  const stats = calculateStats()
 
   // Filter to only show agent-related events and result
   const agentEvents = events
@@ -236,8 +288,67 @@ export function EventLog({ events, maxDisplay = 30 }: EventLogProps) {
   }
 
   return (
-    <div className="font-mono text-xs space-y-0.5 max-h-80 overflow-y-auto hex-pattern p-2 rounded">
-      {agentEvents.map((event, i) => {
+    <div className="space-y-2">
+      {/* Statistics Header */}
+      {showStats && stats.totalCalls > 0 && (
+        <div className="flex items-center justify-between px-2 py-1 bg-gray-900/50 rounded border border-gray-800/50">
+          <div className="flex items-center gap-4 text-[10px] text-gray-400 font-mono">
+            <span title="Total tool calls completed">
+              🔧 <span className="text-gray-300">{stats.totalCalls}</span> calls
+            </span>
+            {stats.subAgentCalls > 0 && (
+              <span title="Sub-agent invocations">
+                🤖 <span className="text-cyan-400">{stats.subAgentCalls}</span> agents
+              </span>
+            )}
+            {Object.keys(stats.toolCounts).length > 0 && (
+              <span title="Most used tool">
+                ⚡ <span className="text-yellow-400">
+                  {Object.entries(stats.toolCounts).sort((a, b) => b[1] - a[1])[0][0]}
+                </span>
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setShowStatsPanel(!showStatsPanel)}
+            className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+            title="Toggle detailed statistics"
+          >
+            {showStatsPanel ? '▼' : '▶'} Stats
+          </button>
+        </div>
+      )}
+
+      {/* Detailed Statistics Panel */}
+      {showStatsPanel && stats.totalCalls > 0 && (
+        <div className="px-3 py-2 bg-gray-900/30 rounded border border-gray-800/50 font-mono text-[10px]">
+          <div className="text-gray-400 font-semibold mb-2">📊 Tool Call Statistics</div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Total calls:</span>
+              <span className="text-gray-300">{stats.totalCalls}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Sub-agents:</span>
+              <span className="text-cyan-400">{stats.subAgentCalls}</span>
+            </div>
+            <div className="border-t border-gray-800/50 my-2"></div>
+            <div className="text-gray-500 mb-1">By tool:</div>
+            {Object.entries(stats.toolCounts)
+              .sort((a, b) => b[1] - a[1])
+              .map(([tool, count]) => (
+                <div key={tool} className="flex justify-between pl-2">
+                  <span className="text-gray-400">{tool}:</span>
+                  <span className="text-gray-300">{count}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Event Log */}
+      <div className="font-mono text-xs space-y-0.5 max-h-80 overflow-y-auto hex-pattern p-2 rounded">
+        {agentEvents.map((event, i) => {
         const isExpanded = expandedEvents.has(i)
         const isSubAgent = isSubAgentEvent(event)
         const canExpand = hasExpandableContent(event)
@@ -270,7 +381,8 @@ export function EventLog({ events, maxDisplay = 30 }: EventLogProps) {
           </div>
         )
       })}
-      <div ref={endRef} />
+        <div ref={endRef} />
+      </div>
     </div>
   )
 }
