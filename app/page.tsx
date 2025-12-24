@@ -91,7 +91,6 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectPath: process.cwd(),
           mission: mission.trim() || undefined,
           polishOnly,
           maxDuration: 5 * 60 * 1000 // 5 minutes
