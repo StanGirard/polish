@@ -1,0 +1,67 @@
+{
+  "extends": "base",
+  "metrics": [
+    {
+      "name": "lintErrors",
+      "weight": 25,
+      "command": "npx eslint . --format json 2>/dev/null | jq '[.[].errorCount] | add // 0'",
+      "higherIsBetter": false,
+      "target": 0
+    },
+    {
+      "name": "typeErrors",
+      "weight": 25,
+      "command": "npx tsc --noEmit 2>&1 | grep -c 'error TS' || echo 0",
+      "higherIsBetter": false,
+      "target": 0
+    },
+    {
+      "name": "testsPassing",
+      "weight": 20,
+      "command": "npm test -- --passWithNoTests --json 2>/dev/null | jq '.numPassedTests / (.numPassedTests + .numFailedTests) * 100' || echo 100",
+      "higherIsBetter": true,
+      "target": 100
+    },
+    {
+      "name": "coverage",
+      "weight": 15,
+      "command": "npm test -- --coverage --json 2>/dev/null | jq '.coverageMap.total.lines.pct' || echo 0",
+      "higherIsBetter": true,
+      "target": 80
+    },
+    {
+      "name": "bundleSize",
+      "weight": 15,
+      "command": "du -sk .next 2>/dev/null | cut -f1 || echo 0",
+      "higherIsBetter": false,
+      "target": 50000
+    }
+  ],
+  "strategies": [
+    {
+      "name": "fix-lint",
+      "focus": "lintErrors",
+      "prompt": "Corrige une erreur ESLint. Montre le fichier et la ligne concernée, puis applique le fix."
+    },
+    {
+      "name": "fix-types",
+      "focus": "typeErrors",
+      "prompt": "Corrige une erreur TypeScript. Ajoute les types manquants ou corrige les incompatibilités."
+    },
+    {
+      "name": "add-tests",
+      "focus": "coverage",
+      "prompt": "Ajoute un test unitaire pour une fonction non couverte. Identifie d'abord quelle fonction tester."
+    },
+    {
+      "name": "fix-tests",
+      "focus": "testsPassing",
+      "prompt": "Corrige un test qui échoue. Analyse l'erreur et applique le fix minimal."
+    },
+    {
+      "name": "reduce-bundle",
+      "focus": "bundleSize",
+      "prompt": "Réduis la taille du bundle. Supprime un import inutile ou optimise un import."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "rules": [
+    "Ne jamais casser les tests existants",
+    "Un seul changement atomique par itération",
+    "Préférer supprimer du code plutôt qu'en ajouter",
+    "Ne pas toucher aux fichiers de config sans raison"
+  ],
+  "thresholds": {
+    "minImprovement": 0.5,
+    "maxStalled": 5,
+    "maxScore": 90
+  }
+}
