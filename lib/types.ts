@@ -239,6 +239,9 @@ export type PolishEvent =
   | { type: 'plan_message'; data: PlanMessageEventData }
   | { type: 'plan_approved'; data: PlanApprovedEventData }
   | { type: 'plan_rejected'; data: PlanRejectedEventData }
+  // Planning streaming events (real-time text and thinking)
+  | { type: 'plan_stream'; data: PlanStreamEventData }
+  | { type: 'plan_thinking'; data: PlanThinkingEventData }
 
 export interface PhaseEventData {
   phase: 'implement' | 'polish' | 'planning'
@@ -397,6 +400,19 @@ export interface PlanApprovedEventData {
 export interface PlanRejectedEventData {
   reason?: string  // If provided, triggers re-planning. If empty, aborts session.
   rejectedAt: string
+}
+
+/** Plan stream event - real-time text streaming during planning */
+export interface PlanStreamEventData {
+  chunk: string           // Text chunk being streamed
+  subAgentType?: string   // If from a sub-agent, which type (Explore, Plan, etc.)
+}
+
+/** Plan thinking event - extended thinking/ultrathink streaming */
+export interface PlanThinkingEventData {
+  chunk: string           // Thinking text chunk
+  isThinking: boolean     // Always true (for type discrimination)
+  subAgentType?: string   // If from a sub-agent, which type
 }
 
 // ============================================================================

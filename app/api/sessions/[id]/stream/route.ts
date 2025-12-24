@@ -55,7 +55,11 @@ export async function GET(
       ))
 
       // If session is already done, close stream
-      if (!['running', 'pending', 'planning', 'awaiting_approval'].includes(session.status)) {
+      // Keep stream open for: running, pending, planning, awaiting_approval
+      if (session.status !== 'running' &&
+          session.status !== 'pending' &&
+          session.status !== 'planning' &&
+          session.status !== 'awaiting_approval') {
         controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
         controller.close()
         return

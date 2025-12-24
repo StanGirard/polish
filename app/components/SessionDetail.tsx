@@ -64,6 +64,10 @@ interface PolishEvent {
     questions?: string[]
     approvedAt?: string
     rejectedAt?: string
+    // Streaming fields
+    chunk?: string
+    isThinking?: boolean
+    subAgentType?: string
     [key: string]: unknown
   }
   timestamp: Date
@@ -110,9 +114,21 @@ export function SessionDetail({
   )
   const [currentPlan, setCurrentPlan] = useState<PlanStep[] | null>(session.approvedPlan || null)
   const [planSummary, setPlanSummary] = useState<string | null>(null)
-  const [planRisks, setPlanRisks] = useState<string[]>([])
+  interface Risk {
+    description: string
+    severity: 'low' | 'medium' | 'high'
+    mitigation: string
+  }
+
+  const [planRisks, setPlanRisks] = useState<Risk[]>([])
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const eventSourceRef = useRef<EventSource | null>(null)
+
+  // Streaming states for real-time planning display
+  const [streamingText, setStreamingText] = useState('')
+  const [thinkingText, setThinkingText] = useState('')
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
 
   // Initialize notification permission
   useEffect(() => {
@@ -134,7 +150,9 @@ export function SessionDetail({
       'agent', 'commit', 'rollback', 'result', 'error', 'status',
       'worktree_created', 'worktree_cleanup', 'session_status', 'done', 'aborted',
       // Planning phase events
-      'plan', 'plan_message', 'plan_approved', 'plan_rejected'
+      'plan', 'plan_message', 'plan_approved', 'plan_rejected',
+      // Planning streaming events
+      'plan_stream', 'plan_thinking'
     ]
 
     for (const type of eventTypes) {
@@ -176,11 +194,31 @@ export function SessionDetail({
           if (type === 'plan') {
             if (data.plan) setCurrentPlan(data.plan as PlanStep[])
             if (data.summary) setPlanSummary(data.summary as string)
-            if (data.risks) setPlanRisks(data.risks as string[])
+            if (data.risks) setPlanRisks(data.risks as Risk[])
           }
 
           if (type === 'plan_approved') {
             if (data.plan) setCurrentPlan(data.plan as PlanStep[])
+            // Reset streaming states when plan is approved
+            setStreamingText('')
+            setThinkingText('')
+            setIsStreaming(false)
+          }
+
+          // Planning streaming events
+          if (type === 'plan_stream') {
+            setIsStreaming(true)
+            setStreamingText(prev => prev + (data.chunk || ''))
+          }
+
+          if (type === 'plan_thinking') {
+            setIsStreaming(true)
+            setThinkingText(prev => prev + (data.chunk || ''))
+          }
+
+          // Reset streaming when plan is received (end of streaming)
+          if (type === 'plan') {
+            setIsStreaming(false)
           }
 
           // Send browser notification for important events
@@ -312,6 +350,57 @@ export function SessionDetail({
           </div>
         )}
 
+        {/* Planning Streaming Panel (when planning is in progress) */}
+        {session.status === 'planning' && (streamingText || thinkingText || isStreaming) && (
+          <div className="mb-6 p-5 bg-black rounded border border-orange-500/30 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-400 to-transparent" />
+            <div className="text-orange-400 text-xs mb-4 uppercase tracking-widest flex items-center gap-2">
+              <span className={isStreaming ? 'animate-pulse' : ''}>◆</span>
+              Planning in Progress
+              {isStreaming && <span className="text-orange-300 animate-pulse">▋</span>}
+            </div>
+
+            {/* Thinking Toggle (Ultrathink mode) */}
+            {thinkingText && (
+              <div className="mb-4">
+                <button
+                  onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                  className="flex items-center gap-2 text-purple-400 text-xs uppercase tracking-widest hover:text-purple-300 transition-colors"
+                >
+                  <span>{isThinkingExpanded ? '▼' : '▶'}</span>
+                  <span>Extended Thinking</span>
+                  <span className="text-purple-600 text-[10px]">({thinkingText.length} chars)</span>
+                </button>
+                {isThinkingExpanded && (
+                  <div className="mt-2 p-3 bg-purple-900/20 rounded border border-purple-800/30 max-h-64 overflow-y-auto">
+                    <pre className="text-purple-300 text-xs whitespace-pre-wrap font-mono leading-relaxed">
+                      {thinkingText}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Streaming Text */}
+            {streamingText && (
+              <div className="p-3 bg-gray-900/50 rounded border border-gray-800 max-h-96 overflow-y-auto">
+                <pre className="text-gray-300 text-sm whitespace-pre-wrap font-mono leading-relaxed">
+                  {streamingText}
+                  {isStreaming && <span className="text-orange-400 animate-pulse">▋</span>}
+                </pre>
+              </div>
+            )}
+
+            {/* Empty state while waiting for first chunk */}
+            {!streamingText && !thinkingText && isStreaming && (
+              <div className="flex items-center gap-3 text-gray-500 text-sm">
+                <span className="animate-spin">⟳</span>
+                <span>Analyzing codebase...</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Planning Panel (when awaiting approval) */}
         {session.status === 'awaiting_approval' && currentPlan && onApprovePlan && onRejectPlan && (
           <div className="mb-6 p-5 bg-black rounded border border-orange-500/30 relative overflow-hidden">
@@ -353,7 +442,16 @@ export function SessionDetail({
                 <ul className="space-y-1">
                   {planRisks.map((risk, i) => (
                     <li key={i} className="text-red-300 text-xs flex items-start gap-2">
-                      <span>⚠</span> {risk}
+                      <span className={
+                        risk.severity === 'high' ? 'text-red-500' :
+                        risk.severity === 'medium' ? 'text-yellow-500' : 'text-green-500'
+                      }>⚠</span>
+                      <div>
+                        <span>{risk.description}</span>
+                        {risk.mitigation && (
+                          <span className="text-zinc-500 ml-2">- {risk.mitigation}</span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

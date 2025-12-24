@@ -459,10 +459,26 @@ export async function* runPlanningPhase(
       // Process SDK messages
       if (message.type === 'assistant' && message.message?.content) {
         for (const block of message.message.content) {
+          // Stream thinking blocks (extended thinking / ultrathink mode)
+          if ('thinking' in block && typeof (block as { thinking?: string }).thinking === 'string') {
+            yield {
+              type: 'plan_thinking',
+              data: {
+                chunk: (block as { thinking: string }).thinking,
+                isThinking: true
+              }
+            }
+          }
+          // Stream text blocks progressively
           if ('text' in block) {
             fullResponse += block.text
-            // Note: We don't emit individual chunks as plan_message
-            // Instead, we'll emit the full response once at the end
+            // Emit chunk immediately for real-time streaming
+            yield {
+              type: 'plan_stream',
+              data: {
+                chunk: block.text
+              }
+            }
           }
         }
       } else if (message.type === 'result') {
