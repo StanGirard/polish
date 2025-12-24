@@ -41,6 +41,10 @@ interface PolishEvent {
     stoppedReason?: string
     projectPath?: string
     preset?: string
+    branchName?: string
+    kept?: boolean
+    worktreePath?: string
+    baseBranch?: string
     [key: string]: unknown
   }
   timestamp: Date
@@ -71,6 +75,10 @@ export default function Home() {
     filesModified: string[]
     commitHash: string
   } | null>(null)
+  const [polishBranch, setPolishBranch] = useState<string | null>(null)
+  const [creatingPR, setCreatingPR] = useState(false)
+  const [prUrl, setPrUrl] = useState<string | null>(null)
+  const [prError, setPrError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -85,6 +93,9 @@ export default function Home() {
     setResult(null)
     setCurrentPhase(polishOnly || !mission.trim() ? 'polish' : 'implement')
     setImplementResult(null)
+    setPolishBranch(null)
+    setPrUrl(null)
+    setPrError(null)
     abortRef.current = new AbortController()
 
     try {
@@ -159,6 +170,10 @@ export default function Home() {
                 setCurrentStrategy(null)
               } else if (currentEventType === 'rollback') {
                 setCurrentStrategy(null)
+              } else if (currentEventType === 'worktree_cleanup') {
+                if (data.kept && data.branchName) {
+                  setPolishBranch(data.branchName)
+                }
               } else if (currentEventType === 'result') {
                 setResult({
                   success: data.success,
@@ -194,6 +209,37 @@ export default function Home() {
 
   const stopPolish = () => {
     abortRef.current?.abort()
+  }
+
+  const createPullRequest = async () => {
+    if (!polishBranch) return
+
+    setCreatingPR(true)
+    setPrError(null)
+
+    try {
+      const res = await fetch('/api/create-pr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchName: polishBranch,
+          title: `Polish: Code quality improvements`,
+          customDescription: mission.trim() ? `Mission: ${mission}` : undefined
+        })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create PR')
+      }
+
+      setPrUrl(data.prUrl)
+    } catch (err) {
+      setPrError((err as Error).message)
+    } finally {
+      setCreatingPR(false)
+    }
   }
 
   return (
@@ -505,6 +551,72 @@ export default function Home() {
                   <span className="text-[9px] text-gray-700 tracking-widest">
                     [0x{Math.round(initialScore).toString(16).toUpperCase().padStart(2, '0')} → 0x{Math.round(score).toString(16).toUpperCase().padStart(2, '0')}]
                   </span>
+                </div>
+              </div>
+            )}
+
+            {/* PR Creation Section */}
+            {polishBranch && !prUrl && (
+              <div className="mt-4 p-4 bg-purple-900/20 rounded border border-purple-500/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-purple-400 text-xs uppercase tracking-widest mb-1 flex items-center gap-2">
+                      <span>◆</span> Branch Ready
+                    </div>
+                    <div className="text-purple-300 font-mono text-sm">{polishBranch}</div>
+                  </div>
+                  <button
+                    onClick={createPullRequest}
+                    disabled={creatingPR}
+                    className="px-5 py-2 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400 text-purple-300 rounded font-bold transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] uppercase text-sm tracking-wider flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creatingPR ? (
+                      <>
+                        <span className="animate-spin">◌</span>
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>⬆</span>
+                        <span>Create PR</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                {prError && (
+                  <div className="mt-3 p-2 bg-red-900/30 border border-red-500/30 rounded text-red-400 text-xs">
+                    {prError}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PR Created */}
+            {prUrl && (
+              <div className="mt-4 p-4 bg-green-900/20 rounded border border-green-500/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-green-400 text-xs uppercase tracking-widest mb-1 flex items-center gap-2">
+                      <span>✓</span> Pull Request Created
+                    </div>
+                    <a
+                      href={prUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-300 hover:text-green-200 font-mono text-sm underline"
+                    >
+                      {prUrl}
+                    </a>
+                  </div>
+                  <a
+                    href={prUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-5 py-2 bg-green-600/30 hover:bg-green-600/50 border border-green-400 text-green-300 rounded font-bold transition-all hover:shadow-[0_0_20px_rgba(34,197,94,0.3)] uppercase text-sm tracking-wider flex items-center gap-2"
+                  >
+                    <span>↗</span>
+                    <span>View PR</span>
+                  </a>
                 </div>
               </div>
             )}

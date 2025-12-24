@@ -247,6 +247,59 @@ export async function createPR(
 }
 
 // ============================================================================
+// Branch Commit Info
+// ============================================================================
+
+export interface BranchCommitInfo {
+  hash: string
+  message: string
+  date: string
+}
+
+export async function getBranchCommits(
+  projectPath: string,
+  branchName: string,
+  baseBranch: string = 'main'
+): Promise<BranchCommitInfo[]> {
+  const git = getGit(projectPath)
+
+  try {
+    // Get commits that are in branchName but not in baseBranch
+    const log = await git.log([`${baseBranch}..${branchName}`])
+    return log.all.map(commit => ({
+      hash: commit.hash.slice(0, 7),
+      message: commit.message,
+      date: commit.date
+    }))
+  } catch {
+    // If baseBranch doesn't exist, try with master
+    try {
+      const log = await git.log([`master..${branchName}`])
+      return log.all.map(commit => ({
+        hash: commit.hash.slice(0, 7),
+        message: commit.message,
+        date: commit.date
+      }))
+    } catch {
+      // Fallback: get last 10 commits of the branch
+      const log = await git.log([branchName, '-n', '10'])
+      return log.all.map(commit => ({
+        hash: commit.hash.slice(0, 7),
+        message: commit.message,
+        date: commit.date
+      }))
+    }
+  }
+}
+
+export async function getRemoteUrl(projectPath: string): Promise<string | null> {
+  const git = getGit(projectPath)
+  const remotes = await git.getRemotes(true)
+  const origin = remotes.find(r => r.name === 'origin')
+  return origin?.refs.push || null
+}
+
+// ============================================================================
 // Temp Directory Management
 // ============================================================================
 
