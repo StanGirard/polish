@@ -11,9 +11,8 @@
     "trigger:deploy": "trigger deploy"
   },
   "dependencies": {
-    "@trigger.dev/sdk": "^3.0.0",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.76",
     "next": "14.2.18",
-    "openai": "^4.73.0",
     "react": "^18",
     "react-dom": "^18",
     "simple-git": "^3.27.0"
