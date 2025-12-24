@@ -44,8 +44,15 @@ export interface PlanningContext {
 }
 
 export interface PlanningResult {
-  plan: PlanStep[]
+  // New simple format (primary)
   summary: string
+  approach: string[]           // 5-7 concise bullet points
+  files: {
+    modify: string[]
+    create: string[]
+  }
+  // Legacy fields (for backwards compatibility)
+  plan: PlanStep[]
   estimatedChanges: {
     filesCreated: string[]
     filesModified: string[]
@@ -61,146 +68,65 @@ export interface PlanningResult {
 
 /**
  * Get the appropriate system prompt based on planning mode and thoroughness
+ * Ultra-minimalist style inspired by Claude Code
  */
 function getPlanningSystemPrompt(
   thoroughness: PlanningThoroughness = 'medium',
   mode: PlanningMode = 'agent-driven'
 ): string {
-  const thoroughnessGuide = {
-    quick: `## Niveau: Exploration RAPIDE
-- Fais une recherche basique de la structure du projet
-- Identifie les fichiers principaux sans lecture approfondie
-- Propose un plan simple et direct`,
-    medium: `## Niveau: Exploration MODÉRÉE
-- Explore la structure du projet en détail
-- Lis les fichiers clés pour comprendre les patterns
-- Analyse les dépendances principales
-- Propose un plan bien réfléchi`,
-    thorough: `## Niveau: Exploration APPROFONDIE
-- Analyse exhaustive de la structure du projet
-- Lis tous les fichiers pertinents en détail
-- Comprends profondément les patterns et conventions
-- Vérifie les implications de sécurité et de performance
-- Propose un plan complet avec alternatives`
+  const explorationGuide = {
+    quick: 'Exploration rapide - identifie juste les fichiers clés.',
+    medium: 'Exploration modérée - lis les fichiers importants pour comprendre les patterns.',
+    thorough: 'Exploration approfondie - analyse en détail avant de proposer.'
   }
 
-  const agentDrivenInstructions = mode === 'agent-driven' ? `
-## Utilisation des sous-agents (OBLIGATOIRE)
-Tu as accès à des agents spécialisés via l'outil Task. Tu DOIS les utiliser:
+  const agentHint = mode === 'agent-driven'
+    ? `\n\nTu peux utiliser l'outil Task avec des sous-agents (Explore, code-analysis) pour explorer le codebase.`
+    : ''
 
-### Agents disponibles et quand les utiliser:
+  return `Tu es en mode PLANNING. Propose un plan CONCIS que l'utilisateur peut approuver rapidement.
 
-1. **Explore** (modèle: small - très rapide)
-   - Recherche de fichiers par patterns
-   - Recherche de code par mots-clés
-   - Compréhension rapide de la structure
-   - Utilise: \`{ "subagent_type": "Explore", "prompt": "..." }\`
+## ${explorationGuide[thoroughness]}${agentHint}
 
-2. **Plan** (modèle: big - très capable)
-   - Conception de plans d'implémentation complexes
-   - Décisions architecturales importantes
-   - Utilise: \`{ "subagent_type": "Plan", "prompt": "..." }\`
+## RÈGLES STRICTES
+1. Maximum 5-7 bullet points (pas plus!)
+2. Chaque point = UNE phrase courte (action + cible)
+3. Pas de descriptions longues - juste le "quoi"
+4. Liste uniquement les fichiers CLÉS à modifier
+5. Mode lecture seule - ne modifie rien
 
-3. **research** (modèle: medium)
-   - Questions complexes nécessitant une analyse approfondie
-   - Compréhension de concepts multi-fichiers
-   - Utilise: \`{ "subagent_type": "research", "prompt": "..." }\`
+## FORMAT DE RÉPONSE
 
-4. **code-analysis** (modèle: medium)
-   - Analyse de fonctions spécifiques
-   - Compréhension de flux de données
-   - Identification de patterns
-   - Utilise: \`{ "subagent_type": "code-analysis", "prompt": "..." }\`
-
-5. **security-review** (modèle: medium)
-   - Audit de sécurité du code sensible
-   - Identification de vulnérabilités
-   - Utilise: \`{ "subagent_type": "security-review", "prompt": "..." }\`
-
-6. **test-analysis** (modèle: small - rapide)
-   - Analyse de la couverture de tests
-   - Identification des tests manquants
-   - Utilise: \`{ "subagent_type": "test-analysis", "prompt": "..." }\`
-
-### Stratégie de planning recommandée:
-1. Lance d'abord **Explore** pour comprendre la structure globale
-2. Utilise **code-analysis** pour analyser les fichiers clés identifiés
-3. Si des aspects de sécurité sont impliqués, lance **security-review**
-4. Utilise **Plan** pour concevoir le plan final basé sur les découvertes
-
-### Exécution parallèle:
-Tu peux lancer plusieurs agents en parallèle s'ils sont indépendants.
-Par exemple: Explore + test-analysis peuvent être lancés ensemble.
-` : ''
-
-  return `Tu es un architecte logiciel expert en planification d'implémentation.
-
-${thoroughnessGuide[thoroughness]}
-${agentDrivenInstructions}
-
-## Ta mission
-Analyser le codebase et proposer un plan d'implémentation détaillé pour la mission demandée.
-
-## Processus de planification
-
-### Phase 1: Exploration
-- Comprends la structure du projet
-- Identifie les technologies utilisées
-- Repère les patterns et conventions
-
-### Phase 2: Analyse
-- Lis les fichiers clés
-- Comprends les dépendances
-- Identifie les points d'extension
-
-### Phase 3: Conception
-- Propose un plan d'implémentation
-- Identifie les risques
-- Suggère des alternatives si pertinent
-
-## Format de réponse
-Tu DOIS retourner un plan structuré au format JSON dans un bloc \`\`\`json:
+Retourne un JSON dans un bloc \`\`\`json:
 
 \`\`\`json
 {
-  "summary": "Résumé en 1-2 phrases de ce que le plan accomplit",
-  "plan": [
-    {
-      "id": "step-1",
-      "title": "Titre court de l'étape",
-      "description": "Description détaillée de ce qui sera fait",
-      "files": ["chemin/vers/fichier1.ts", "chemin/vers/fichier2.ts"],
-      "order": 1,
-      "dependencies": [],
-      "complexity": "low|medium|high",
-      "testStrategy": "Comment tester cette étape"
-    }
+  "summary": "Ce que ce plan accomplit en 1 phrase",
+  "approach": [
+    "Créer le composant X dans src/components",
+    "Modifier Y pour ajouter Z",
+    "Ajouter les tests unitaires"
   ],
-  "estimatedChanges": {
-    "filesCreated": ["nouveaux/fichiers.ts"],
-    "filesModified": ["fichiers/existants.ts"],
-    "filesDeleted": []
-  },
-  "risks": [
-    {
-      "description": "Description du risque",
-      "severity": "low|medium|high",
-      "mitigation": "Comment mitiger ce risque"
-    }
-  ],
-  "securityConsiderations": ["Considérations de sécurité si applicable"],
-  "testingPlan": "Stratégie de test globale",
-  "questions": ["Question optionnelle pour clarification"]
+  "files": {
+    "modify": ["src/existing.ts"],
+    "create": ["src/new.ts"]
+  }
 }
 \`\`\`
 
-## Règles strictes
-- Ne modifie JAMAIS de fichiers - tu es en mode lecture seule
-- Sois précis sur les fichiers et les lignes concernées
-- Identifie et réutilise les patterns existants du projet
-- Pose des questions si la mission n'est pas claire
-- Les étapes doivent être atomiques et testables
-- Privilégie la simplicité - évite le sur-engineering`
+## EXEMPLES
+
+❌ MAUVAIS (trop verbeux):
+"Créer un nouveau composant React UserProfile dans src/components/UserProfile.tsx avec une interface TypeScript pour les props, utilisant useState pour gérer l'état local et useEffect pour charger les données depuis l'API"
+
+✅ BON (concis):
+"Créer le composant UserProfile"
+
+❌ MAUVAIS (trop d'étapes):
+20+ étapes détaillant chaque modification
+
+✅ BON (synthétique):
+5-7 étapes de haut niveau`
 }
 
 const PLANNING_SYSTEM_PROMPT = getPlanningSystemPrompt('medium', 'agent-driven')
@@ -214,36 +140,15 @@ function buildInitialPlanningPrompt(
   thoroughness: PlanningThoroughness = 'medium',
   mode: PlanningMode = 'agent-driven'
 ): string {
-  const thoroughnessHint = {
-    quick: 'Fais une exploration rapide et propose un plan simple.',
-    medium: 'Explore en détail et propose un plan bien réfléchi.',
-    thorough: 'Fais une analyse exhaustive avant de proposer un plan complet.'
-  }
-
   const agentHint = mode === 'agent-driven'
-    ? `\n\n## Utilisation des sous-agents
-IMPORTANT: Tu DOIS utiliser les sous-agents pour cette tâche:
-1. Lance l'agent **Explore** pour comprendre la structure du projet
-2. Si nécessaire, utilise **code-analysis** pour analyser les fichiers clés
-3. Utilise **Plan** pour concevoir le plan final
-
-Les agents peuvent être lancés en parallèle quand ils sont indépendants.`
+    ? `\n\nUtilise l'agent Explore pour comprendre le codebase si nécessaire.`
     : ''
 
-  return `## Mission à planifier
+  return `## Mission
 ${mission}
-
-## Niveau d'exploration: ${thoroughness.toUpperCase()}
-${thoroughnessHint[thoroughness]}
 ${agentHint}
 
-## Instructions
-1. Explore le codebase pour comprendre sa structure
-2. Identifie les fichiers pertinents pour cette mission
-3. Analyse les patterns existants à réutiliser
-4. Propose un plan d'implémentation détaillé
-
-Commence par explorer le projet avec les agents appropriés, puis génère ton plan au format JSON.`
+Explore le projet puis propose un plan CONCIS (5-7 points max) au format JSON.`
 }
 
 function buildContinuationPrompt(
@@ -252,38 +157,18 @@ function buildContinuationPrompt(
   thoroughness: PlanningThoroughness = 'medium',
   mode: PlanningMode = 'agent-driven'
 ): string {
-  let prompt = `## Mission originale
+  let prompt = `## Mission
 ${mission}
 
-## Niveau d'exploration: ${thoroughness.toUpperCase()}
-
-## Historique de la conversation de planification
+## Conversation
 `
 
-  // Include all previous messages as context
   for (const msg of messages) {
-    const role = msg.role === 'user' ? '👤 Utilisateur' : '🤖 Assistant'
-    prompt += `\n### ${role}\n${msg.content}\n`
+    const role = msg.role === 'user' ? 'User' : 'Assistant'
+    prompt += `\n**${role}:** ${msg.content}\n`
   }
 
-  const agentHint = mode === 'agent-driven'
-    ? `\n## Utilisation des sous-agents
-Si tu as besoin d'explorer davantage pour répondre au feedback:
-- Utilise **Explore** pour rechercher des fichiers ou du code
-- Utilise **code-analysis** pour analyser du code spécifique
-- Utilise **Plan** pour retravailler la conception si nécessaire`
-    : ''
-
-  prompt += `
-## Instructions
-Prends en compte tout le contexte et le feedback ci-dessus.
-- Analyse les retours de l'utilisateur
-- Modifie le plan si nécessaire
-- Réponds aux questions soulevées
-- Clarifie les points demandés
-${agentHint}
-
-Génère un plan révisé au format JSON.`
+  prompt += `\nPrends en compte le feedback et génère un plan révisé (5-7 points max) au format JSON.`
 
   return prompt
 }
@@ -302,28 +187,54 @@ function parsePlanFromResponse(text: string): PlanningResult | null {
   try {
     const parsed = JSON.parse(jsonMatch[1])
 
-    // Validate required fields
-    if (!parsed.plan || !Array.isArray(parsed.plan)) {
-      return null
+    // New simple format (preferred)
+    if (parsed.approach && Array.isArray(parsed.approach)) {
+      return {
+        summary: parsed.summary || '',
+        approach: parsed.approach,
+        files: {
+          modify: parsed.files?.modify || [],
+          create: parsed.files?.create || []
+        },
+        // Legacy fields for backwards compatibility
+        plan: [],
+        estimatedChanges: {
+          filesCreated: parsed.files?.create || [],
+          filesModified: parsed.files?.modify || [],
+          filesDeleted: []
+        },
+        risks: [],
+        questions: parsed.questions
+      }
     }
 
-    return {
-      plan: parsed.plan.map((step: Partial<PlanStep>, index: number) => ({
-        id: step.id || `step-${index + 1}`,
-        title: step.title || `Étape ${index + 1}`,
-        description: step.description || '',
-        files: step.files || [],
-        order: step.order ?? index + 1
-      })),
-      summary: parsed.summary || '',
-      estimatedChanges: {
-        filesCreated: parsed.estimatedChanges?.filesCreated || [],
-        filesModified: parsed.estimatedChanges?.filesModified || [],
-        filesDeleted: parsed.estimatedChanges?.filesDeleted || []
-      },
-      risks: parsed.risks || [],
-      questions: parsed.questions
+    // Legacy format fallback (for backwards compatibility)
+    if (parsed.plan && Array.isArray(parsed.plan)) {
+      return {
+        summary: parsed.summary || '',
+        approach: parsed.plan.map((step: { title?: string }) => step.title || ''),
+        files: {
+          modify: parsed.estimatedChanges?.filesModified || [],
+          create: parsed.estimatedChanges?.filesCreated || []
+        },
+        plan: parsed.plan.map((step: Partial<PlanStep>, index: number) => ({
+          id: step.id || `step-${index + 1}`,
+          title: step.title || `Étape ${index + 1}`,
+          description: step.description || '',
+          files: step.files || [],
+          order: step.order ?? index + 1
+        })),
+        estimatedChanges: {
+          filesCreated: parsed.estimatedChanges?.filesCreated || [],
+          filesModified: parsed.estimatedChanges?.filesModified || [],
+          filesDeleted: parsed.estimatedChanges?.filesDeleted || []
+        },
+        risks: parsed.risks || [],
+        questions: parsed.questions
+      }
     }
+
+    return null
   } catch {
     return null
   }
@@ -509,10 +420,13 @@ export async function* runPlanningPhase(
         lastPlan = parsePlanFromResponse(fullResponse)
 
         if (lastPlan) {
-          // Yield the structured plan
+          // Yield the structured plan (new simple format)
           const planEventData: PlanEventData = {
-            plan: lastPlan.plan,
             summary: lastPlan.summary,
+            approach: lastPlan.approach,
+            files: lastPlan.files,
+            // Legacy fields for backwards compatibility
+            plan: lastPlan.plan,
             estimatedChanges: lastPlan.estimatedChanges,
             risks: lastPlan.risks,
             questions: lastPlan.questions

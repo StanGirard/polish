@@ -355,7 +355,20 @@ export interface AbortedEventData {
 // Planning Phase Types
 // ============================================================================
 
-/** A step in the implementation plan */
+/**
+ * Simple plan format - ultra-minimaliste style Claude Code
+ * Maximum 5-7 bullet points, no verbose descriptions
+ */
+export interface SimplePlan {
+  summary: string              // 1 sentence describing what this plan accomplishes
+  approach: string[]           // 5-7 concise bullet points (action + target)
+  files: {
+    modify: string[]           // Existing files to modify
+    create: string[]           // New files to create
+  }
+}
+
+/** @deprecated Use SimplePlan instead - kept for backwards compatibility */
 export interface PlanStep {
   id: string
   title: string
@@ -374,15 +387,22 @@ export interface PlanMessage {
 
 /** Plan event data - sent when plan is generated/updated */
 export interface PlanEventData {
-  plan: PlanStep[]
+  // New simple format (preferred)
   summary: string
-  estimatedChanges: {
+  approach: string[]           // 5-7 concise bullet points
+  files: {
+    modify: string[]
+    create: string[]
+  }
+  // Legacy fields (deprecated, for backwards compatibility)
+  plan?: PlanStep[]
+  estimatedChanges?: {
     filesCreated: string[]
     filesModified: string[]
     filesDeleted: string[]
   }
-  risks: string[]
-  questions?: string[]  // Clarifying questions for the user
+  risks?: string[]
+  questions?: string[]
 }
 
 /** Plan message event - chat message during planning */

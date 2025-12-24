@@ -112,14 +112,17 @@ export function SessionDetail({
     session.status === 'awaiting_approval' ? 'planning' :
     session.status === 'running' ? 'polish' : 'idle'
   )
-  const [currentPlan, setCurrentPlan] = useState<PlanStep[] | null>(session.approvedPlan || null)
+  // New simple plan format
   const [planSummary, setPlanSummary] = useState<string | null>(null)
+  const [planApproach, setPlanApproach] = useState<string[]>([])
+  const [planFiles, setPlanFiles] = useState<{ modify: string[]; create: string[] }>({ modify: [], create: [] })
+  // Legacy plan format (for backwards compatibility)
+  const [currentPlan, setCurrentPlan] = useState<PlanStep[] | null>(session.approvedPlan || null)
   interface Risk {
     description: string
     severity: 'low' | 'medium' | 'high'
     mitigation: string
   }
-
   const [planRisks, setPlanRisks] = useState<Risk[]>([])
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -192,12 +195,17 @@ export function SessionDetail({
 
           // Planning events
           if (type === 'plan') {
-            if (data.plan) setCurrentPlan(data.plan as PlanStep[])
+            // New simple format (preferred)
             if (data.summary) setPlanSummary(data.summary as string)
+            if (data.approach) setPlanApproach(data.approach as string[])
+            if (data.files) setPlanFiles(data.files as { modify: string[]; create: string[] })
+            // Legacy format (for backwards compatibility)
+            if (data.plan) setCurrentPlan(data.plan as PlanStep[])
             if (data.risks) setPlanRisks(data.risks as Risk[])
           }
 
           if (type === 'plan_approved') {
+            if (data.approach) setPlanApproach(data.approach as string[])
             if (data.plan) setCurrentPlan(data.plan as PlanStep[])
             // Reset streaming states when plan is approved
             setStreamingText('')
@@ -401,69 +409,68 @@ export function SessionDetail({
           </div>
         )}
 
-        {/* Planning Panel (when awaiting approval) */}
-        {session.status === 'awaiting_approval' && currentPlan && onApprovePlan && onRejectPlan && (
+        {/* Planning Panel (when awaiting approval) - Ultra-minimalist style */}
+        {session.status === 'awaiting_approval' && (planApproach.length > 0 || currentPlan) && onApprovePlan && onRejectPlan && (
           <div className="mb-6 p-5 bg-black rounded border border-orange-500/30 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-400 to-transparent" />
             <div className="text-orange-400 text-xs mb-4 uppercase tracking-widest flex items-center gap-2">
-              <span>◆</span> Implementation Plan - Awaiting Approval
+              <span>◆</span> Plan
             </div>
 
+            {/* Summary */}
             {planSummary && (
               <p className="text-gray-300 text-sm mb-4">{planSummary}</p>
             )}
 
-            <div className="space-y-3 mb-4">
-              {currentPlan.map((step, idx) => (
-                <div key={step.id} className="p-3 bg-gray-900/50 rounded border border-gray-800">
-                  <div className="flex items-start gap-3">
-                    <span className="text-orange-500 font-mono text-xs">{idx + 1}.</span>
-                    <div>
-                      <h4 className="text-gray-200 font-medium text-sm">{step.title}</h4>
-                      <p className="text-gray-500 text-xs mt-1">{step.description}</p>
-                      {step.files.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {step.files.map((file, i) => (
-                            <span key={i} className="text-[10px] px-2 py-0.5 bg-gray-800 rounded text-gray-400 font-mono">
-                              {file}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* Approach bullet points (new simple format) */}
+            {planApproach.length > 0 && (
+              <ul className="space-y-2 mb-4">
+                {planApproach.map((step, i) => (
+                  <li key={i} className="flex gap-3 text-sm">
+                    <span className="text-orange-500">•</span>
+                    <span className="text-gray-300">{step}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
 
-            {planRisks.length > 0 && (
-              <div className="mb-4 p-3 bg-red-900/20 rounded border border-red-800/30">
-                <div className="text-red-400 text-xs mb-2 uppercase tracking-widest">Risks</div>
-                <ul className="space-y-1">
-                  {planRisks.map((risk, i) => (
-                    <li key={i} className="text-red-300 text-xs flex items-start gap-2">
-                      <span className={
-                        risk.severity === 'high' ? 'text-red-500' :
-                        risk.severity === 'medium' ? 'text-yellow-500' : 'text-green-500'
-                      }>⚠</span>
-                      <div>
-                        <span>{risk.description}</span>
-                        {risk.mitigation && (
-                          <span className="text-zinc-500 ml-2">- {risk.mitigation}</span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+            {/* Legacy format fallback */}
+            {planApproach.length === 0 && currentPlan && currentPlan.length > 0 && (
+              <ul className="space-y-2 mb-4">
+                {currentPlan.map((step, i) => (
+                  <li key={step.id} className="flex gap-3 text-sm">
+                    <span className="text-orange-500">•</span>
+                    <span className="text-gray-300">{step.title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Files */}
+            {(planFiles.modify.length > 0 || planFiles.create.length > 0) && (
+              <div className="text-xs text-gray-500 mb-4 font-mono">
+                {planFiles.modify.length > 0 && (
+                  <div className="mb-1">
+                    <span className="text-gray-600">Modify:</span>{' '}
+                    {planFiles.modify.join(', ')}
+                  </div>
+                )}
+                {planFiles.create.length > 0 && (
+                  <div>
+                    <span className="text-gray-600">Create:</span>{' '}
+                    {planFiles.create.join(', ')}
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Approve/Reject buttons */}
             <div className="flex gap-3">
               <button
-                onClick={() => onApprovePlan(session.id, currentPlan)}
+                onClick={() => onApprovePlan(session.id, currentPlan || undefined)}
                 className="flex-1 px-4 py-2 text-sm text-green-400 border border-green-800 rounded hover:bg-green-900/30 transition-colors"
               >
-                ✓ APPROVE & START
+                ✓ APPROVE
               </button>
               <button
                 onClick={() => {
