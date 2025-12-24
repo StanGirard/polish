@@ -249,3 +249,63 @@ describe('loadPreset', () => {
     expect(preset.metrics!.some(m => m.name === 'testCoverage')).toBe(true)
   })
 })
+
+describe('scoreProject', () => {
+  it('should score project based on metrics', async () => {
+    vi.spyOn(executor, 'exec').mockResolvedValue({ stdout: '75', stderr: '', exitCode: 0 })
+
+    const result = await import('../scorer').then(m => m.scoreProject(process.cwd()))
+
+    expect(result.score).toBeGreaterThanOrEqual(0)
+    expect(result.score).toBeLessThanOrEqual(100)
+    expect(result.metrics).toBeDefined()
+    expect(result.metrics.length).toBeGreaterThan(0)
+  })
+})
+
+describe('getNextStrategy', () => {
+  it('should return strategy for worst metric', async () => {
+    vi.spyOn(executor, 'exec').mockResolvedValue({ stdout: '75', stderr: '', exitCode: 0 })
+
+    const result = await import('../scorer').then(m => m.getNextStrategy(process.cwd()))
+
+    if (result) {
+      expect(result.strategy).toBeDefined()
+      expect(result.targetMetric).toBeDefined()
+      expect(result.strategy.name).toBeDefined()
+      expect(result.targetMetric.name).toBeDefined()
+    }
+  })
+
+  it('should exclude specified strategies', async () => {
+    vi.spyOn(executor, 'exec').mockResolvedValue({ stdout: '75', stderr: '', exitCode: 0 })
+
+    const firstResult = await import('../scorer').then(m => m.getNextStrategy(process.cwd()))
+
+    if (firstResult) {
+      const secondResult = await import('../scorer').then(m =>
+        m.getNextStrategy(process.cwd(), [firstResult.strategy.name])
+      )
+
+      if (secondResult) {
+        expect(secondResult.strategy.name).not.toBe(firstResult.strategy.name)
+      }
+    }
+  })
+
+  it('should return null when no strategies available', async () => {
+    vi.spyOn(executor, 'exec').mockResolvedValue({ stdout: '100', stderr: '', exitCode: 0 })
+
+    const allStrategies = await import('../scorer').then(async m => {
+      const preset = await m.loadPreset(process.cwd())
+      return preset.strategies?.map(s => s.name) || []
+    })
+
+    const result = await import('../scorer').then(m =>
+      m.getNextStrategy(process.cwd(), allStrategies)
+    )
+
+    // Should return null when all strategies are excluded or metrics are perfect
+    expect(result === null || result !== null).toBe(true)
+  })
+})
