@@ -24,12 +24,86 @@ export interface PresetThresholds {
   maxScore?: number
 }
 
+// ============================================================================
+// Capabilities Configuration (for SDK integration)
+// ============================================================================
+
+export type ExecutionPhase = 'implement' | 'polish' | 'both'
+
+/** MCP Server configuration (matches SDK McpServerConfig) */
+export type McpServerConfig =
+  | { type?: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
+  | { type: 'sse'; url: string; headers?: Record<string, string> }
+  | { type: 'http'; url: string; headers?: Record<string, string> }
+
+/** Plugin configuration - supports bundled (with Polish) and external plugins */
+export type PluginConfig =
+  | { type: 'bundled'; name: string }         // Plugin bundled with Polish (in polish/plugins/)
+  | { type: 'local'; path: string }           // Local plugin (absolute path or relative to Polish)
+  | { type: 'npm'; package: string }          // NPM plugin (future: @polish/plugin-xxx)
+  | { type: 'url'; url: string }              // Remote plugin (future: downloaded/cached)
+
+/** SDK plugin config format */
+export interface SdkPluginConfig {
+  type: 'local'
+  path: string
+}
+
+/** Custom agent definition (matches SDK AgentDefinition) */
+export interface AgentDefinition {
+  description: string
+  prompt: string
+  tools?: string[]
+  disallowedTools?: string[]
+  model?: 'sonnet' | 'opus' | 'haiku' | 'inherit'
+}
+
+/** Capabilities configuration for a specific phase */
+export interface PhaseCapabilities {
+  tools?: string[]                              // Available tools
+  allowedTools?: string[]                       // Auto-allowed without permission
+  disallowedTools?: string[]                    // Explicitly forbidden
+  mcpServers?: Record<string, McpServerConfig>  // MCP servers to load
+  plugins?: PluginConfig[]                      // Plugins to load
+  agents?: Record<string, AgentDefinition>      // Custom sub-agents
+  settingSources?: ('user' | 'project' | 'local')[]  // Settings sources to load
+  systemPromptAppend?: string                   // Additional instructions
+}
+
+/** Capabilities configuration in a preset */
+export interface PresetCapabilities {
+  implement?: PhaseCapabilities    // Phase 1: Implementation
+  polish?: PhaseCapabilities       // Phase 2: Polish loop
+  shared?: PhaseCapabilities       // Applied to both phases
+}
+
+/** Session-level capability override */
+export interface CapabilityOverride {
+  type: 'tool' | 'mcpServer' | 'plugin' | 'agent'
+  id: string
+  enabled: boolean
+  phases?: ExecutionPhase[]
+}
+
+/** Resolved options for SDK query() call */
+export interface ResolvedQueryOptions {
+  tools?: string[]
+  allowedTools?: string[]
+  disallowedTools?: string[]
+  mcpServers?: Record<string, McpServerConfig>
+  plugins?: SdkPluginConfig[]
+  agents?: Record<string, AgentDefinition>
+  settingSources?: ('user' | 'project' | 'local')[]
+  systemPrompt?: string | { type: 'preset'; preset: 'claude_code'; append?: string }
+}
+
 export interface Preset {
   extends?: string
   rules?: string[]
   thresholds?: PresetThresholds
   metrics?: Metric[]
   strategies?: Strategy[]
+  capabilities?: PresetCapabilities
 }
 
 // ============================================================================
@@ -85,6 +159,7 @@ export interface PolishConfig {
     feedback: string // User feedback explaining what to fix/improve
     retryCount: number // Number of times this session has been retried
   }
+  capabilityOverrides?: CapabilityOverride[] // Session-level capability overrides
 }
 
 // ============================================================================

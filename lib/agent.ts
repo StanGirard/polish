@@ -9,7 +9,8 @@ import type {
   FailedAttempt,
   MetricResult,
   PolishEvent,
-  Strategy
+  Strategy,
+  ResolvedQueryOptions
 } from './types'
 
 // ============================================================================
@@ -83,7 +84,8 @@ ${rules.map(r => `- ${r}`).join('\n')}
 }
 
 export async function* runSingleFix(
-  context: SingleFixContext
+  context: SingleFixContext,
+  queryOptions?: ResolvedQueryOptions
 ): AsyncGenerator<PolishEvent> {
   const { projectPath, rules } = context
 
@@ -111,7 +113,8 @@ export async function* runSingleFix(
   }
 
   try {
-    const systemPrompt = buildSystemPrompt(rules)
+    // Use custom system prompt if provided, otherwise build default
+    const systemPrompt = queryOptions?.systemPrompt || buildSystemPrompt(rules)
 
     // Auto-continuation support (same as implement.ts)
     const MAX_CONTINUATIONS = 5
@@ -125,12 +128,23 @@ export async function* runSingleFix(
         ? 'Continue le fix en cours.'
         : buildSingleFixPrompt(context)
 
+      // Merge default options with resolved capabilities
+      const defaultAllowedTools = ['Read', 'Edit', 'Bash', 'Glob', 'Grep']
+
       for await (const message of query({
         prompt,
         options: {
           cwd: projectPath,
           systemPrompt,
-          allowedTools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
+          // Use resolved tools or default
+          tools: queryOptions?.tools,
+          allowedTools: queryOptions?.allowedTools || defaultAllowedTools,
+          disallowedTools: queryOptions?.disallowedTools,
+          // MCP servers and plugins from capabilities
+          mcpServers: queryOptions?.mcpServers,
+          plugins: queryOptions?.plugins,
+          agents: queryOptions?.agents,
+          settingSources: queryOptions?.settingSources,
           permissionMode: 'acceptEdits',
           maxTurns: 30,
           maxThinkingTokens: 16000,

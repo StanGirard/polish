@@ -5,11 +5,13 @@ import { loadPreset, runAllMetrics, calculateScore, getWorstMetric, getStrategyF
 import { exec } from './executor'
 import { createWorktree, createWorktreeFromBranch, cleanupWorktree, checkPreflight, branchExists, type WorktreeConfig } from './worktree'
 import { generateSessionSummary } from './summary-generator'
+import { resolveCapabilitiesForPhase } from './capabilities'
 import type {
   CommitInfo,
   FailedAttempt,
   PolishConfig,
-  PolishEvent
+  PolishEvent,
+  ResolvedQueryOptions
 } from './types'
 
 // ============================================================================
@@ -92,7 +94,10 @@ async function* generateAndYieldSummary(params: SummaryParams): AsyncGenerator<P
 // Main Polish Loop
 // ============================================================================
 
-export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<PolishEvent> {
+export async function* runPolishLoop(
+  config: PolishConfig,
+  queryOptions?: ResolvedQueryOptions
+): AsyncGenerator<PolishEvent> {
   const {
     projectPath,
     maxDuration = DEFAULT_MAX_DURATION,
@@ -280,9 +285,9 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
       rules
     }
 
-    // Run single fix agent
+    // Run single fix agent with resolved capabilities
     let agentError = false
-    for await (const event of runSingleFix(context)) {
+    for await (const event of runSingleFix(context, queryOptions)) {
       yield event
       if (event.type === 'error') {
         agentError = true
@@ -418,7 +423,10 @@ export async function* runPolishLoop(config: PolishConfig): AsyncGenerator<Polis
 // ============================================================================
 
 export async function* runFullPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
-  const { projectPath, mission, retry } = config
+  const { projectPath, mission, retry, capabilityOverrides = [] } = config
+
+  // Load preset for capabilities resolution
+  const preset = await loadPreset(projectPath)
 
   // Phase 1: Implement (if mission provided)
   if (mission) {
@@ -433,11 +441,15 @@ export async function* runFullPolish(config: PolishConfig): AsyncGenerator<Polis
       }
     }
 
+    // Resolve capabilities for implement phase
+    const implementOptions = resolveCapabilitiesForPhase(preset, 'implement', capabilityOverrides)
+
     for await (const event of runImplementPhase({
       mission,
       projectPath,
       feedback: retry?.feedback,
-      retryCount: retry?.retryCount
+      retryCount: retry?.retryCount,
+      queryOptions: implementOptions
     })) {
       yield event
 
@@ -459,7 +471,10 @@ export async function* runFullPolish(config: PolishConfig): AsyncGenerator<Polis
     data: { phase: 'polish' }
   }
 
-  for await (const event of runPolishLoop(config)) {
+  // Resolve capabilities for polish phase
+  const polishOptions = resolveCapabilitiesForPhase(preset, 'polish', capabilityOverrides)
+
+  for await (const event of runPolishLoop(config, polishOptions)) {
     yield event
   }
 }

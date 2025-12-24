@@ -9,5 +9,17 @@
     "minImprovement": 0.5,
     "maxStalled": 5,
     "maxScore": 90
+  },
+  "capabilities": {
+    "shared": {
+      "tools": ["Read", "Edit", "Bash", "Glob", "Grep"],
+      "settingSources": ["project"]
+    },
+    "implement": {
+      "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
+    },
+    "polish": {
+      "tools": ["Read", "Edit", "Bash", "Glob", "Grep"]
+    }
   }
 }

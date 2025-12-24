@@ -6,6 +6,7 @@ import { MetricsGrid } from './MetricCard'
 import { CommitTimeline } from './CommitTimeline'
 import { EventLog } from './EventLog'
 import { FeedbackPanel } from './FeedbackPanel'
+import { FileChangesSection } from './FileChangesSection'
 import type { Session } from '@/lib/session-store'
 import type { MetricResult } from '@/lib/types'
 
@@ -266,6 +267,14 @@ export function SessionDetail({ session, onClose, onCreatePR, onRetry, onFeedbac
           <div className="mb-6 p-5 bg-black rounded border border-yellow-500/30 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-400 to-transparent" />
             <CommitTimeline commits={commits} />
+          </div>
+        )}
+
+        {/* File Changes */}
+        {session.branchName && (
+          <div className="mb-6 p-5 bg-black rounded border border-purple-500/30 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
+            <FileChangesSection sessionId={session.id} branchName={session.branchName} />
           </div>
         )}
 

@@ -7,7 +7,7 @@ import {
   type Session
 } from '@/lib/session-store'
 import { runIsolatedPolish } from '@/lib/loop'
-import type { PolishConfig, PolishEvent } from '@/lib/types'
+import type { PolishConfig, PolishEvent, CapabilityOverride } from '@/lib/types'
 
 export const maxDuration = 300 // 5 min max (Vercel limit)
 
@@ -33,8 +33,15 @@ export async function POST(request: NextRequest) {
       mission,
       projectPath = process.cwd(),
       maxDuration: duration = 5 * 60 * 1000,
-      maxThinkingTokens = 16000
-    } = body
+      maxThinkingTokens = 16000,
+      capabilityOverrides
+    } = body as {
+      mission?: string
+      projectPath?: string
+      maxDuration?: number
+      maxThinkingTokens?: number
+      capabilityOverrides?: CapabilityOverride[]
+    }
 
     // Create session in DB
     const session = createSession({
@@ -51,7 +58,8 @@ export async function POST(request: NextRequest) {
       mission: mission?.trim() || undefined,
       maxDuration: duration,
       maxThinkingTokens,
-      isolation: { enabled: true }
+      isolation: { enabled: true },
+      capabilityOverrides
     })
 
     return NextResponse.json({

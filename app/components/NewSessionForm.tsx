@@ -1,9 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { CapabilitiesSelector } from './CapabilitiesSelector'
+import type { CapabilityOverride } from '@/lib/types'
+
+interface CapabilitiesConfig {
+  tools: string[]
+  mcpServers: string[]
+  plugins: Array<{ type: string; id: string }>
+  agents: string[]
+}
 
 interface NewSessionFormProps {
-  onCreateSession: (mission?: string, extendedThinking?: boolean) => void
+  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[]) => void
   disabled?: boolean
 }
 
@@ -11,11 +20,27 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
   const [mission, setMission] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const [extendedThinking, setExtendedThinking] = useState(true)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [capabilities, setCapabilities] = useState<CapabilitiesConfig | null>(null)
+  const [capabilityOverrides, setCapabilityOverrides] = useState<CapabilityOverride[]>([])
+
+  // Fetch capabilities when expanded
+  useEffect(() => {
+    if (isExpanded && !capabilities) {
+      fetch('/api/capabilities')
+        .then(res => res.json())
+        .then(data => setCapabilities(data))
+        .catch(err => console.error('Failed to load capabilities:', err))
+    }
+  }, [isExpanded, capabilities])
 
   const handleSubmit = () => {
-    onCreateSession(mission.trim() || undefined, extendedThinking)
+    const overrides = capabilityOverrides.length > 0 ? capabilityOverrides : undefined
+    onCreateSession(mission.trim() || undefined, extendedThinking, overrides)
     setMission('')
     setIsExpanded(false)
+    setShowAdvanced(false)
+    setCapabilityOverrides([])
   }
 
   return (
@@ -97,6 +122,42 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             <span className="text-[9px] text-gray-700 tracking-widest">
               (ULTRATHINK MODE)
             </span>
+          </div>
+
+          {/* Advanced Options Toggle */}
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-xs text-gray-500 hover:text-green-400 transition-colors"
+            >
+              <span className={`text-[10px] transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
+              <span className="uppercase tracking-widest">Advanced Options</span>
+              {capabilityOverrides.filter(o => !o.enabled).length > 0 && (
+                <span className="text-[9px] px-1.5 py-0.5 bg-amber-900/50 text-amber-400 rounded">
+                  {capabilityOverrides.filter(o => !o.enabled).length} modified
+                </span>
+              )}
+            </button>
+
+            {showAdvanced && capabilities && (
+              <div className="mt-3 p-3 border border-gray-800 rounded bg-black/30">
+                <div className="text-[9px] text-gray-600 tracking-widest mb-3">
+                  CAPABILITIES CONFIG | TOGGLE TO ENABLE/DISABLE
+                </div>
+                <CapabilitiesSelector
+                  capabilities={capabilities}
+                  overrides={capabilityOverrides}
+                  onOverridesChange={setCapabilityOverrides}
+                />
+              </div>
+            )}
+
+            {showAdvanced && !capabilities && (
+              <div className="mt-3 p-3 border border-gray-800 rounded bg-black/30 text-center">
+                <span className="text-xs text-gray-600 animate-pulse">Loading capabilities...</span>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 mt-4">

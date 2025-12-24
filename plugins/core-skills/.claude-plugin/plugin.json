@@ -1,0 +1,20 @@
+{
+  "name": "core-skills",
+  "version": "1.0.0",
+  "description": "Core skills for Polish - code quality improvement tools",
+  "author": "Polish",
+  "skills": [
+    {
+      "name": "analyze-coverage",
+      "path": "../skills/analyze-coverage"
+    },
+    {
+      "name": "find-type-errors",
+      "path": "../skills/find-type-errors"
+    },
+    {
+      "name": "lint-check",
+      "path": "../skills/lint-check"
+    }
+  ]
+}

@@ -349,3 +349,274 @@ export function createTempDir(): string {
   const randomSuffix = Math.random().toString(36).substring(7)
   return join('/tmp', `polish-${timestamp}-${randomSuffix}`)
 }
+
+// ============================================================================
+// File Changes & Diff Operations
+// ============================================================================
+
+export interface FileChange {
+  path: string
+  type: 'added' | 'modified' | 'deleted' | 'renamed'
+  additions: number
+  deletions: number
+  oldPath?: string
+}
+
+export interface FileDiff {
+  path: string
+  type: 'added' | 'modified' | 'deleted' | 'renamed'
+  oldContent: string
+  newContent: string
+}
+
+/**
+ * Get list of changed files between a branch and its base
+ * @param includeUncommitted - If true, also include uncommitted changes in working directory
+ */
+export async function getBranchChangedFiles(
+  projectPath: string,
+  branchName: string,
+  baseBranch: string = 'main',
+  includeUncommitted: boolean = false
+): Promise<{ files: FileChange[]; baseBranch: string }> {
+  const git = getGit(projectPath)
+
+  // Try to find the actual base branch
+  let actualBaseBranch = baseBranch
+  try {
+    await git.raw(['rev-parse', '--verify', baseBranch])
+  } catch {
+    // Try master if main doesn't exist
+    try {
+      await git.raw(['rev-parse', '--verify', 'master'])
+      actualBaseBranch = 'master'
+    } catch {
+      // No base branch found, return empty
+      return { files: [], baseBranch: actualBaseBranch }
+    }
+  }
+
+  const filesMap = new Map<string, FileChange>()
+
+  // First, get committed changes between branches
+  try {
+    const numstatOutput = await git.raw([
+      'diff',
+      '--numstat',
+      `${actualBaseBranch}...${branchName}`
+    ])
+
+    const nameStatusOutput = await git.raw([
+      'diff',
+      '--name-status',
+      `${actualBaseBranch}...${branchName}`
+    ])
+
+    // Parse name-status output to get file types
+    const fileTypes = new Map<string, { type: FileChange['type']; oldPath?: string }>()
+    const nameStatusLines = nameStatusOutput.trim().split('\n').filter(Boolean)
+
+    for (const line of nameStatusLines) {
+      const parts = line.split('\t')
+      const status = parts[0]
+
+      if (status.startsWith('R')) {
+        fileTypes.set(parts[2], { type: 'renamed', oldPath: parts[1] })
+      } else if (status === 'A') {
+        fileTypes.set(parts[1], { type: 'added' })
+      } else if (status === 'D') {
+        fileTypes.set(parts[1], { type: 'deleted' })
+      } else if (status === 'M') {
+        fileTypes.set(parts[1], { type: 'modified' })
+      }
+    }
+
+    // Parse numstat output
+    const numstatLines = numstatOutput.trim().split('\n').filter(Boolean)
+
+    for (const line of numstatLines) {
+      const [addStr, delStr, ...pathParts] = line.split('\t')
+      const path = pathParts.join('\t')
+      const additions = addStr === '-' ? 0 : parseInt(addStr, 10)
+      const deletions = delStr === '-' ? 0 : parseInt(delStr, 10)
+      const typeInfo = fileTypes.get(path) || { type: 'modified' as const }
+
+      filesMap.set(path, {
+        path,
+        type: typeInfo.type,
+        additions,
+        deletions,
+        oldPath: typeInfo.oldPath
+      })
+    }
+  } catch {
+    // Ignore errors for committed changes
+  }
+
+  // Also get uncommitted changes if requested (for running sessions)
+  if (includeUncommitted) {
+    try {
+      // Get staged + unstaged changes compared to HEAD
+      const uncommittedNumstat = await git.raw(['diff', '--numstat', 'HEAD'])
+      const uncommittedStatus = await git.raw(['diff', '--name-status', 'HEAD'])
+
+      // Also check for new untracked files
+      const statusOutput = await git.raw(['status', '--porcelain'])
+
+      // Parse uncommitted changes
+      const uncommittedTypes = new Map<string, { type: FileChange['type']; oldPath?: string }>()
+      const statusLines = uncommittedStatus.trim().split('\n').filter(Boolean)
+
+      for (const line of statusLines) {
+        const parts = line.split('\t')
+        const status = parts[0]
+
+        if (status.startsWith('R')) {
+          uncommittedTypes.set(parts[2], { type: 'renamed', oldPath: parts[1] })
+        } else if (status === 'A') {
+          uncommittedTypes.set(parts[1], { type: 'added' })
+        } else if (status === 'D') {
+          uncommittedTypes.set(parts[1], { type: 'deleted' })
+        } else if (status === 'M') {
+          uncommittedTypes.set(parts[1], { type: 'modified' })
+        }
+      }
+
+      // Parse numstat for uncommitted
+      const uncommittedNumstatLines = uncommittedNumstat.trim().split('\n').filter(Boolean)
+
+      for (const line of uncommittedNumstatLines) {
+        const [addStr, delStr, ...pathParts] = line.split('\t')
+        const path = pathParts.join('\t')
+        const additions = addStr === '-' ? 0 : parseInt(addStr, 10)
+        const deletions = delStr === '-' ? 0 : parseInt(delStr, 10)
+        const typeInfo = uncommittedTypes.get(path) || { type: 'modified' as const }
+
+        // Merge with existing or add new
+        const existing = filesMap.get(path)
+        if (existing) {
+          existing.additions += additions
+          existing.deletions += deletions
+        } else {
+          filesMap.set(path, {
+            path,
+            type: typeInfo.type,
+            additions,
+            deletions,
+            oldPath: typeInfo.oldPath
+          })
+        }
+      }
+
+      // Add untracked files (new files not yet staged)
+      const porcelainLines = statusOutput.trim().split('\n').filter(Boolean)
+      for (const line of porcelainLines) {
+        const status = line.substring(0, 2)
+        const filePath = line.substring(3)
+
+        if (status === '??' && !filesMap.has(filePath)) {
+          // Untracked file - count lines
+          try {
+            const content = await git.raw(['show', `:${filePath}`]).catch(() => '')
+            const lineCount = content ? content.split('\n').length : 0
+            filesMap.set(filePath, {
+              path: filePath,
+              type: 'added',
+              additions: lineCount,
+              deletions: 0
+            })
+          } catch {
+            filesMap.set(filePath, {
+              path: filePath,
+              type: 'added',
+              additions: 0,
+              deletions: 0
+            })
+          }
+        }
+      }
+    } catch {
+      // Ignore errors for uncommitted changes
+    }
+  }
+
+  return { files: Array.from(filesMap.values()), baseBranch: actualBaseBranch }
+}
+
+/**
+ * Get diff content for a specific file between branch and base
+ * @param includeUncommitted - If true, read working directory for new content instead of branch
+ */
+export async function getFileDiff(
+  projectPath: string,
+  branchName: string,
+  baseBranch: string,
+  filePath: string,
+  includeUncommitted: boolean = false
+): Promise<FileDiff> {
+  const git = getGit(projectPath)
+
+  let oldContent = ''
+  let newContent = ''
+  let type: FileDiff['type'] = 'modified'
+
+  // Try to get old content (from base branch)
+  try {
+    oldContent = await git.raw(['show', `${baseBranch}:${filePath}`])
+  } catch {
+    // File doesn't exist in base branch - it's a new file
+    type = 'added'
+  }
+
+  // Try to get new content
+  if (includeUncommitted) {
+    // For running sessions, read from working directory to get uncommitted changes
+    const { readFile } = await import('fs/promises')
+    const { join } = await import('path')
+    try {
+      newContent = await readFile(join(projectPath, filePath), 'utf-8')
+    } catch {
+      // File doesn't exist in working directory - check branch
+      try {
+        newContent = await git.raw(['show', `${branchName}:${filePath}`])
+      } catch {
+        type = 'deleted'
+      }
+    }
+  } else {
+    // For completed sessions, read from branch
+    try {
+      newContent = await git.raw(['show', `${branchName}:${filePath}`])
+    } catch {
+      type = 'deleted'
+    }
+  }
+
+  // If both exist and content differs, it's modified
+  if (oldContent && newContent && oldContent !== newContent) {
+    type = 'modified'
+  }
+
+  return {
+    path: filePath,
+    type,
+    oldContent,
+    newContent
+  }
+}
+
+/**
+ * Check if a branch exists in the repository
+ */
+export async function branchExists(
+  projectPath: string,
+  branchName: string
+): Promise<boolean> {
+  const git = getGit(projectPath)
+  try {
+    await git.raw(['rev-parse', '--verify', branchName])
+    return true
+  } catch {
+    return false
+  }
+}

@@ -1,5 +1,15 @@
 {
   "extends": "base",
+  "capabilities": {
+    "shared": {
+      "plugins": [
+        { "type": "bundled", "name": "core-skills" }
+      ]
+    },
+    "implement": {
+      "systemPromptAppend": "Tu peux créer de nouveaux fichiers avec Write. Utilise les patterns Next.js existants dans le projet."
+    }
+  },
   "metrics": [
     {
       "name": "testCoverage",

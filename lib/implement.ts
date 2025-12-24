@@ -5,7 +5,7 @@ import {
   type PostToolUseHookInput
 } from '@anthropic-ai/claude-agent-sdk'
 import { commitWithMessage, getStatus } from './git'
-import type { AgentEventData, PolishEvent } from './types'
+import type { AgentEventData, PolishEvent, ResolvedQueryOptions } from './types'
 
 // ============================================================================
 // Implementation Phase (Phase 1)
@@ -94,12 +94,13 @@ export interface ImplementPhaseOptions {
   projectPath: string
   feedback?: string
   retryCount?: number
+  queryOptions?: ResolvedQueryOptions
 }
 
 export async function* runImplementPhase(
   options: ImplementPhaseOptions
 ): AsyncGenerator<PolishEvent> {
-  const { mission, projectPath, feedback, retryCount } = options
+  const { mission, projectPath, feedback, retryCount, queryOptions } = options
   // Track files modified by the agent
   const filesCreated: string[] = []
   const filesModified: string[] = []
@@ -166,12 +167,23 @@ export async function* runImplementPhase(
         ? 'Continue implementing the remaining features.'
         : buildImplementPrompt({ mission, feedback, retryCount })
 
+      // Default tools for implement phase
+      const defaultAllowedTools = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep']
+
       for await (const message of query({
         prompt,
         options: {
           cwd: projectPath,
-          systemPrompt: IMPLEMENT_SYSTEM_PROMPT,
-          allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
+          systemPrompt: queryOptions?.systemPrompt || IMPLEMENT_SYSTEM_PROMPT,
+          // Use resolved tools or defaults
+          tools: queryOptions?.tools,
+          allowedTools: queryOptions?.allowedTools || defaultAllowedTools,
+          disallowedTools: queryOptions?.disallowedTools,
+          // MCP servers and plugins from capabilities
+          mcpServers: queryOptions?.mcpServers,
+          plugins: queryOptions?.plugins,
+          agents: queryOptions?.agents,
+          settingSources: queryOptions?.settingSources,
           permissionMode: 'acceptEdits',
           maxTurns: 30,
           maxThinkingTokens: 16000,

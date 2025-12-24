@@ -6,6 +6,7 @@ import { SessionDetail } from './components/SessionDetail'
 import { NewSessionForm } from './components/NewSessionForm'
 import { SystemMonitor } from './components/SystemMonitor'
 import type { Session } from '@/lib/session-store'
+import type { CapabilityOverride } from '@/lib/types'
 
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([])
@@ -41,7 +42,11 @@ export default function Home() {
   }, [loadSessions])
 
   // Create new session
-  const handleCreateSession = async (mission?: string, extendedThinking?: boolean) => {
+  const handleCreateSession = async (
+    mission?: string,
+    extendedThinking?: boolean,
+    capabilityOverrides?: CapabilityOverride[]
+  ) => {
     setIsCreating(true)
     try {
       const res = await fetch('/api/sessions', {
@@ -49,7 +54,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mission,
-          maxThinkingTokens: extendedThinking ? 16000 : undefined
+          maxThinkingTokens: extendedThinking ? 16000 : undefined,
+          capabilityOverrides
         })
       })
 
