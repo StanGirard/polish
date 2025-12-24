@@ -76,6 +76,9 @@ export interface PolishConfig {
   maxIterations?: number
   maxStalled?: number
   targetScore?: number
+  isolation?: {
+    enabled?: boolean // default: true - isolate changes in worktree
+  }
 }
 
 // ============================================================================
@@ -94,6 +97,8 @@ export type PolishEvent =
   | { type: 'result'; data: ResultEventData }
   | { type: 'error'; data: ErrorEventData }
   | { type: 'status'; data: StatusEventData }
+  | { type: 'worktree_created'; data: WorktreeCreatedEventData }
+  | { type: 'worktree_cleanup'; data: WorktreeCleanupEventData }
 
 export interface PhaseEventData {
   phase: 'implement' | 'polish'
@@ -168,4 +173,19 @@ export interface StatusEventData {
   phase: string
   message: string
   [key: string]: unknown
+}
+
+// ============================================================================
+// Worktree Events
+// ============================================================================
+
+export interface WorktreeCreatedEventData {
+  worktreePath: string
+  branchName: string
+  baseBranch: string
+}
+
+export interface WorktreeCleanupEventData {
+  branchName: string
+  kept: boolean
 }

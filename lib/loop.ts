@@ -3,6 +3,7 @@ import { commitWithMessage, getStatus, rollback, getLastCommitHash } from './git
 import { runImplementPhase } from './implement'
 import { loadPreset, runAllMetrics, calculateScore, getWorstMetric, getStrategyForMetric } from './scorer'
 import { exec } from './executor'
+import { createWorktree, cleanupWorktree, checkPreflight, type WorktreeConfig } from './worktree'
 import type {
   CommitInfo,
   FailedAttempt,
@@ -372,6 +373,108 @@ export async function* runFullPolish(config: PolishConfig): AsyncGenerator<Polis
 }
 
 // ============================================================================
+// Isolated Polish: Run in a worktree
+// ============================================================================
+
+export async function* runIsolatedPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
+  const { projectPath, isolation = { enabled: true } } = config
+
+  // Si isolation désactivée, exécuter directement
+  if (isolation.enabled === false) {
+    yield* runFullPolish(config)
+    return
+  }
+
+  // Vérifier les prérequis
+  const preflight = await checkPreflight(projectPath)
+  if (!preflight.ok) {
+    yield {
+      type: 'error',
+      data: { message: preflight.error || 'Preflight check failed' }
+    }
+    return
+  }
+
+  // Créer le worktree
+  let wt: WorktreeConfig | null = null
+  try {
+    wt = await createWorktree(projectPath)
+
+    yield {
+      type: 'worktree_created',
+      data: {
+        worktreePath: wt.worktreePath,
+        branchName: wt.branchName,
+        baseBranch: wt.baseBranch
+      }
+    }
+
+    yield {
+      type: 'status',
+      data: {
+        phase: 'worktree',
+        message: `Working in isolated branch: ${wt.branchName}`
+      }
+    }
+
+    // Exécuter Polish dans le worktree
+    const worktreeConfig: PolishConfig = {
+      ...config,
+      projectPath: wt.worktreePath,
+      isolation: { enabled: false } // Éviter la récursion
+    }
+
+    let hasCommits = false
+    for await (const event of runFullPolish(worktreeConfig)) {
+      yield event
+
+      // Tracker si des commits ont été faits
+      if (event.type === 'commit') {
+        hasCommits = true
+      }
+    }
+
+    // Cleanup - garder la branche si des commits ont été faits
+    await cleanupWorktree(wt, hasCommits)
+
+    yield {
+      type: 'worktree_cleanup',
+      data: {
+        branchName: wt.branchName,
+        kept: hasCommits
+      }
+    }
+
+    if (hasCommits) {
+      yield {
+        type: 'status',
+        data: {
+          phase: 'complete',
+          message: `Changes available on branch: ${wt.branchName}`
+        }
+      }
+    }
+
+  } catch (error) {
+    // Nettoyer en cas d'erreur
+    if (wt) {
+      try {
+        await cleanupWorktree(wt, false)
+      } catch {
+        // Ignorer les erreurs de cleanup
+      }
+    }
+
+    yield {
+      type: 'error',
+      data: {
+        message: `Isolated polish failed: ${error instanceof Error ? error.message : String(error)}`
+      }
+    }
+  }
+}
+
+// ============================================================================
 // Helper: Run polish on current directory
 // ============================================================================
 
@@ -386,7 +489,7 @@ export async function* polishCurrentProject(
     maxDuration
   }
 
-  for await (const event of runFullPolish(config)) {
+  for await (const event of runIsolatedPolish(config)) {
     yield event
   }
 }

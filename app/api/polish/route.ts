@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { runPolishLoop, runFullPolish } from '@/lib/loop'
+import { runIsolatedPolish } from '@/lib/loop'
 import type { PolishConfig, PolishEvent } from '@/lib/types'
 
 export const maxDuration = 300 // 5 min max (Vercel limit)
@@ -38,15 +38,12 @@ export async function POST(request: NextRequest) {
         const config: PolishConfig = {
           projectPath,
           mission: hasMission ? mission : undefined,
-          maxDuration: duration
+          maxDuration: duration,
+          isolation: { enabled: true }
         }
 
-        // Use runFullPolish if mission provided, otherwise runPolishLoop
-        const polishGenerator = hasMission
-          ? runFullPolish(config)
-          : runPolishLoop(config)
-
-        for await (const event of polishGenerator) {
+        // Use runIsolatedPolish - handles both mission and polish-only cases
+        for await (const event of runIsolatedPolish(config)) {
           send(event)
         }
 
