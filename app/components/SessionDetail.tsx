@@ -7,6 +7,8 @@ import { CommitTimeline } from './CommitTimeline'
 import { EventLog } from './EventLog'
 import { FeedbackPanel } from './FeedbackPanel'
 import { FileChangesSection } from './FileChangesSection'
+import { ReviewPanel } from './ReviewPanel'
+import type { ReviewAgentType, ReviewVerdict } from './VerdictCard'
 import {
   handleEventNotification,
   getNotificationsEnabled,
@@ -107,10 +109,11 @@ export function SessionDetail({
     scoreDelta: number
   }>>([])
   const [currentStrategy, setCurrentStrategy] = useState<string | null>(null)
-  const [currentPhase, setCurrentPhase] = useState<'idle' | 'planning' | 'implement' | 'polish'>(
+  const [currentPhase, setCurrentPhase] = useState<'idle' | 'planning' | 'implement' | 'testing' | 'review' | 'polish'>(
     session.status === 'planning' ? 'planning' :
     session.status === 'awaiting_approval' ? 'planning' :
-    session.status === 'running' ? 'polish' : 'idle'
+    session.status === 'reviewing' ? 'review' :
+    session.status === 'running' ? 'testing' : 'idle'
   )
   const [currentPlan, setCurrentPlan] = useState<PlanStep[] | null>(session.approvedPlan || null)
   const [planSummary, setPlanSummary] = useState<string | null>(null)
@@ -123,6 +126,23 @@ export function SessionDetail({
   const [planRisks, setPlanRisks] = useState<Risk[]>([])
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const eventSourceRef = useRef<EventSource | null>(null)
+
+  // Review Gate states
+  interface ReviewResult {
+    agent: ReviewAgentType
+    verdict: ReviewVerdict
+    feedback: string
+    concerns: string[]
+    score?: number
+  }
+  const [reviewIteration, setReviewIteration] = useState(session.reviewIteration || 1)
+  const [reviewMaxIterations, setReviewMaxIterations] = useState(3)
+  const [reviewResults, setReviewResults] = useState<ReviewResult[]>([])
+  const [reviewPendingAgents, setReviewPendingAgents] = useState<ReviewAgentType[]>([])
+  const [reviewRedirectTo, setReviewRedirectTo] = useState<'implement' | 'testing' | undefined>()
+  const [reviewCombinedFeedback, setReviewCombinedFeedback] = useState<string | undefined>()
+  const [reviewComplete, setReviewComplete] = useState(false)
+  const [reviewAllApproved, setReviewAllApproved] = useState(false)
 
   // Streaming states for real-time planning display
   const [streamingText, setStreamingText] = useState('')
@@ -152,7 +172,9 @@ export function SessionDetail({
       // Planning phase events
       'plan', 'plan_message', 'plan_approved', 'plan_rejected',
       // Planning streaming events
-      'plan_stream', 'plan_thinking'
+      'plan_stream', 'plan_thinking',
+      // Review Gate events (Phase 3)
+      'review_start', 'review_result', 'review_redirect', 'review_complete'
     ]
 
     for (const type of eventTypes) {
@@ -219,6 +241,41 @@ export function SessionDetail({
           // Reset streaming when plan is received (end of streaming)
           if (type === 'plan') {
             setIsStreaming(false)
+          }
+
+          // Review Gate events (Phase 3)
+          if (type === 'review_start') {
+            setCurrentPhase('review')
+            setReviewIteration(data.iteration as number)
+            setReviewMaxIterations(data.maxIterations as number)
+            setReviewPendingAgents(prev => [...prev, data.agent as ReviewAgentType])
+            setReviewComplete(false)
+          }
+
+          if (type === 'review_result') {
+            // Remove from pending
+            setReviewPendingAgents(prev => prev.filter(a => a !== data.agent))
+            // Add to results
+            setReviewResults(prev => [...prev, {
+              agent: data.agent as ReviewAgentType,
+              verdict: data.verdict as ReviewVerdict,
+              feedback: data.feedback as string,
+              concerns: (data.concerns as string[]) || [],
+              score: data.score as number | undefined
+            }])
+          }
+
+          if (type === 'review_redirect') {
+            setReviewRedirectTo(data.redirectTo as 'implement' | 'testing')
+            setReviewCombinedFeedback(data.feedback as string)
+          }
+
+          if (type === 'review_complete') {
+            setReviewComplete(true)
+            setReviewAllApproved(data.approved as boolean)
+            if (data.approved) {
+              setCurrentPhase('idle')
+            }
           }
 
           // Send browser notification for important events
@@ -301,7 +358,10 @@ export function SessionDetail({
             {session.status === 'awaiting_approval' && (
               <span className="text-yellow-400 text-sm">⏸ AWAITING APPROVAL</span>
             )}
-            {['running', 'planning', 'awaiting_approval'].includes(session.status) && onAbortSession && (
+            {session.status === 'reviewing' && (
+              <span className="text-fuchsia-400 text-sm animate-pulse">◆ REVIEWING</span>
+            )}
+            {['running', 'planning', 'awaiting_approval', 'reviewing'].includes(session.status) && onAbortSession && (
               <button
                 onClick={() => {
                   if (window.confirm('Are you sure you want to abort this session?')) {
@@ -324,29 +384,38 @@ export function SessionDetail({
           </div>
         </div>
 
-        {/* Phase Indicator (when running or planning) */}
-        {['running', 'planning', 'awaiting_approval'].includes(session.status) && (
+        {/* Phase Indicator (when running, planning, or reviewing) */}
+        {['running', 'planning', 'awaiting_approval', 'reviewing'].includes(session.status) && (
           <div className="mb-6 flex gap-4">
             {session.enablePlanning && (
               <PhaseIndicator
                 label="Phase 0: Planning"
                 active={currentPhase === 'planning'}
-                complete={currentPhase === 'implement' || currentPhase === 'polish'}
+                complete={currentPhase === 'implement' || currentPhase === 'testing' || currentPhase === 'review'}
                 code="0x00"
               />
             )}
             <PhaseIndicator
               label="Phase 1: Implement"
               active={currentPhase === 'implement'}
-              complete={currentPhase === 'polish'}
+              complete={currentPhase === 'testing' || currentPhase === 'review'}
               code="0x01"
             />
             <PhaseIndicator
-              label="Phase 2: Polish"
-              active={currentPhase === 'polish'}
-              complete={false}
+              label="Phase 2: Testing"
+              active={currentPhase === 'testing' || currentPhase === 'polish'}
+              complete={currentPhase === 'review'}
               code="0x02"
             />
+            {session.mission && (
+              <PhaseIndicator
+                label="Phase 3: Review"
+                active={currentPhase === 'review'}
+                complete={reviewComplete && reviewAllApproved}
+                code="0x03"
+                color="fuchsia"
+              />
+            )}
           </div>
         )}
 
@@ -480,6 +549,22 @@ export function SessionDetail({
           </div>
         )}
 
+        {/* Review Panel (Phase 3) */}
+        {(currentPhase === 'review' || (reviewResults.length > 0 && session.mission)) && (
+          <div className="mb-6">
+            <ReviewPanel
+              iteration={reviewIteration}
+              maxIterations={reviewMaxIterations}
+              reviews={reviewResults}
+              pendingAgents={reviewPendingAgents}
+              redirectTo={reviewRedirectTo}
+              combinedFeedback={reviewCombinedFeedback}
+              isComplete={reviewComplete}
+              allApproved={reviewAllApproved}
+            />
+          </div>
+        )}
+
         {/* Feedback Panel (when completed/failed with mission) */}
         {['completed', 'failed'].includes(session.status) && session.mission && onRetry && onFeedbackSubmit && (
           <div className="mb-6">
@@ -573,18 +658,41 @@ function PhaseIndicator({
   label,
   active,
   complete,
-  code
+  code,
+  color = 'green'
 }: {
   label: string
   active: boolean
   complete: boolean
   code: string
+  color?: 'green' | 'fuchsia' | 'orange' | 'cyan'
 }) {
+  const colorClasses = {
+    green: {
+      active: 'bg-green-600/10 text-green-300 border-green-400/50',
+      code: 'text-green-600'
+    },
+    fuchsia: {
+      active: 'bg-fuchsia-600/10 text-fuchsia-300 border-fuchsia-400/50',
+      code: 'text-fuchsia-600'
+    },
+    orange: {
+      active: 'bg-orange-600/10 text-orange-300 border-orange-400/50',
+      code: 'text-orange-600'
+    },
+    cyan: {
+      active: 'bg-cyan-600/10 text-cyan-300 border-cyan-400/50',
+      code: 'text-cyan-600'
+    }
+  }
+
+  const colorConfig = colorClasses[color]
+
   return (
     <div className={`
       flex-1 flex items-center gap-3 px-5 py-3 rounded border relative overflow-hidden
       ${active
-        ? 'bg-green-600/10 text-green-300 border-green-400/50 box-glow data-stream'
+        ? `${colorConfig.active} box-glow data-stream`
         : complete
           ? 'bg-gray-900/30 text-gray-400 border-gray-800'
           : 'bg-gray-900/30 text-gray-600 border-gray-800'
@@ -602,7 +710,7 @@ function PhaseIndicator({
         </span>
       </div>
       {active && (
-        <div className="ml-auto text-[9px] text-green-600 tracking-widest">
+        <div className={`ml-auto text-[9px] ${colorConfig.code} tracking-widest`}>
           {code}
         </div>
       )}

@@ -28,7 +28,7 @@ export interface PresetThresholds {
 // Capabilities Configuration (for SDK integration)
 // ============================================================================
 
-export type ExecutionPhase = 'implement' | 'polish' | 'planning' | 'both'
+export type ExecutionPhase = 'implement' | 'testing' | 'review' | 'planning' | 'both'
 
 /** MCP Server configuration (matches SDK McpServerConfig) */
 export type McpServerConfig =
@@ -50,44 +50,15 @@ export interface SdkPluginConfig {
 }
 
 /**
- * Model size abstraction for agent configuration
- * This allows backends like OpenRouter to map to their own model equivalents:
- * - small: Fast, lightweight model (maps to haiku by default)
- * - medium: Balanced capability model (maps to sonnet by default)
- * - big: Most capable model (maps to opus by default)
+ * Model size definitions for agents (matches SDK AgentDefinition.model)
+ *
+ * Uses the SDK's model naming convention:
+ * - haiku: Fast, lightweight model
+ * - sonnet: Balanced capability model
+ * - opus: Most capable model
  * - inherit: Use the parent agent's model
  */
-export type ModelSize = 'small' | 'medium' | 'big' | 'inherit'
-
-/**
- * Default model mapping from size to Claude model names
- * This can be overridden by the backend (e.g., OpenRouter)
- */
-export const DEFAULT_MODEL_MAPPING: Record<Exclude<ModelSize, 'inherit'>, string> = {
-  small: 'haiku',
-  medium: 'sonnet',
-  big: 'opus'
-}
-
-/**
- * Resolve a model size to an actual model name
- * @param size - The model size (small, medium, big, inherit)
- * @param customMapping - Optional custom mapping to override defaults
- * @param inheritedModel - The model to use when size is 'inherit'
- * @returns The resolved model name
- */
-export function resolveModelSize(
-  size: ModelSize | undefined,
-  customMapping?: Partial<Record<Exclude<ModelSize, 'inherit'>, string>>,
-  inheritedModel?: string
-): string {
-  if (!size || size === 'inherit') {
-    return inheritedModel || DEFAULT_MODEL_MAPPING.medium
-  }
-
-  const mapping = { ...DEFAULT_MODEL_MAPPING, ...customMapping }
-  return mapping[size]
-}
+export type ModelSize = 'haiku' | 'sonnet' | 'opus' | 'inherit'
 
 /** Custom agent definition (matches SDK AgentDefinition) */
 export interface AgentDefinition {
@@ -113,8 +84,10 @@ export interface PhaseCapabilities {
 /** Capabilities configuration in a preset */
 export interface PresetCapabilities {
   implement?: PhaseCapabilities    // Phase 1: Implementation
-  polish?: PhaseCapabilities       // Phase 2: Polish loop
-  shared?: PhaseCapabilities       // Applied to both phases
+  testing?: PhaseCapabilities      // Phase 2: Testing (formerly polish loop)
+  review?: PhaseCapabilities       // Phase 3: Review Gate
+  polish?: PhaseCapabilities       // @deprecated - use 'testing' instead
+  shared?: PhaseCapabilities       // Applied to all phases
 }
 
 /** Session-level capability override */
@@ -211,6 +184,9 @@ export interface PolishConfig {
   planningThoroughness?: PlanningThoroughness // Level of exploration depth (default: 'medium')
   planningMode?: PlanningMode // How to use sub-agents (default: 'agent-driven')
   notifications?: NotificationConfig // Browser notification settings
+  // Review gate options (Phase 3)
+  enableReviewGate?: boolean // Enable review gate after testing (default: true when mission provided)
+  maxReviewIterations?: number // Maximum review cycles before stopping (default: 3)
 }
 
 // ============================================================================
@@ -242,10 +218,16 @@ export type PolishEvent =
   // Planning streaming events (real-time text and thinking)
   | { type: 'plan_stream'; data: PlanStreamEventData }
   | { type: 'plan_thinking'; data: PlanThinkingEventData }
+  // Review gate events (Phase 3)
+  | { type: 'review_start'; data: ReviewStartEventData }
+  | { type: 'review_result'; data: ReviewResultEventData }
+  | { type: 'review_redirect'; data: ReviewRedirectEventData }
+  | { type: 'review_complete'; data: ReviewCompleteEventData }
 
 export interface PhaseEventData {
-  phase: 'implement' | 'polish' | 'planning'
+  phase: 'implement' | 'testing' | 'review' | 'planning'
   mission?: string
+  iteration?: number // For review phase
 }
 
 export interface ImplementDoneEventData {
@@ -430,3 +412,82 @@ export type NotificationEventType =
   | 'session_completed'    // Session finished successfully
   | 'session_failed'       // Session failed
   | 'error'                // Error occurred
+
+// ============================================================================
+// Review Gate Types (Phase 3)
+// ============================================================================
+
+/** Review agent types */
+export type ReviewAgentType = 'mission_reviewer' | 'senior_engineer' | 'code_reviewer'
+
+/** Verdict from a review agent - strict and severe */
+export type ReviewVerdict =
+  | 'approved'           // Feature validated, ready for production
+  | 'needs_changes'      // Send back to Phase 1 (implement) or Phase 2 (testing)
+  | 'rejected'           // Critical failure, requires major intervention
+
+/** Target phase for redirect when needs_changes */
+export type ReviewRedirectTarget = 'implement' | 'testing'
+
+/** Result from a single review agent */
+export interface ReviewResult {
+  agent: ReviewAgentType
+  verdict: ReviewVerdict
+  feedback: string                    // Detailed feedback for the agent
+  concerns: string[]                  // Specific points to fix
+  redirectTo?: ReviewRedirectTarget   // Where to redirect if needs_changes
+  score?: number                      // Optional score (0-100)
+}
+
+/** Configuration for the review gate phase */
+export interface ReviewGateConfig {
+  maxIterations?: number     // Max global iterations (default: 3)
+  requireAllApproval?: boolean  // All 3 agents must approve (default: true)
+  strictMode?: boolean       // Ultra-strict mode (default: true)
+}
+
+/** Combined result from the review gate phase */
+export interface ReviewPhaseResult {
+  approved: boolean
+  iterations: number
+  reviews: ReviewResult[]
+  finalFeedback?: string
+  redirectTo?: ReviewRedirectTarget
+}
+
+// ============================================================================
+// Review Gate SSE Events
+// ============================================================================
+
+/** Event when a review agent starts */
+export interface ReviewStartEventData {
+  iteration: number
+  maxIterations: number
+  agent: ReviewAgentType
+}
+
+/** Event when a review agent returns its verdict */
+export interface ReviewResultEventData {
+  agent: ReviewAgentType
+  verdict: ReviewVerdict
+  feedback: string
+  concerns: string[]
+  score?: number
+  iteration: number
+}
+
+/** Event when redirecting to a previous phase */
+export interface ReviewRedirectEventData {
+  reason: string
+  redirectTo: ReviewRedirectTarget
+  feedback: string
+  iteration: number
+  totalIterations: number
+}
+
+/** Event when review gate completes */
+export interface ReviewCompleteEventData {
+  approved: boolean
+  iterations: number
+  stoppedReason?: 'approved' | 'max_iterations' | 'timeout' | 'rejected'
+}

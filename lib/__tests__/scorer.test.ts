@@ -224,7 +224,7 @@ describe('loadPreset', () => {
     // Should have rules from base preset
     expect(preset.rules).toBeDefined()
     expect(preset.rules!.length).toBeGreaterThan(0)
-    expect(preset.rules).toContain('Ne jamais casser les tests existants')
+    expect(preset.rules).toContain('Never break existing tests')
 
     // Should have thresholds from base preset
     expect(preset.thresholds).toBeDefined()

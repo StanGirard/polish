@@ -153,6 +153,28 @@ async function runPolishInBackground(sessionId: string, config: PolishConfig) {
           duration: Date.now() - startTime
         })
       }
+
+      // Review gate events (Phase 3)
+      if (event.type === 'review_start') {
+        updateSession(sessionId, {
+          status: 'reviewing',
+          reviewIteration: event.data.iteration
+        })
+      }
+
+      if (event.type === 'review_complete') {
+        updateSession(sessionId, {
+          reviewApproved: event.data.approved,
+          // Don't change status here - let result event handle it
+        })
+      }
+
+      if (event.type === 'review_redirect') {
+        updateSession(sessionId, {
+          lastReviewFeedback: event.data.feedback,
+          status: 'running' // Back to running for next iteration
+        })
+      }
     }
 
     // If no result event was sent, mark as completed

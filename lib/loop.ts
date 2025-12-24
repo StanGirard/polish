@@ -1,6 +1,7 @@
 import { runSingleFix, type SingleFixContext } from './agent'
 import { commitWithMessage, getStatus, rollback, getLastCommitHash } from './git'
 import { runImplementPhase } from './implement'
+import { runReviewGate, type ReviewContext } from './review'
 import { loadPreset, runAllMetrics, calculateScore, getWorstMetric, getStrategyForMetric } from './scorer'
 import { exec } from './executor'
 import { createWorktree, createWorktreeFromBranch, cleanupWorktree, checkPreflight, branchExists, type WorktreeConfig } from './worktree'
@@ -11,11 +12,12 @@ import type {
   FailedAttempt,
   PolishConfig,
   PolishEvent,
-  ResolvedQueryOptions
+  ResolvedQueryOptions,
+  ReviewPhaseResult
 } from './types'
 
 // ============================================================================
-// Polish Loop Configuration
+// Loop Configuration
 // ============================================================================
 
 const DEFAULT_MAX_DURATION = 2 * 60 * 60 * 1000 // 2 hours
@@ -23,6 +25,7 @@ const DEFAULT_MAX_ITERATIONS = 100
 const DEFAULT_MAX_STALLED = 5
 const DEFAULT_TARGET_SCORE = 100
 const MIN_IMPROVEMENT = 0.5 // Minimum score improvement to count as success
+const DEFAULT_MAX_REVIEW_ITERATIONS = 3 // Max review gate iterations
 
 // ============================================================================
 // Helper: Generate Session Summary
@@ -91,10 +94,15 @@ async function* generateAndYieldSummary(params: SummaryParams): AsyncGenerator<P
 }
 
 // ============================================================================
-// Main Polish Loop
+// Phase 2: Testing Loop (formerly Polish Loop)
 // ============================================================================
 
-export async function* runPolishLoop(
+/**
+ * @deprecated Use runTestingLoop instead
+ */
+export const runPolishLoop = runTestingLoop
+
+export async function* runTestingLoop(
   config: PolishConfig,
   queryOptions?: ResolvedQueryOptions
 ): AsyncGenerator<PolishEvent> {
@@ -419,63 +427,193 @@ export async function* runPolishLoop(
 }
 
 // ============================================================================
-// Full Polish: Phase 1 (Implement) + Phase 2 (Polish)
+// Full Polish: Phase 1 (Implement) + Phase 2 (Testing) + Phase 3 (Review)
 // ============================================================================
 
 export async function* runFullPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
-  const { projectPath, mission, retry, capabilityOverrides = [] } = config
+  const {
+    projectPath,
+    mission,
+    retry,
+    capabilityOverrides = [],
+    enableReviewGate = !!mission, // Enable review gate by default when mission provided
+    maxReviewIterations = DEFAULT_MAX_REVIEW_ITERATIONS
+  } = config
 
   // Load preset for capabilities resolution
   const preset = await loadPreset(projectPath)
 
-  // Phase 1: Implement (if mission provided)
-  if (mission) {
-    const isRetry = retry && retry.retryCount > 0
-    yield {
-      type: 'status',
-      data: {
-        phase: 'implement',
-        message: isRetry
-          ? `Starting Phase 1: Implementation (Retry #${retry.retryCount + 1})...`
-          : 'Starting Phase 1: Implementation...'
+  // Track changed files across phases
+  let changedFiles: string[] = []
+  let globalIteration = retry?.retryCount || 0
+
+  // Main loop with review gate retry
+  while (globalIteration < maxReviewIterations) {
+    globalIteration++
+
+    // Phase 1: Implement (if mission provided)
+    if (mission) {
+      const isRetry = globalIteration > 1
+      yield {
+        type: 'status',
+        data: {
+          phase: 'implement',
+          message: isRetry
+            ? `Starting Phase 1: Implementation (Iteration ${globalIteration}/${maxReviewIterations})...`
+            : 'Starting Phase 1: Implementation...'
+        }
+      }
+
+      yield {
+        type: 'phase',
+        data: { phase: 'implement', mission, iteration: globalIteration }
+      }
+
+      // Resolve capabilities for implement phase
+      const implementOptions = resolveCapabilitiesForPhase(preset, 'implement', capabilityOverrides)
+
+      for await (const event of runImplementPhase({
+        mission,
+        projectPath,
+        feedback: retry?.feedback,
+        retryCount: globalIteration - 1,
+        queryOptions: implementOptions
+      })) {
+        yield event
+
+        // Track changed files
+        if (event.type === 'implement_done') {
+          changedFiles = [...event.data.filesCreated, ...event.data.filesModified]
+        }
+
+        // If implementation failed, stop
+        if (event.type === 'error') {
+          return
+        }
+      }
+
+      yield {
+        type: 'status',
+        data: { phase: 'implement', message: 'Phase 1 complete. Starting Phase 2: Testing...' }
       }
     }
 
-    // Resolve capabilities for implement phase
-    const implementOptions = resolveCapabilitiesForPhase(preset, 'implement', capabilityOverrides)
+    // Phase 2: Testing
+    yield {
+      type: 'phase',
+      data: { phase: 'testing' }
+    }
 
-    for await (const event of runImplementPhase({
-      mission,
-      projectPath,
-      feedback: retry?.feedback,
-      retryCount: retry?.retryCount,
-      queryOptions: implementOptions
-    })) {
+    // Resolve capabilities for testing phase
+    const testingOptions = resolveCapabilitiesForPhase(preset, 'testing', capabilityOverrides)
+
+    let testingResult: { commits: CommitInfo[], finalScore: number } = { commits: [], finalScore: 0 }
+    for await (const event of runTestingLoop(config, testingOptions)) {
       yield event
 
-      // If implementation failed, stop
-      if (event.type === 'error') {
-        return
+      // Capture result for review context
+      if (event.type === 'result') {
+        testingResult = {
+          commits: event.data.commits,
+          finalScore: event.data.finalScore
+        }
+      }
+
+      // Track any additional changed files from testing
+      if (event.type === 'commit') {
+        // The commit message might contain file info
       }
     }
 
-    yield {
-      type: 'status',
-      data: { phase: 'implement', message: 'Phase 1 complete. Starting Phase 2: Polish...' }
+    // Phase 3: Review Gate (if enabled and mission provided)
+    if (enableReviewGate && mission) {
+      yield {
+        type: 'status',
+        data: { phase: 'testing', message: 'Phase 2 complete. Starting Phase 3: Review Gate...' }
+      }
+
+      // Resolve capabilities for review phase
+      const reviewOptions = resolveCapabilitiesForPhase(preset, 'review', capabilityOverrides)
+
+      const reviewContext: ReviewContext = {
+        projectPath,
+        mission,
+        changedFiles,
+        iteration: globalIteration,
+        previousFeedback: retry?.feedback ? [retry.feedback] : undefined
+      }
+
+      const reviewConfig = {
+        maxIterations: maxReviewIterations,
+        requireAllApproval: true
+      }
+
+      // Run the review gate
+      let reviewResult: ReviewPhaseResult | null = null
+      const reviewGenerator = runReviewGate(reviewContext, reviewConfig, reviewOptions)
+      let lastReviewValue: IteratorResult<PolishEvent, ReviewPhaseResult>
+
+      do {
+        lastReviewValue = await reviewGenerator.next()
+        if (!lastReviewValue.done && lastReviewValue.value) {
+          yield lastReviewValue.value
+        }
+      } while (!lastReviewValue.done)
+
+      reviewResult = lastReviewValue.value
+
+      // Handle review result
+      if (reviewResult.approved) {
+        // All reviewers approved! Feature is done
+        yield {
+          type: 'status',
+          data: {
+            phase: 'complete',
+            message: 'All reviewers APPROVED! Feature is ready for production.'
+          }
+        }
+        return
+      }
+
+      // Not approved - check if we should retry
+      if (globalIteration >= maxReviewIterations) {
+        yield {
+          type: 'status',
+          data: {
+            phase: 'complete',
+            message: `Review gate: Maximum iterations (${maxReviewIterations}) reached without full approval.`
+          }
+        }
+        return
+      }
+
+      // Prepare for next iteration with feedback
+      config.retry = {
+        feedback: reviewResult.finalFeedback || 'Reviewers requested changes',
+        retryCount: globalIteration
+      }
+
+      const redirectPhase = reviewResult.redirectTo || 'implement'
+      yield {
+        type: 'status',
+        data: {
+          phase: 'review',
+          message: `Changes needed. Restarting from ${redirectPhase === 'implement' ? 'Phase 1' : 'Phase 2'} (iteration ${globalIteration + 1}/${maxReviewIterations})...`
+        }
+      }
+
+      // If redirect to testing, skip implement on next iteration
+      if (redirectPhase === 'testing') {
+        // Skip to testing by continuing without mission check
+        // (For now, we always restart from implement for simplicity)
+      }
+
+      // Continue to next iteration
+      continue
     }
-  }
 
-  // Phase 2: Polish
-  yield {
-    type: 'phase',
-    data: { phase: 'polish' }
-  }
-
-  // Resolve capabilities for polish phase
-  const polishOptions = resolveCapabilitiesForPhase(preset, 'polish', capabilityOverrides)
-
-  for await (const event of runPolishLoop(config, polishOptions)) {
-    yield event
+    // No review gate, we're done
+    break
   }
 }
 
