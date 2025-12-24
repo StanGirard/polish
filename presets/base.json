@@ -12,14 +12,14 @@
   },
   "capabilities": {
     "shared": {
-      "tools": ["Read", "Edit", "Bash", "Glob", "Grep"],
+      "tools": ["Read", "Edit", "Bash", "Glob", "Grep", "WebSearch"],
       "settingSources": ["project"]
     },
     "implement": {
-      "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
+      "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebSearch"]
     },
     "polish": {
-      "tools": ["Read", "Edit", "Bash", "Glob", "Grep"]
+      "tools": ["Read", "Edit", "Bash", "Glob", "Grep", "WebSearch"]
     }
   }
 }

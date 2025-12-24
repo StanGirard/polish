@@ -18,8 +18,8 @@ import type {
 import { resolvePluginsToSdkFormat } from './plugin-loader'
 
 // Default tools for each phase (matches current hardcoded behavior)
-const DEFAULT_IMPLEMENT_TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep']
-const DEFAULT_POLISH_TOOLS = ['Read', 'Edit', 'Bash', 'Glob', 'Grep']
+const DEFAULT_IMPLEMENT_TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch']
+const DEFAULT_POLISH_TOOLS = ['Read', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch']
 
 /**
  * Merge two PhaseCapabilities objects
