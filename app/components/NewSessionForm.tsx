@@ -1,18 +1,36 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface NewSessionFormProps {
-  onCreateSession: (mission?: string) => void
+  onCreateSession: (mission?: string, sourceBranch?: string) => void
   disabled?: boolean
 }
 
 export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProps) {
   const [mission, setMission] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [branches, setBranches] = useState<string[]>([])
+  const [currentBranch, setCurrentBranch] = useState<string>('')
+  const [selectedBranch, setSelectedBranch] = useState<string>('')
+
+  // Load branches when expanded
+  useEffect(() => {
+    if (isExpanded && branches.length === 0) {
+      fetch('/api/branches')
+        .then(res => res.json())
+        .then(data => {
+          setBranches(data.branches || [])
+          setCurrentBranch(data.currentBranch || '')
+          setSelectedBranch(data.currentBranch || '')
+        })
+        .catch(err => console.error('Failed to load branches:', err))
+    }
+  }, [isExpanded, branches.length])
 
   const handleSubmit = () => {
-    onCreateSession(mission.trim() || undefined)
+    const branch = selectedBranch !== currentBranch ? selectedBranch : undefined
+    onCreateSession(mission.trim() || undefined, branch)
     setMission('')
     setIsExpanded(false)
   }
@@ -49,6 +67,31 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             <span className="text-gray-800">|</span>
             <span className="text-gray-700 text-[9px]">MISSION PARAMETERS</span>
           </label>
+
+          {/* Branch selector */}
+          {branches.length > 0 && (
+            <div className="mb-4">
+              <label className="text-green-400 text-[10px] block mb-2 uppercase tracking-widest">
+                Source Branch
+              </label>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="
+                  w-full bg-black/50 border border-green-800/50 rounded p-2.5
+                  text-sm text-green-300
+                  focus:outline-none focus:border-green-400 focus:box-glow
+                  font-mono
+                "
+              >
+                {branches.map(branch => (
+                  <option key={branch} value={branch} className="bg-black text-green-300">
+                    {branch}{branch === currentBranch ? ' (current)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="relative">
             <textarea
