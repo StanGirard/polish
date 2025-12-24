@@ -7,7 +7,7 @@ import type { PolishEvent, PlanStep, PlanMessage } from './types'
 // Types
 // ============================================================================
 
-export type SessionStatus = 'pending' | 'planning' | 'awaiting_approval' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type SessionStatus = 'pending' | 'planning' | 'awaiting_approval' | 'running' | 'reviewing' | 'completed' | 'failed' | 'cancelled'
 
 export type FeedbackRating = 'satisfied' | 'unsatisfied'
 
@@ -34,6 +34,10 @@ export interface Session {
   // Planning phase
   enablePlanning?: boolean // Whether planning is enabled for this session
   approvedPlan?: PlanStep[] // The approved plan (if any)
+  // Review gate (Phase 3)
+  reviewIteration?: number // Current review iteration
+  reviewApproved?: boolean // Whether all reviewers approved
+  lastReviewFeedback?: string // Last feedback from reviewers
 }
 
 export interface SessionEvent {
@@ -68,7 +72,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   feedback_created_at TEXT,
   retry_count INTEGER DEFAULT 0,
   enable_planning INTEGER DEFAULT 0,
-  approved_plan TEXT
+  approved_plan TEXT,
+  review_iteration INTEGER DEFAULT 0,
+  review_approved INTEGER DEFAULT 0,
+  last_review_feedback TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session_events (
@@ -431,7 +438,11 @@ function rowToSession(row: Record<string, unknown>): Session {
     } : undefined,
     retryCount: (row.retry_count as number) ?? 0,
     enablePlanning: Boolean(row.enable_planning),
-    approvedPlan
+    approvedPlan,
+    // Review gate fields
+    reviewIteration: row.review_iteration as number | undefined,
+    reviewApproved: row.review_approved ? Boolean(row.review_approved) : undefined,
+    lastReviewFeedback: row.last_review_feedback as string | undefined
   }
 }
 
