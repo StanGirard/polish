@@ -11,14 +11,14 @@ describe('resolveCapabilitiesForPhase', () => {
     const preset: Preset = {}
     const result = resolveCapabilitiesForPhase(preset, 'implement')
 
-    expect(result.tools).toEqual(['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'])
+    expect(result.tools).toEqual(['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task'])
   })
 
   it('should return default polish tools when no capabilities configured', () => {
     const preset: Preset = {}
     const result = resolveCapabilitiesForPhase(preset, 'polish')
 
-    expect(result.tools).toEqual(['Read', 'Edit', 'Bash', 'Glob', 'Grep'])
+    expect(result.tools).toEqual(['Read', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task'])
   })
 
   it('should use phase-specific tools when configured', () => {
