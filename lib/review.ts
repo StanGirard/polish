@@ -1,18 +1,13 @@
 /**
  * Review Gate Phase (Phase 3)
  *
- * Strict quality gate with 3 specialized review agents:
- * - mission_reviewer: Verifies implementation matches the original mission
- * - senior_engineer: Evaluates architecture, maintainability, best practices
- * - code_reviewer: Line-by-line review for bugs, conventions, code smells
+ * Quality gate with a single comprehensive review agent that checks:
+ * - Mission alignment: Does the implementation match the original request?
+ * - Code quality: Architecture, maintainability, bugs, best practices
+ * - Production readiness: Is the code ready to ship?
  *
- * All 3 agents must approve for the feature to be validated.
+ * The agent must approve for the feature to be validated.
  * Otherwise, code is sent back to Phase 1 (implement) or Phase 2 (testing).
- *
- * Key features:
- * - Parallel execution: All 3 agents run concurrently for faster reviews
- * - Strict mode: All agents must approve (configurable)
- * - Iteration support: Multiple review cycles with feedback accumulation
  */
 
 import {
@@ -26,7 +21,6 @@ import type {
   ReviewResult,
   ReviewGateConfig,
   ReviewPhaseResult,
-  ReviewVerdict,
   ReviewRedirectTarget,
   ReviewAgentType,
   ResolvedQueryOptions
@@ -38,7 +32,7 @@ import { createToolLogger } from './tool-logger'
 // ============================================================================
 
 const DEFAULT_MAX_ITERATIONS = 3
-const REVIEW_AGENTS: ReviewAgentType[] = ['mission_reviewer', 'senior_engineer', 'code_reviewer']
+const REVIEW_AGENT: ReviewAgentType = 'code_reviewer' // Single unified reviewer
 
 // ============================================================================
 // Review Context
@@ -49,35 +43,15 @@ export interface ReviewContext {
   mission: string
   changedFiles: string[]
   iteration: number
-  previousFeedback?: string[]  // Feedback from previous iterations
+  previousFeedback?: string[]
 }
 
 // ============================================================================
 // Prompt Builder
 // ============================================================================
 
-function buildReviewPrompt(
-  agentType: ReviewAgentType,
-  context: ReviewContext
-): string {
+function buildReviewPrompt(context: ReviewContext): string {
   const { mission, changedFiles, iteration, previousFeedback } = context
-
-  const agentDescriptions: Record<ReviewAgentType, { name: string; focus: string }> = {
-    mission_reviewer: {
-      name: 'Mission Reviewer',
-      focus: 'Verify the implementation matches the original mission requirements exactly. Detect any scope creep, missing features, or deviations.'
-    },
-    senior_engineer: {
-      name: 'Senior Engineer',
-      focus: 'Evaluate architecture decisions, code maintainability, performance implications, and adherence to best practices.'
-    },
-    code_reviewer: {
-      name: 'Code Reviewer',
-      focus: 'Perform line-by-line code review. Find bugs, code smells, convention violations, and potential issues.'
-    }
-  }
-
-  const agent = agentDescriptions[agentType]
 
   let prompt = `## Code Review Request (Iteration ${iteration})
 
@@ -87,10 +61,7 @@ ${mission}
 ### Modified Files
 ${changedFiles.length > 0 ? changedFiles.map(f => `- \`${f}\``).join('\n') : '- No modified files detected'}
 
-### Your Role: ${agent.name}
-${agent.focus}
-
-Review the changes and determine if the implementation is acceptable.
+Review the implementation and determine if it's ready for production.
 `
 
   if (previousFeedback && previousFeedback.length > 0) {
@@ -98,37 +69,77 @@ Review the changes and determine if the implementation is acceptable.
 ### Previous Iteration Feedback
 ${previousFeedback.map((f, i) => `**Iteration ${i + 1}:**\n${f}`).join('\n\n')}
 
-**CRITICAL:** Verify that previous issues have been addressed. If not, they must be flagged again.
+**CRITICAL:** Verify that previous issues have been addressed.
 `
   }
 
   prompt += `
 ### Review Instructions
-1. **Explore** - Use Glob/Grep/Read to examine the modified files thoroughly
-2. **Analyze** - Evaluate the code against your specific review criteria
-3. **Verdict** - Return your assessment in the JSON format specified in your system prompt
+1. **Explore** - Use Glob/Grep/Read to examine the modified files
+2. **Analyze** - Check mission alignment, code quality, and production readiness
+3. **Verdict** - Return your assessment in JSON format
 
-Be STRICT and THOROUGH. Quality matters. Don't let issues slip through.`
+Be thorough but pragmatic. Focus on what matters.`
 
   return prompt
 }
 
 // ============================================================================
+// Default System Prompt
+// ============================================================================
+
+const DEFAULT_SYSTEM_PROMPT = `You are a thorough CODE REVIEWER. Your job is to evaluate if an implementation is ready for production.
+
+## What You Check
+
+### Mission Alignment
+- Does the implementation do what was asked?
+- Is there scope creep or missing features?
+
+### Code Quality
+- Are there bugs or potential issues?
+- Is the code maintainable and well-structured?
+- Are there security concerns?
+
+### Production Readiness
+- Does it follow project patterns?
+- Are errors handled properly?
+- Is it tested adequately?
+
+## Your Approach
+- Be thorough but pragmatic
+- Focus on issues that actually matter
+- Give specific, actionable feedback with file:line references
+- Don't nitpick style if it's consistent with the project
+
+## Required Response Format
+Return a JSON block:
+\`\`\`json
+{
+  "verdict": "approved" | "needs_changes" | "rejected",
+  "redirectTo": "implement" | "testing",
+  "feedback": "Clear summary of your assessment",
+  "concerns": ["file.ts:42 - specific issue"],
+  "score": 0-100
+}
+\`\`\`
+
+- **approved**: Ready for production
+- **needs_changes**: Fixable issues, redirect to implement or testing
+- **rejected**: Critical problems requiring major rework`
+
+// ============================================================================
 // Response Parser
 // ============================================================================
 
-function parseReviewResult(
-  response: string,
-  agentType: ReviewAgentType
-): ReviewResult {
-  // Extract JSON from response
+function parseReviewResult(response: string): ReviewResult {
   const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/)
 
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[1])
       return {
-        agent: agentType,
+        agent: REVIEW_AGENT,
         verdict: parsed.verdict || 'needs_changes',
         feedback: parsed.feedback || 'No feedback provided',
         concerns: parsed.concerns || [],
@@ -136,183 +147,28 @@ function parseReviewResult(
         score: parsed.score
       }
     } catch {
-      // JSON parse failed, continue to fallback
+      // JSON parse failed
     }
   }
 
-  // Fallback: try to infer from text
-  const lowerResponse = response.toLowerCase()
-  const isApproved = /\bapproved\b|lgtm|looks good|validé|approuvé/i.test(response)
-  const isRejected = /\brejected\b|critical|fail|rejeté|échec critique/i.test(response)
+  // Fallback: infer from text
+  const isApproved = /\bapproved\b|lgtm|looks good/i.test(response)
+  const isRejected = /\brejected\b|critical|fail/i.test(response)
 
   return {
-    agent: agentType,
+    agent: REVIEW_AGENT,
     verdict: isApproved ? 'approved' : isRejected ? 'rejected' : 'needs_changes',
-    feedback: response.substring(0, 1000), // Truncate long responses
+    feedback: response.substring(0, 1000),
     concerns: [],
-    redirectTo: 'implement' // Default redirect
+    redirectTo: 'implement'
   }
 }
 
 // ============================================================================
-// Default System Prompts
-// ============================================================================
-
-function getDefaultSystemPrompt(agentType: ReviewAgentType): string {
-  const prompts: Record<ReviewAgentType, string> = {
-    mission_reviewer: `You are the MISSION GUARDIAN. You are RELENTLESS about mission alignment.
-
-## Your Mission
-Verify that the implementation matches EXACTLY what was requested. No deviations tolerated.
-
-## What You Check
-- Does the implementation do WHAT WAS ASKED?
-- Are there features added that weren't requested (scope creep)?
-- Are there aspects of the mission NOT implemented?
-- Does the behavior match expectations?
-
-## Common Deviations to Detect
-- Over-engineering (too complex for the need)
-- Bonus features not requested
-- Changes outside scope
-- Unnecessary refactoring
-- Unsolicited "improvements"
-
-## You Are STRICT
-- If the mission isn't 100% respected, you flag it
-- You tolerate NO deviation
-- You cite the original mission and show discrepancies
-- You are precise about what's missing or extra
-
-## Required Response Format
-Return ONLY a JSON block:
-\`\`\`json
-{
-  "verdict": "approved" | "needs_changes" | "rejected",
-  "redirectTo": "implement" | "testing",
-  "feedback": "Detailed explanation of mission alignment",
-  "concerns": ["Deviation 1 from mission", "Unrequested feature X"],
-  "score": 0-100
-}
-\`\`\``,
-
-    senior_engineer: `You are a SENIOR ENGINEER with 20+ years of experience. You are STRICT and CRITICAL.
-
-## Your Mission
-Evaluate if the implementation is production-ready. You make NO compromises on quality.
-
-## Evaluation Criteria (STRICT)
-
-### Architecture (25%)
-- Does the code follow project patterns?
-- Is it well-structured and modular?
-- Are responsibilities properly separated?
-
-### Maintainability (25%)
-- Will this code be easy to maintain in 6 months?
-- Are names clear and explicit?
-- Is complexity justified?
-
-### Performance (20%)
-- Are there obvious performance issues?
-- Are algorithms appropriate?
-- Are there potential memory leaks?
-
-### Security (15%)
-- Are there security vulnerabilities?
-- Are inputs validated?
-- Are errors handled correctly?
-
-### Tests (15%)
-- Are tests sufficient?
-- Do they cover edge cases?
-- Are they maintainable?
-
-## You Are STRICT
-- If ANY criterion isn't satisfied, you flag needs_changes
-- You give PRECISE and ACTIONABLE feedback
-- You identify specific files and lines
-- You propose concrete solutions
-
-## Required Response Format
-Return ONLY a JSON block:
-\`\`\`json
-{
-  "verdict": "approved" | "needs_changes" | "rejected",
-  "redirectTo": "implement" | "testing",
-  "feedback": "Detailed explanation with code examples",
-  "concerns": ["file.ts:42 - issue X", "Architecture: issue Y"],
-  "score": 0-100
-}
-\`\`\``,
-
-    code_reviewer: `You are a meticulous and RELENTLESS CODE REVIEWER. You examine every line.
-
-## Your Mission
-Detailed code review to identify ALL issues, even minor ones.
-
-## What You Look For
-
-### Potential Bugs (Critical)
-- Unhandled null/undefined
-- Race conditions
-- Logic errors
-- Off-by-one errors
-- Memory leaks
-
-### Code Smells (Important)
-- Code duplication
-- Functions too long (>50 lines)
-- High cyclomatic complexity
-- Magic numbers/strings
-- Dead code
-
-### Conventions (Moderate)
-- Inconsistent naming
-- Incorrect formatting
-- Unused imports
-- Unresolved TODO/FIXME
-- Forgotten console.log
-
-### TypeScript Types (Important)
-- Missing types or 'any'
-- Incorrect types
-- Dangerous type assertions
-- Misused generics
-
-### Error Handling (Critical)
-- Silent errors (empty catch)
-- Errors not propagated
-- Unclear error messages
-
-## You Are RELENTLESS
-- You find ALL issues
-- You give examples of corrected code
-- You cite exact lines
-- You let NOTHING pass
-
-## Required Response Format
-Return ONLY a JSON block:
-\`\`\`json
-{
-  "verdict": "approved" | "needs_changes" | "rejected",
-  "redirectTo": "implement" | "testing",
-  "feedback": "Summary of issues found with fix examples",
-  "concerns": ["file.ts:42 - bug: missing null check", "file.ts:15 - smell: function too long"],
-  "score": 0-100
-}
-\`\`\``
-  }
-
-  return prompts[agentType]
-}
-
-// ============================================================================
-// Single Review Agent Runner
+// Review Agent Runner
 // ============================================================================
 
 async function* runReviewAgent(
-  agentType: ReviewAgentType,
   context: ReviewContext,
   queryOptions?: ResolvedQueryOptions
 ): AsyncGenerator<PolishEvent, ReviewResult> {
@@ -343,11 +199,9 @@ async function* runReviewAgent(
     return {}
   }
 
-  const prompt = buildReviewPrompt(agentType, context)
-
-  // Get agent definition from options
-  const agentDef = queryOptions?.agents?.[agentType]
-  const systemPrompt = agentDef?.prompt || getDefaultSystemPrompt(agentType)
+  const prompt = buildReviewPrompt(context)
+  const agentDef = queryOptions?.agents?.[REVIEW_AGENT]
+  const systemPrompt = agentDef?.prompt || DEFAULT_SYSTEM_PROMPT
   const tools = agentDef?.tools || ['Read', 'Glob', 'Grep']
 
   try {
@@ -358,7 +212,7 @@ async function* runReviewAgent(
         systemPrompt,
         tools,
         allowedTools: tools,
-        disallowedTools: ['Write', 'Edit'], // Read-only
+        disallowedTools: ['Write', 'Edit'],
         permissionMode: 'default',
         maxTurns: 30,
         maxThinkingTokens: 32000,
@@ -374,7 +228,6 @@ async function* runReviewAgent(
         }
       }
     })) {
-      // Yield hook events
       while (hookEvents.length > 0) {
         yield hookEvents.shift()!
       }
@@ -388,59 +241,20 @@ async function* runReviewAgent(
       }
     }
   } catch (error) {
-    // Return error as rejection
     return {
-      agent: agentType,
+      agent: REVIEW_AGENT,
       verdict: 'rejected',
-      feedback: `Error running review agent: ${error instanceof Error ? error.message : String(error)}`,
+      feedback: `Review failed: ${error instanceof Error ? error.message : String(error)}`,
       concerns: ['Agent execution failed'],
       redirectTo: 'implement'
     }
   }
 
-  return parseReviewResult(fullResponse, agentType)
+  return parseReviewResult(fullResponse)
 }
 
 // ============================================================================
-// Helper: Collect events and result from agent generator
-// ============================================================================
-
-interface AgentExecutionResult {
-  agentType: ReviewAgentType
-  events: PolishEvent[]
-  result: ReviewResult
-}
-
-/**
- * Runs a review agent and collects all events and the final result.
- * This helper properly handles the async generator to get both yielded events
- * and the return value in a single execution.
- */
-async function executeReviewAgent(
-  agentType: ReviewAgentType,
-  context: ReviewContext,
-  queryOptions?: ResolvedQueryOptions
-): Promise<AgentExecutionResult> {
-  const events: PolishEvent[] = []
-  const generator = runReviewAgent(agentType, context, queryOptions)
-
-  let iterResult: IteratorResult<PolishEvent, ReviewResult>
-  do {
-    iterResult = await generator.next()
-    if (!iterResult.done && iterResult.value) {
-      events.push(iterResult.value)
-    }
-  } while (!iterResult.done)
-
-  return {
-    agentType,
-    events,
-    result: iterResult.value
-  }
-}
-
-// ============================================================================
-// Main Review Gate (Parallel Execution)
+// Main Review Gate
 // ============================================================================
 
 export async function* runReviewGate(
@@ -448,11 +262,7 @@ export async function* runReviewGate(
   config: ReviewGateConfig = {},
   queryOptions?: ResolvedQueryOptions
 ): AsyncGenerator<PolishEvent, ReviewPhaseResult> {
-  const {
-    maxIterations = DEFAULT_MAX_ITERATIONS,
-    requireAllApproval = true
-  } = config
-
+  const { maxIterations = DEFAULT_MAX_ITERATIONS } = config
   const currentIteration = context.iteration
 
   // Emit phase start
@@ -465,19 +275,42 @@ export async function* runReviewGate(
     type: 'status',
     data: {
       phase: 'review',
-      message: `Starting Review Gate (iteration ${currentIteration}/${maxIterations})...`
+      message: `Starting Review (iteration ${currentIteration}/${maxIterations})...`
     }
   }
 
-  // Emit start events for all agents (they will run in parallel)
-  for (const agentType of REVIEW_AGENTS) {
-    yield {
-      type: 'review_start',
-      data: {
-        iteration: currentIteration,
-        maxIterations,
-        agent: agentType
-      }
+  yield {
+    type: 'review_start',
+    data: {
+      iteration: currentIteration,
+      maxIterations,
+      agent: REVIEW_AGENT
+    }
+  }
+
+  // Run the review agent
+  let result: ReviewResult | null = null
+  const generator = runReviewAgent(context, queryOptions)
+
+  let iterResult: IteratorResult<PolishEvent, ReviewResult>
+  do {
+    iterResult = await generator.next()
+    if (!iterResult.done && iterResult.value) {
+      yield iterResult.value
+    }
+  } while (!iterResult.done)
+  result = iterResult.value
+
+  // Emit result
+  yield {
+    type: 'review_result',
+    data: {
+      agent: result.agent,
+      verdict: result.verdict,
+      feedback: result.feedback,
+      concerns: result.concerns,
+      score: result.score,
+      iteration: currentIteration
     }
   }
 
@@ -485,58 +318,14 @@ export async function* runReviewGate(
     type: 'status',
     data: {
       phase: 'review',
-      message: 'Running all 3 review agents in parallel...'
+      message: `Review: ${result.verdict.toUpperCase()}`,
+      verdict: result.verdict,
+      score: result.score
     }
   }
 
-  // Run all 3 agents in PARALLEL
-  const agentPromises = REVIEW_AGENTS.map(agentType =>
-    executeReviewAgent(agentType, context, queryOptions)
-  )
-
-  const agentResults = await Promise.all(agentPromises)
-
-  // Yield all collected events from each agent (grouped by agent for clarity)
-  for (const { agentType, events, result } of agentResults) {
-    // Yield the agent's events
-    for (const event of events) {
-      yield event
-    }
-
-    // Yield the result event
-    yield {
-      type: 'review_result',
-      data: {
-        agent: result.agent,
-        verdict: result.verdict,
-        feedback: result.feedback,
-        concerns: result.concerns,
-        score: result.score,
-        iteration: currentIteration
-      }
-    }
-
-    yield {
-      type: 'status',
-      data: {
-        phase: 'review',
-        message: `${agentType.replace('_', ' ')}: ${result.verdict.toUpperCase()}`,
-        verdict: result.verdict,
-        score: result.score
-      }
-    }
-  }
-
-  // Collect all reviews
-  const reviews = agentResults.map(r => r.result)
-
-  // Analyze verdicts
-  const verdicts = reviews.map(r => r.verdict)
-  const allApproved = verdicts.every(v => v === 'approved')
-  const anyRejected = verdicts.some(v => v === 'rejected')
-
-  // Handle approval
-  if (allApproved || (!requireAllApproval && verdicts.filter(v => v === 'approved').length >= 2)) {
+  // Handle verdict
+  if (result.verdict === 'approved') {
     yield {
       type: 'review_complete',
       data: {
@@ -550,65 +339,26 @@ export async function* runReviewGate(
       type: 'status',
       data: {
         phase: 'review',
-        message: 'All reviewers APPROVED! Feature is ready for production.'
+        message: 'APPROVED! Feature is ready for production.'
       }
     }
 
     return {
       approved: true,
       iterations: currentIteration,
-      reviews
+      reviews: [result]
     }
   }
 
-  // Handle rejection
-  if (anyRejected) {
-    const rejectedReview = reviews.find(r => r.verdict === 'rejected')!
-
-    yield {
-      type: 'review_complete',
-      data: {
-        approved: false,
-        iterations: currentIteration,
-        stoppedReason: 'rejected'
-      }
-    }
-
-    yield {
-      type: 'status',
-      data: {
-        phase: 'review',
-        message: `REJECTED by ${rejectedReview.agent.replace('_', ' ')}: ${rejectedReview.feedback.substring(0, 100)}...`
-      }
-    }
-
-    return {
-      approved: false,
-      iterations: currentIteration,
-      reviews,
-      finalFeedback: rejectedReview.feedback,
-      redirectTo: rejectedReview.redirectTo || 'implement'
-    }
-  }
-
-  // Handle needs_changes - determine redirect target
-  const needsChangesReviews = reviews.filter(r => r.verdict === 'needs_changes')
-
-  // Determine redirect: if any says "implement", go to implement, otherwise testing
-  const redirectTarget: ReviewRedirectTarget = needsChangesReviews.some(r => r.redirectTo === 'implement')
-    ? 'implement'
-    : 'testing'
-
-  const combinedFeedback = needsChangesReviews
-    .map(r => `[${r.agent.replace('_', ' ').toUpperCase()}]\n${r.feedback}\n\nConcerns:\n${r.concerns.map(c => `- ${c}`).join('\n')}`)
-    .join('\n\n---\n\n')
+  // Not approved
+  const redirectTarget: ReviewRedirectTarget = result.redirectTo || 'implement'
 
   yield {
     type: 'review_redirect',
     data: {
-      reason: 'Changes required by reviewers',
+      reason: result.verdict === 'rejected' ? 'Critical issues found' : 'Changes required',
       redirectTo: redirectTarget,
-      feedback: combinedFeedback,
+      feedback: result.feedback,
       iteration: currentIteration,
       totalIterations: maxIterations
     }
@@ -619,7 +369,8 @@ export async function* runReviewGate(
     data: {
       approved: false,
       iterations: currentIteration,
-      stoppedReason: currentIteration >= maxIterations ? 'max_iterations' : undefined
+      stoppedReason: result.verdict === 'rejected' ? 'rejected' :
+        currentIteration >= maxIterations ? 'max_iterations' : undefined
     }
   }
 
@@ -627,15 +378,15 @@ export async function* runReviewGate(
     type: 'status',
     data: {
       phase: 'review',
-      message: `Changes needed. Redirecting to ${redirectTarget} phase.`
+      message: `${result.verdict === 'rejected' ? 'REJECTED' : 'Changes needed'}. Redirecting to ${redirectTarget} phase.`
     }
   }
 
   return {
     approved: false,
     iterations: currentIteration,
-    reviews,
-    finalFeedback: combinedFeedback,
+    reviews: [result],
+    finalFeedback: result.feedback,
     redirectTo: redirectTarget
   }
 }

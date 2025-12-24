@@ -7,8 +7,7 @@ import { CommitTimeline } from './CommitTimeline'
 import { EventLog } from './EventLog'
 import { FeedbackPanel } from './FeedbackPanel'
 import { FileChangesSection } from './FileChangesSection'
-import { ReviewPanel } from './ReviewPanel'
-import type { ReviewAgentType, ReviewVerdict } from './VerdictCard'
+import { ReviewPanel, type ReviewVerdict } from './ReviewPanel'
 import {
   handleEventNotification,
   getNotificationsEnabled,
@@ -129,7 +128,6 @@ export function SessionDetail({
 
   // Review Gate states
   interface ReviewResult {
-    agent: ReviewAgentType
     verdict: ReviewVerdict
     feedback: string
     concerns: string[]
@@ -137,12 +135,10 @@ export function SessionDetail({
   }
   const [reviewIteration, setReviewIteration] = useState(session.reviewIteration || 1)
   const [reviewMaxIterations, setReviewMaxIterations] = useState(3)
-  const [reviewResults, setReviewResults] = useState<ReviewResult[]>([])
-  const [reviewPendingAgents, setReviewPendingAgents] = useState<ReviewAgentType[]>([])
+  const [reviewResult, setReviewResult] = useState<ReviewResult | undefined>()
+  const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewRedirectTo, setReviewRedirectTo] = useState<'implement' | 'testing' | undefined>()
-  const [reviewCombinedFeedback, setReviewCombinedFeedback] = useState<string | undefined>()
   const [reviewComplete, setReviewComplete] = useState(false)
-  const [reviewAllApproved, setReviewAllApproved] = useState(false)
 
   // Streaming states for real-time planning display
   const [streamingText, setStreamingText] = useState('')
@@ -248,31 +244,27 @@ export function SessionDetail({
             setCurrentPhase('review')
             setReviewIteration(data.iteration as number)
             setReviewMaxIterations(data.maxIterations as number)
-            setReviewPendingAgents(prev => [...prev, data.agent as ReviewAgentType])
+            setReviewLoading(true)
             setReviewComplete(false)
           }
 
           if (type === 'review_result') {
-            // Remove from pending
-            setReviewPendingAgents(prev => prev.filter(a => a !== data.agent))
-            // Add to results
-            setReviewResults(prev => [...prev, {
-              agent: data.agent as ReviewAgentType,
+            setReviewLoading(false)
+            setReviewResult({
               verdict: data.verdict as ReviewVerdict,
               feedback: data.feedback as string,
               concerns: (data.concerns as string[]) || [],
               score: data.score as number | undefined
-            }])
+            })
           }
 
           if (type === 'review_redirect') {
             setReviewRedirectTo(data.redirectTo as 'implement' | 'testing')
-            setReviewCombinedFeedback(data.feedback as string)
           }
 
           if (type === 'review_complete') {
             setReviewComplete(true)
-            setReviewAllApproved(data.approved as boolean)
+            setReviewLoading(false)
             if (data.approved) {
               setCurrentPhase('idle')
             }
@@ -411,7 +403,7 @@ export function SessionDetail({
               <PhaseIndicator
                 label="Phase 3: Review"
                 active={currentPhase === 'review'}
-                complete={reviewComplete && reviewAllApproved}
+                complete={reviewComplete && reviewResult?.verdict === 'approved'}
                 code="0x03"
                 color="fuchsia"
               />
@@ -550,17 +542,15 @@ export function SessionDetail({
         )}
 
         {/* Review Panel (Phase 3) */}
-        {(currentPhase === 'review' || (reviewResults.length > 0 && session.mission)) && (
+        {(currentPhase === 'review' || (reviewResult && session.mission)) && (
           <div className="mb-6">
             <ReviewPanel
               iteration={reviewIteration}
               maxIterations={reviewMaxIterations}
-              reviews={reviewResults}
-              pendingAgents={reviewPendingAgents}
+              review={reviewResult}
+              isLoading={reviewLoading}
               redirectTo={reviewRedirectTo}
-              combinedFeedback={reviewCombinedFeedback}
               isComplete={reviewComplete}
-              allApproved={reviewAllApproved}
             />
           </div>
         )}
