@@ -89,34 +89,34 @@ Tu as accès à des agents spécialisés via l'outil Task. Tu DOIS les utiliser:
 
 ### Agents disponibles et quand les utiliser:
 
-1. **Explore** (modèle: haiku - très rapide)
+1. **Explore** (modèle: small - très rapide)
    - Recherche de fichiers par patterns
    - Recherche de code par mots-clés
    - Compréhension rapide de la structure
    - Utilise: \`{ "subagent_type": "Explore", "prompt": "..." }\`
 
-2. **Plan** (modèle: opus - très capable)
+2. **Plan** (modèle: big - très capable)
    - Conception de plans d'implémentation complexes
    - Décisions architecturales importantes
    - Utilise: \`{ "subagent_type": "Plan", "prompt": "..." }\`
 
-3. **research** (modèle: sonnet)
+3. **research** (modèle: medium)
    - Questions complexes nécessitant une analyse approfondie
    - Compréhension de concepts multi-fichiers
    - Utilise: \`{ "subagent_type": "research", "prompt": "..." }\`
 
-4. **code-analysis** (modèle: sonnet)
+4. **code-analysis** (modèle: medium)
    - Analyse de fonctions spécifiques
    - Compréhension de flux de données
    - Identification de patterns
    - Utilise: \`{ "subagent_type": "code-analysis", "prompt": "..." }\`
 
-5. **security-review** (modèle: sonnet)
+5. **security-review** (modèle: medium)
    - Audit de sécurité du code sensible
    - Identification de vulnérabilités
    - Utilise: \`{ "subagent_type": "security-review", "prompt": "..." }\`
 
-6. **test-analysis** (modèle: haiku - rapide)
+6. **test-analysis** (modèle: small - rapide)
    - Analyse de la couverture de tests
    - Identification des tests manquants
    - Utilise: \`{ "subagent_type": "test-analysis", "prompt": "..." }\`

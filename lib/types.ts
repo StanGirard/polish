@@ -49,13 +49,53 @@ export interface SdkPluginConfig {
   path: string
 }
 
+/**
+ * Model size abstraction for agent configuration
+ * This allows backends like OpenRouter to map to their own model equivalents:
+ * - small: Fast, lightweight model (maps to haiku by default)
+ * - medium: Balanced capability model (maps to sonnet by default)
+ * - big: Most capable model (maps to opus by default)
+ * - inherit: Use the parent agent's model
+ */
+export type ModelSize = 'small' | 'medium' | 'big' | 'inherit'
+
+/**
+ * Default model mapping from size to Claude model names
+ * This can be overridden by the backend (e.g., OpenRouter)
+ */
+export const DEFAULT_MODEL_MAPPING: Record<Exclude<ModelSize, 'inherit'>, string> = {
+  small: 'haiku',
+  medium: 'sonnet',
+  big: 'opus'
+}
+
+/**
+ * Resolve a model size to an actual model name
+ * @param size - The model size (small, medium, big, inherit)
+ * @param customMapping - Optional custom mapping to override defaults
+ * @param inheritedModel - The model to use when size is 'inherit'
+ * @returns The resolved model name
+ */
+export function resolveModelSize(
+  size: ModelSize | undefined,
+  customMapping?: Partial<Record<Exclude<ModelSize, 'inherit'>, string>>,
+  inheritedModel?: string
+): string {
+  if (!size || size === 'inherit') {
+    return inheritedModel || DEFAULT_MODEL_MAPPING.medium
+  }
+
+  const mapping = { ...DEFAULT_MODEL_MAPPING, ...customMapping }
+  return mapping[size]
+}
+
 /** Custom agent definition (matches SDK AgentDefinition) */
 export interface AgentDefinition {
   description: string
   prompt: string
   tools?: string[]
   disallowedTools?: string[]
-  model?: 'sonnet' | 'opus' | 'haiku' | 'inherit'
+  model?: ModelSize
 }
 
 /** Capabilities configuration for a specific phase */
