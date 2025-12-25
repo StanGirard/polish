@@ -1,9 +1,9 @@
 {
   "rules": [
-    "Ne jamais casser les tests existants",
-    "Un seul changement atomique par itération",
-    "Préférer supprimer du code plutôt qu'en ajouter",
-    "Ne pas toucher aux fichiers de config sans raison"
+    "Never break existing tests",
+    "One single atomic change per iteration",
+    "Prefer removing code rather than adding code",
+    "Don't touch config files without reason"
   ],
   "thresholds": {
     "minImprovement": 0.5,

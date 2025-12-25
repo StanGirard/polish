@@ -7,7 +7,7 @@
       ]
     },
     "implement": {
-      "systemPromptAppend": "Tu peux créer de nouveaux fichiers avec Write. Utilise les patterns Next.js existants dans le projet."
+      "systemPromptAppend": "You can create new files with Write. Use the existing Next.js patterns in the project."
     }
   },
   "metrics": [
@@ -65,37 +65,37 @@
     {
       "name": "add-tests",
       "focus": "testCoverage",
-      "prompt": "Augmente la couverture de tests. Exécute `pnpm test:coverage` pour voir le coverage actuel. Identifie UN fichier avec peu de coverage dans lib/ et ajoute des tests pour ses fonctions non couvertes. Crée le fichier de test dans lib/__tests__/."
+      "prompt": "Increase test coverage. Run `pnpm test:coverage` to see current coverage. Identify ONE file with low coverage in lib/ and add tests for its uncovered functions. Create the test file in lib/__tests__/."
     },
     {
       "name": "fix-tests",
       "focus": "testsFailing",
-      "prompt": "Corrige un test qui échoue. Exécute `pnpm test` pour voir les tests, identifie UN test qui fail, puis corrige-le."
+      "prompt": "Fix a failing test. Run `pnpm test` to see tests, identify ONE failing test, then fix it."
     },
     {
       "name": "fix-types",
       "focus": "typeErrors",
-      "prompt": "Corrige une erreur TypeScript. Exécute `npx tsc --noEmit` pour voir les erreurs, puis corrige UNE seule erreur."
+      "prompt": "Fix a TypeScript error. Run `npx tsc --noEmit` to see errors, then fix ONE single error."
     },
     {
       "name": "fix-lint",
       "focus": "lintErrors",
-      "prompt": "Corrige une erreur ESLint. Exécute `npx eslint . --format stylish` pour voir les erreurs, puis corrige UNE seule erreur."
+      "prompt": "Fix an ESLint error. Run `npx eslint . --format stylish` to see errors, then fix ONE single error."
     },
     {
       "name": "improve-code-style",
       "focus": "codeStyle",
-      "prompt": "Améliore le style de code. Identifie UNE fonction trop longue (>50 lignes) ou UN fichier trop long (>500 lignes) dans lib/ ou app/, puis refactorise-le en extrayant des fonctions plus petites ou en divisant le fichier. Assure-toi que le code reste fonctionnel."
+      "prompt": "Improve code style. Identify ONE function too long (>50 lines) or ONE file too long (>500 lines) in lib/ or app/, then refactor it by extracting smaller functions or splitting the file. Ensure the code remains functional."
     },
     {
       "name": "reduce-duplication",
       "focus": "codeDuplication",
-      "prompt": "Réduis la duplication de code. Exécute `npx jscpd app/ lib/` pour voir les duplications, puis extrait UNE duplication en fonction réutilisable."
+      "prompt": "Reduce code duplication. Run `npx jscpd app/ lib/` to see duplications, then extract ONE duplication into a reusable function."
     },
     {
       "name": "fix-warnings",
       "focus": "lintWarnings",
-      "prompt": "Corrige un warning ESLint. Exécute `npx eslint . --format stylish` pour voir les warnings, puis corrige UN seul warning."
+      "prompt": "Fix an ESLint warning. Run `npx eslint . --format stylish` to see warnings, then fix ONE single warning."
     }
   ]
 }

@@ -21,74 +21,74 @@ interface ImplementPromptOptions {
 function buildImplementPrompt(options: ImplementPromptOptions): string {
   const { mission, feedback, retryCount } = options
 
-  let prompt = `Tu dois implémenter la fonctionnalité suivante dans ce projet:
+  let prompt = `You need to implement the following feature in this project:
 
 ## Mission
 ${mission}
 `
 
-  // Ajouter le feedback si c'est un retry
+  // Add feedback if this is a retry
   if (feedback && retryCount && retryCount > 0) {
     prompt += `
-## Feedback utilisateur (Tentative #${retryCount + 1})
-L'utilisateur n'était pas satisfait de l'implémentation précédente. Voici son feedback:
+## User Feedback (Attempt #${retryCount + 1})
+The user was not satisfied with the previous implementation. Here is their feedback:
 
 > ${feedback}
 
-**Important**: Prends en compte ce feedback et corrige/améliore l'implémentation en conséquence.
-Analyse ce qui a été fait précédemment et applique les corrections demandées.
+**Important**: Take this feedback into account and fix/improve the implementation accordingly.
+Analyze what was done previously and apply the requested corrections.
 `
   }
 
   prompt += `
 ## Instructions
-1. D'abord, explore le projet avec Glob et Read pour comprendre:
-   - La structure du projet
-   - Les patterns et conventions utilisés
-   - Les fichiers pertinents à modifier ou créer
-${feedback ? '   - Ce qui a déjà été implémenté (pour le retry)\n' : ''}
-2. Ensuite, implémente la fonctionnalité:
-   - Crée les nouveaux fichiers nécessaires avec Write
-   - Modifie les fichiers existants avec Edit
-   - Assure-toi que le code compile (pas d'erreurs de syntaxe)
-${feedback ? '   - Applique les corrections demandées dans le feedback\n' : ''}
-3. Le code peut être imparfait:
-   - Des warnings sont acceptables
-   - Des types incomplets sont acceptables
-   - Le code sera polish automatiquement après
+1. First, explore the project with Glob and Read to understand:
+   - The project structure
+   - The patterns and conventions used
+   - The relevant files to modify or create
+${feedback ? '   - What was already implemented (for the retry)\n' : ''}
+2. Then, implement the feature:
+   - Create new files as needed with Write
+   - Modify existing files with Edit
+   - Make sure the code compiles (no syntax errors)
+${feedback ? '   - Apply the corrections requested in the feedback\n' : ''}
+3. The code can be imperfect:
+   - Warnings are acceptable
+   - Incomplete types are acceptable
+   - The code will be polished automatically afterward
 
 ## Important
-- Suis les conventions du projet existant
-- Utilise les patterns déjà en place
-- Préfère Edit à Write pour modifier des fichiers existants
-- Ne touche pas aux fichiers de config sans raison
-${feedback ? '- PRIORITÉ: Adresse le feedback utilisateur en premier\n' : ''}
-Commence par explorer le projet, puis implémente la fonctionnalité.`
+- Follow the existing project conventions
+- Use the patterns already in place
+- Prefer Edit over Write for modifying existing files
+- Don't touch config files without reason
+${feedback ? '- PRIORITY: Address user feedback first\n' : ''}
+Start by exploring the project, then implement the feature.`
 
   return prompt
 }
 
-const IMPLEMENT_SYSTEM_PROMPT = `Tu es un développeur expert. Ta mission est d'implémenter une fonctionnalité dans un projet existant.
+const IMPLEMENT_SYSTEM_PROMPT = `You are an expert developer. Your mission is to implement a feature in an existing project.
 
-## Ton approche
-1. **Explorer** - Comprendre le projet, sa structure, ses patterns
-2. **Planifier** - Identifier les fichiers à créer/modifier
-3. **Implémenter** - Écrire le code nécessaire
-4. **Vérifier** - S'assurer que le code compile
+## Your Approach
+1. **Explore** - Understand the project, its structure, its patterns
+2. **Plan** - Identify files to create/modify
+3. **Implement** - Write the necessary code
+4. **Verify** - Make sure the code compiles
 
-## Outils disponibles
-- Glob: trouver des fichiers par pattern
-- Grep: chercher du texte dans les fichiers
-- Read: lire un fichier
-- Write: créer un nouveau fichier
-- Edit: modifier un fichier existant (préféré à Write pour les modifications)
-- Bash: exécuter des commandes (npm, tsc, etc.)
+## Available Tools
+- Glob: find files by pattern
+- Grep: search text in files
+- Read: read a file
+- Write: create a new file
+- Edit: modify an existing file (preferred over Write for modifications)
+- Bash: run commands (npm, tsc, etc.)
 
-## Règles
-- Suis les conventions du projet
-- Le code doit compiler (pas d'erreurs de syntaxe)
-- Les warnings et types incomplets sont acceptables
-- Préfère des changements incrémentaux`
+## Rules
+- Follow project conventions
+- Code must compile (no syntax errors)
+- Warnings and incomplete types are acceptable
+- Prefer incremental changes`
 
 export interface ImplementPhaseOptions {
   mission: string
