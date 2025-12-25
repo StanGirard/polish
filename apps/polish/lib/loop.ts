@@ -423,7 +423,7 @@ export async function* runPolishLoop(
 // ============================================================================
 
 export async function* runFullPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
-  const { projectPath, mission, retry, capabilityOverrides = [] } = config
+  const { projectPath, mission, approvedPlan, retry, capabilityOverrides = [] } = config
 
   // Load preset for capabilities resolution
   const preset = await loadPreset(projectPath)
@@ -447,6 +447,7 @@ export async function* runFullPolish(config: PolishConfig): AsyncGenerator<Polis
     for await (const event of runImplementPhase({
       mission,
       projectPath,
+      approvedPlan, // Pass the approved plan to the implementation phase
       feedback: retry?.feedback,
       retryCount: retry?.retryCount,
       queryOptions: implementOptions

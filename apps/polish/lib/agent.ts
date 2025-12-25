@@ -34,54 +34,54 @@ export interface SingleFixResult {
 function buildSingleFixPrompt(context: SingleFixContext): string {
   const { strategy, targetMetric, failedAttempts, rules } = context
 
-  let prompt = `Tu dois corriger UN SEUL problème dans ce codebase.
+  let prompt = `You must fix ONE SINGLE problem in this codebase.
 
-## Métrique à améliorer
+## Metric to Improve
 - **${targetMetric.name}**: ${targetMetric.rawValue} (score: ${targetMetric.normalizedScore.toFixed(1)}/100)
-- Objectif: ${targetMetric.target}
-- ${targetMetric.higherIsBetter ? 'Plus haut = mieux' : 'Plus bas = mieux'}
+- Target: ${targetMetric.target}
+- ${targetMetric.higherIsBetter ? 'Higher = better' : 'Lower = better'}
 
-## Ta tâche
+## Your Task
 ${strategy.prompt}
 
-## Règles strictes
+## Strict Rules
 ${rules.map(r => `- ${r}`).join('\n')}
-- UN SEUL changement atomique
-- Vérifie que les tests passent après la modification`
+- ONE SINGLE atomic change
+- Verify tests pass after the modification`
 
   if (failedAttempts.length > 0) {
-    prompt += `\n\n## Tentatives échouées (ne pas répéter)
-${failedAttempts.map(f => `- ${f.strategy}${f.file ? ` sur ${f.file}` : ''}${f.line ? `:${f.line}` : ''} → ${f.reason}`).join('\n')}`
+    prompt += `\n\n## Failed Attempts (do not repeat)
+${failedAttempts.map(f => `- ${f.strategy}${f.file ? ` on ${f.file}` : ''}${f.line ? `:${f.line}` : ''} → ${f.reason}`).join('\n')}`
   }
 
-  prompt += `\n\nCommence par analyser le problème, puis applique le fix.`
+  prompt += `\n\nStart by analyzing the problem, then apply the fix.`
 
   return prompt
 }
 
 function buildSystemPrompt(rules: string[]): string {
-  return `Tu es un agent expert en amélioration de qualité de code.
+  return `You are an expert code quality improvement agent.
 
-## Ton approche
-1. **Analyser** - Utilise les commandes de diagnostic (lint, tsc, tests)
-2. **Identifier** - Trouve le problème spécifique à corriger
-3. **Corriger** - Applique UN SEUL fix minimal
-4. **Vérifier** - Confirme que le fix fonctionne
+## Your Approach
+1. **Analyze** - Use diagnostic commands (lint, tsc, tests)
+2. **Identify** - Find the specific problem to fix
+3. **Fix** - Apply ONE SINGLE minimal fix
+4. **Verify** - Confirm the fix works
 
-## Règles
+## Rules
 ${rules.map(r => `- ${r}`).join('\n')}
 
-## Outils disponibles
-- Glob: trouver des fichiers par pattern
-- Grep: chercher du texte dans les fichiers
-- Read: lire un fichier
-- Edit: modifier un fichier (préféré)
-- Bash: exécuter des commandes (lint, tsc, npm test)
+## Available Tools
+- Glob: find files by pattern
+- Grep: search text in files
+- Read: read a file
+- Edit: modify a file (preferred)
+- Bash: run commands (lint, tsc, npm test)
 
 ## Important
-- Préfère Edit à Write pour modifier des fichiers existants
-- Ne modifie pas les fichiers de config sans raison
-- Un seul changement atomique par session`
+- Prefer Edit over Write for modifying existing files
+- Don't modify config files without reason
+- One single atomic change per session`
 }
 
 export async function* runSingleFix(
@@ -241,32 +241,32 @@ export async function* runSingleFix(
 // Legacy: Full Polish Agent (for backward compatibility)
 // ============================================================================
 
-const LEGACY_SYSTEM_PROMPT = `Tu es un agent expert en amélioration de qualité de code. Ta mission:
+const LEGACY_SYSTEM_PROMPT = `You are an expert code quality improvement agent. Your mission:
 
-1. **Analyser** le codebase:
-   - Exécute \`npm run lint\` ou \`npx eslint . --format json\` pour les erreurs lint
-   - Exécute \`npx tsc --noEmit\` pour les erreurs TypeScript
-   - Exécute \`npm test\` pour vérifier les tests
+1. **Analyze** the codebase:
+   - Run \`npm run lint\` or \`npx eslint . --format json\` for lint errors
+   - Run \`npx tsc --noEmit\` for TypeScript errors
+   - Run \`npm test\` to check tests
 
-2. **Prioriser** les problèmes par impact:
-   - Erreurs critiques (empêchent la compilation)
-   - Erreurs de type
-   - Erreurs de lint
+2. **Prioritize** problems by impact:
+   - Critical errors (prevent compilation)
+   - Type errors
+   - Lint errors
    - Warnings
 
-3. **Fixer** UN problème à la fois:
-   - Lis le fichier concerné avec Read
-   - Applique le fix minimal avec Edit
-   - Vérifie que le fix fonctionne (recompile, relint)
+3. **Fix** ONE problem at a time:
+   - Read the affected file with Read
+   - Apply the minimal fix with Edit
+   - Verify the fix works (recompile, relint)
 
-4. **Itérer** jusqu'à ce que le code soit propre
+4. **Iterate** until the code is clean
 
-## Règles strictes
-- UN SEUL changement atomique par itération
-- Toujours vérifier que les tests passent après chaque modification
-- Ne jamais toucher aux fichiers de config (package.json, tsconfig.json) sans raison valide
-- Préférer supprimer du code mort plutôt qu'ajouter du code
-- Utilise Glob et Grep pour explorer le codebase avant d'agir`
+## Strict Rules
+- ONE SINGLE atomic change per iteration
+- Always verify tests pass after each modification
+- Never touch config files (package.json, tsconfig.json) without valid reason
+- Prefer removing dead code rather than adding code
+- Use Glob and Grep to explore the codebase before acting`
 
 export async function* runPolishAgent(
   repoPath: string,
@@ -311,15 +311,15 @@ export async function* runPolishAgent(
     }
 
     for await (const message of query({
-      prompt: `Analyse et améliore la qualité du code dans ce répertoire.
+      prompt: `Analyze and improve code quality in this directory.
 
-Étapes:
-1. D'abord, explore le projet avec Glob pour comprendre sa structure
-2. Exécute les outils de qualité (lint, typecheck, tests)
-3. Identifie les problèmes à corriger
-4. Corrige-les un par un en vérifiant après chaque fix
+Steps:
+1. First, explore the project with Glob to understand its structure
+2. Run quality tools (lint, typecheck, tests)
+3. Identify problems to fix
+4. Fix them one by one, verifying after each fix
 
-Commence maintenant.`,
+Start now.`,
       options: {
         cwd: repoPath,
         systemPrompt: LEGACY_SYSTEM_PROMPT,

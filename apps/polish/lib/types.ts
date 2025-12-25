@@ -192,6 +192,7 @@ export type PlanningMode = 'auto' | 'manual' | 'agent-driven'
 export interface PolishConfig {
   projectPath: string
   mission?: string
+  approvedPlan?: PlanStep[] // The approved implementation plan (from planning phase)
   maxDuration?: number // ms, default 2 hours
   maxIterations?: number
   maxStalled?: number
@@ -360,8 +361,15 @@ export interface PlanStep {
   id: string
   title: string
   description: string
+  rationale?: string
   files: string[]
   order: number
+  dependencies?: string[]
+  complexity?: 'low' | 'medium' | 'high'
+  estimatedLines?: number
+  testStrategy?: string
+  rollbackPlan?: string
+  acceptanceCriteria?: string[]
 }
 
 /** Message in the planning conversation */
@@ -381,7 +389,11 @@ export interface PlanEventData {
     filesModified: string[]
     filesDeleted: string[]
   }
-  risks: string[]
+  risks: Array<{
+    description: string
+    severity?: 'low' | 'medium' | 'high'
+    mitigation?: string
+  } | string>
   questions?: string[]  // Clarifying questions for the user
 }
 

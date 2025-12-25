@@ -66,10 +66,12 @@ export async function POST(
     // Update status to running
     updateSession(id, { status: 'running' })
 
-    // Launch implementation in background
+    // Launch implementation in background with approved plan
+    const approvedPlan = body.plan || session.approvedPlan || []
     runImplementationInBackground(id, {
       projectPath: session.projectPath,
       mission: session.mission,
+      approvedPlan, // Pass the approved plan to the implementation phase
       maxDuration: body.maxDuration || 2 * 60 * 60 * 1000, // 2 hours default
       isolation: {
         enabled: true,
