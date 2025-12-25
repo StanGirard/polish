@@ -552,6 +552,109 @@ function UsageSection() {
   );
 }
 
+// Economics section - why LLMs beat expensive engineers
+function EconomicsSection() {
+  const models = [
+    { name: "Claude Sonnet 4", provider: "Anthropic", costPer1k: "$0.003", speed: "Fast", tag: "recommended" },
+    { name: "GPT-4o Mini", provider: "OpenAI", costPer1k: "$0.00015", speed: "Very Fast", tag: null },
+    { name: "DeepSeek V3", provider: "DeepSeek", costPer1k: "$0.0007", speed: "Fast", tag: "cheapest" },
+    { name: "Gemini 2.0 Flash", provider: "Google", costPer1k: "$0.0001", speed: "Very Fast", tag: null },
+    { name: "Grok", provider: "xAI", costPer1k: "$0.002", speed: "Fast", tag: null },
+    { name: "GLM-4", provider: "Zhipu", costPer1k: "$0.001", speed: "Fast", tag: null },
+  ];
+
+  return (
+    <div className="space-y-12">
+      {/* Cost comparison */}
+      <div className="grid md:grid-cols-2 gap-8">
+        <div className="p-6 rounded-lg border border-red-900/30 bg-red-950/10">
+          <div className="text-red-400/60 text-xs tracking-wide mb-4">TRADITIONAL</div>
+          <div className="text-5xl font-bold text-red-400 mb-2">$500+</div>
+          <div className="text-gray-500 text-sm mb-6">per day / senior engineer</div>
+          <div className="space-y-2 text-sm text-gray-600">
+            <div className="flex justify-between">
+              <span>Code review</span>
+              <span className="text-gray-500">2-3 hours</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Writing tests</span>
+              <span className="text-gray-500">2-4 hours</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Fixing edge cases</span>
+              <span className="text-gray-500">1-2 hours</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 rounded-lg border border-green-900/50 bg-green-950/10">
+          <div className="text-green-400 text-xs tracking-wide mb-4">POLISH</div>
+          <div className="text-5xl font-bold text-green-400 mb-2">$0.15</div>
+          <div className="text-gray-500 text-sm mb-6">per session / same output</div>
+          <div className="space-y-2 text-sm text-gray-600">
+            <div className="flex justify-between">
+              <span>1000+ iterations</span>
+              <span className="text-green-400/70">automated</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Full test coverage</span>
+              <span className="text-green-400/70">automated</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Type safety</span>
+              <span className="text-green-400/70">automated</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ROI callout */}
+      <div className="text-center py-8 border-y border-gray-800">
+        <div className="text-gray-600 text-sm mb-2">Return on investment</div>
+        <div className="text-4xl md:text-5xl font-bold">
+          <span className="text-green-400">3000x</span>
+          <span className="text-gray-600"> cheaper</span>
+        </div>
+        <div className="text-gray-600 text-sm mt-2">Same quality. Fraction of the cost.</div>
+      </div>
+
+      {/* Supported models */}
+      <div>
+        <div className="text-gray-400 text-sm mb-6">Powered by efficient models</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {models.map((model, i) => (
+            <div
+              key={i}
+              className="p-4 rounded-lg border border-gray-800 bg-gray-950/50 hover:border-gray-700 transition-colors"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="text-gray-200 text-sm font-medium">{model.name}</div>
+                {model.tag && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                    model.tag === "recommended"
+                      ? "bg-green-400/20 text-green-400"
+                      : "bg-cyan-400/20 text-cyan-400"
+                  }`}>
+                    {model.tag}
+                  </span>
+                )}
+              </div>
+              <div className="text-gray-600 text-xs mb-2">{model.provider}</div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">{model.costPer1k}/1k tokens</span>
+                <span className="text-gray-600">{model.speed}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="text-gray-700 text-xs mt-4 text-center">
+          Polish uses small, fast models for iteration. Big models for initial generation.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   return (
     <main className="relative bg-black text-gray-100 min-h-screen">
@@ -644,6 +747,19 @@ export default function LandingPage() {
             </p>
           </div>
           <TimeComparison />
+        </div>
+      </section>
+
+      {/* Economics */}
+      <section className="py-32 px-6 border-t border-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">The Economics</h2>
+            <p className="text-gray-600 text-sm md:text-base max-w-2xl">
+              Why pay $500/day for an engineer to polish code when an LLM can do the same for cents?
+            </p>
+          </div>
+          <EconomicsSection />
         </div>
       </section>
 
