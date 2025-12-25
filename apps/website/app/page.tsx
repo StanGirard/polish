@@ -249,10 +249,10 @@ function TransparencySection() {
             <div className="text-cyan-400">[Implement: 4 files created]</div>
             <div className="text-yellow-400">[Score: 34/100]</div>
             <div className="text-gray-600">  |</div>
-            <div className="text-green-400">[fix-types +3 pts -> commit]</div>
-            <div className="text-green-400">[add-tests +8 pts -> commit]</div>
-            <div className="text-red-400">[fix-types FAIL -> rollback]</div>
-            <div className="text-green-400">[fix-lint +2 pts -> commit]</div>
+            <div className="text-green-400">[fix-types +3 pts → commit]</div>
+            <div className="text-green-400">[add-tests +8 pts → commit]</div>
+            <div className="text-red-400">[fix-types FAIL → rollback]</div>
+            <div className="text-green-400">[fix-lint +2 pts → commit]</div>
             <div className="text-gray-600">  |</div>
             <div className="text-cyan-400">[Score: 89/100]</div>
             <div className="text-gray-400">[24 atomic commits, reviewed]</div>
