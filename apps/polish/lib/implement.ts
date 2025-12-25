@@ -5,7 +5,7 @@ import {
   type PostToolUseHookInput
 } from '@anthropic-ai/claude-agent-sdk'
 import { commitWithMessage, getStatus } from './git'
-import type { AgentEventData, PolishEvent, ResolvedQueryOptions } from './types'
+import type { AgentEventData, PlanStep, PolishEvent, ResolvedQueryOptions } from './types'
 import { createToolLogger } from './tool-logger'
 
 // ============================================================================
@@ -14,18 +14,51 @@ import { createToolLogger } from './tool-logger'
 
 interface ImplementPromptOptions {
   mission: string
+  approvedPlan?: PlanStep[]
   feedback?: string
   retryCount?: number
 }
 
 function buildImplementPrompt(options: ImplementPromptOptions): string {
-  const { mission, feedback, retryCount } = options
+  const { mission, approvedPlan, feedback, retryCount } = options
 
   let prompt = `You need to implement the following feature in this project:
 
 ## Mission
 ${mission}
 `
+
+  // Include the approved plan if available
+  if (approvedPlan && approvedPlan.length > 0) {
+    prompt += `
+## Approved Implementation Plan
+Follow these steps in order. Each step has been reviewed and approved:
+
+`
+    for (const step of approvedPlan) {
+      prompt += `### Step ${step.order}: ${step.title}
+${step.description}
+`
+      if (step.files.length > 0) {
+        prompt += `**Files:** ${step.files.join(', ')}
+`
+      }
+      if (step.dependencies && step.dependencies.length > 0) {
+        prompt += `**Depends on:** ${step.dependencies.join(', ')}
+`
+      }
+      if (step.complexity) {
+        prompt += `**Complexity:** ${step.complexity}
+`
+      }
+      if (step.acceptanceCriteria && step.acceptanceCriteria.length > 0) {
+        prompt += `**Acceptance criteria:**
+${step.acceptanceCriteria.map(c => `- ${c}`).join('\n')}
+`
+      }
+      prompt += '\n'
+    }
+  }
 
   // Add feedback if this is a retry
   if (feedback && retryCount && retryCount > 0) {
@@ -93,6 +126,7 @@ const IMPLEMENT_SYSTEM_PROMPT = `You are an expert developer. Your mission is to
 export interface ImplementPhaseOptions {
   mission: string
   projectPath: string
+  approvedPlan?: PlanStep[]
   feedback?: string
   retryCount?: number
   queryOptions?: ResolvedQueryOptions
@@ -101,7 +135,7 @@ export interface ImplementPhaseOptions {
 export async function* runImplementPhase(
   options: ImplementPhaseOptions
 ): AsyncGenerator<PolishEvent> {
-  const { mission, projectPath, feedback, retryCount, queryOptions } = options
+  const { mission, projectPath, approvedPlan, feedback, retryCount, queryOptions } = options
   // Track files modified by the agent
   const filesCreated: string[] = []
   const filesModified: string[] = []
@@ -173,7 +207,7 @@ export async function* runImplementPhase(
       const isResume = sessionId !== undefined
       const prompt = isResume
         ? 'Continue implementing the remaining features.'
-        : buildImplementPrompt({ mission, feedback, retryCount })
+        : buildImplementPrompt({ mission, approvedPlan, feedback, retryCount })
 
       // Default tools for implement phase
       const defaultAllowedTools = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep']

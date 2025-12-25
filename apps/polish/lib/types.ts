@@ -192,6 +192,7 @@ export type PlanningMode = 'auto' | 'manual' | 'agent-driven'
 export interface PolishConfig {
   projectPath: string
   mission?: string
+  approvedPlan?: PlanStep[] // The approved implementation plan (from planning phase)
   maxDuration?: number // ms, default 2 hours
   maxIterations?: number
   maxStalled?: number
