@@ -555,11 +555,9 @@ function UsageSection() {
 // Economics section - why LLMs beat expensive engineers
 function EconomicsSection() {
   const models = [
+    { name: "Grok Code Fast", provider: "xAI", input: "$0.20", output: "$1.50", tag: "fastest" },
     { name: "GLM-4.7", provider: "Zhipu AI", input: "$0.60", output: "$2.20", tag: "best value" },
-    { name: "Claude Sonnet 4.5", provider: "Anthropic", input: "$3.00", output: "$15.00", tag: "recommended" },
-    { name: "DeepSeek V3", provider: "DeepSeek", input: "$0.27", output: "$1.10", tag: "cheapest" },
-    { name: "GPT-4o Mini", provider: "OpenAI", input: "$0.15", output: "$0.60", tag: null },
-    { name: "Gemini 2.0 Flash", provider: "Google", input: "$0.10", output: "$0.40", tag: null },
+    { name: "Claude Sonnet 4.5", provider: "Anthropic", input: "$3.00", output: "$15.00", tag: "highest quality" },
   ];
 
   return (
@@ -674,7 +672,7 @@ function EconomicsSection() {
               <div className="flex justify-end">
                 {model.tag && (
                   <span className={`text-[10px] px-2 py-1 rounded ${
-                    model.tag === "recommended"
+                    model.tag === "highest quality"
                       ? "bg-cyan-400/20 text-cyan-400"
                       : model.tag === "best value"
                       ? "bg-green-400/20 text-green-400"
