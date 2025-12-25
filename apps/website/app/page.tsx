@@ -552,6 +552,156 @@ function UsageSection() {
   );
 }
 
+// Economics section - why LLMs beat expensive engineers
+function EconomicsSection() {
+  const models = [
+    { name: "Grok Code Fast", provider: "xAI", input: "$0.20", output: "$1.50", tag: "fastest" },
+    { name: "GLM-4.7", provider: "Zhipu AI", input: "$0.60", output: "$2.20", tag: "best value" },
+    { name: "Claude Sonnet 4.5", provider: "Anthropic", input: "$3.00", output: "$15.00", tag: "highest quality" },
+  ];
+
+  return (
+    <div className="space-y-16">
+      {/* Main value prop */}
+      <div className="text-center">
+        <div className="text-gray-500 text-sm mb-4">The question is simple</div>
+        <h3 className="text-2xl md:text-3xl text-gray-200 mb-6">
+          Why pay an engineer <span className="text-red-400">$500/day</span> to polish code<br />
+          when an LLM does it for <span className="text-green-400">$50</span>?
+        </h3>
+      </div>
+
+      {/* Real cost calculation */}
+      <div className="border border-gray-800 rounded-lg overflow-hidden">
+        <div className="p-6 bg-gray-900/30 border-b border-gray-800">
+          <div className="text-gray-400 text-sm mb-1">Real session example</div>
+          <div className="text-gray-200">300 lines of code, 5 hours of polishing, 100M tokens</div>
+          <div className="text-gray-600 text-xs mt-2">Industry standard: 3:1 input/output ratio, 70% cache hits</div>
+        </div>
+        <div className="grid md:grid-cols-2">
+          <div className="p-6 border-b md:border-b-0 md:border-r border-gray-800">
+            <div className="text-green-400 text-xs tracking-wide mb-4">WITH GLM-4.7</div>
+            <div className="space-y-2 text-sm mb-6">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Fresh input (22M)</span>
+                <span className="text-gray-400 font-mono">22 x $0.60 = $13</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Cache reads (53M)</span>
+                <span className="text-gray-400 font-mono">53 x $0.06 = $3</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Output (25M)</span>
+                <span className="text-gray-400 font-mono">25 x $2.20 = $55</span>
+              </div>
+              <div className="flex justify-between pt-3 border-t border-gray-800">
+                <span className="text-gray-400">Total cost</span>
+                <span className="text-green-400 font-mono font-bold text-lg">$71</span>
+              </div>
+            </div>
+            <div className="text-gray-600 text-xs">5 hours, 1000+ iterations</div>
+          </div>
+          <div className="p-6">
+            <div className="text-cyan-400 text-xs tracking-wide mb-4">WITH CLAUDE SONNET 4.5</div>
+            <div className="space-y-2 text-sm mb-6">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Fresh input (22M)</span>
+                <span className="text-gray-400 font-mono">22 x $3 = $66</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Cache reads (53M)</span>
+                <span className="text-gray-400 font-mono">53 x $0.30 = $16</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Output (25M)</span>
+                <span className="text-gray-400 font-mono">25 x $15 = $375</span>
+              </div>
+              <div className="flex justify-between pt-3 border-t border-gray-800">
+                <span className="text-gray-400">Total cost</span>
+                <span className="text-cyan-400 font-mono font-bold text-lg">$457</span>
+              </div>
+            </div>
+            <div className="text-gray-600 text-xs">Maximum quality, with prompt caching</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Comparison with engineer */}
+      <div className="grid md:grid-cols-3 gap-6 text-center">
+        <div className="p-6 rounded-lg border border-gray-800 bg-gray-950/30">
+          <div className="text-red-400 text-3xl font-bold mb-2">$500+</div>
+          <div className="text-gray-500 text-sm">Senior Engineer</div>
+          <div className="text-gray-600 text-xs mt-2">1 day of work</div>
+        </div>
+        <div className="p-6 rounded-lg border border-cyan-900/50 bg-cyan-950/10">
+          <div className="text-cyan-400 text-3xl font-bold mb-2">$457</div>
+          <div className="text-gray-500 text-sm">Claude Sonnet 4.5</div>
+          <div className="text-gray-600 text-xs mt-2">100M tokens, 5 hours</div>
+        </div>
+        <div className="p-6 rounded-lg border border-green-900/50 bg-green-950/10">
+          <div className="text-green-400 text-3xl font-bold mb-2">$71</div>
+          <div className="text-gray-500 text-sm">GLM-4.7</div>
+          <div className="text-gray-600 text-xs mt-2">100M tokens, 5 hours</div>
+        </div>
+      </div>
+
+      {/* Key insight */}
+      <div className="text-center py-8 border-y border-gray-800">
+        <div className="text-gray-600 text-sm mb-3">The insight</div>
+        <div className="text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto leading-relaxed">
+          LLMs can iterate for <span className="text-green-400">5 hours</span>, process{" "}
+          <span className="text-green-400">100M tokens</span>, and still cost{" "}
+          <span className="text-green-400">less than a day</span> of engineering time.
+        </div>
+      </div>
+
+      {/* Model pricing table */}
+      <div>
+        <div className="text-gray-400 text-sm mb-6">Model pricing (per 1M tokens)</div>
+        <div className="border border-gray-800 rounded-lg overflow-hidden">
+          <div className="grid grid-cols-4 gap-4 p-4 bg-gray-900/50 border-b border-gray-800 text-xs text-gray-500">
+            <div>Model</div>
+            <div>Input</div>
+            <div>Output</div>
+            <div></div>
+          </div>
+          {models.map((model, i) => (
+            <div
+              key={i}
+              className={`grid grid-cols-4 gap-4 p-4 text-sm ${
+                i < models.length - 1 ? "border-b border-gray-800/50" : ""
+              }`}
+            >
+              <div>
+                <div className="text-gray-200">{model.name}</div>
+                <div className="text-gray-600 text-xs">{model.provider}</div>
+              </div>
+              <div className="text-gray-400 font-mono">{model.input}</div>
+              <div className="text-gray-400 font-mono">{model.output}</div>
+              <div className="flex justify-end">
+                {model.tag && (
+                  <span className={`text-[10px] px-2 py-1 rounded ${
+                    model.tag === "highest quality"
+                      ? "bg-cyan-400/20 text-cyan-400"
+                      : model.tag === "best value"
+                      ? "bg-green-400/20 text-green-400"
+                      : "bg-yellow-400/20 text-yellow-400"
+                  }`}>
+                    {model.tag}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="text-gray-700 text-xs mt-4 text-center">
+          Use fast models for iteration. Premium models for initial generation.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   return (
     <main className="relative bg-black text-gray-100 min-h-screen">
@@ -644,6 +794,19 @@ export default function LandingPage() {
             </p>
           </div>
           <TimeComparison />
+        </div>
+      </section>
+
+      {/* Economics */}
+      <section className="py-32 px-6 border-t border-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">The Economics</h2>
+            <p className="text-gray-600 text-sm md:text-base max-w-2xl">
+              Why pay $500/day for an engineer to polish code when an LLM can do the same for cents?
+            </p>
+          </div>
+          <EconomicsSection />
         </div>
       </section>
 
