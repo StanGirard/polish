@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { exec } from './executor'
 import type { Metric, MetricResult, Preset, ScoreResult, Strategy } from './types'
 
@@ -7,7 +8,11 @@ import type { Metric, MetricResult, Preset, ScoreResult, Strategy } from './type
 // Preset Loading
 // ============================================================================
 
-const PRESETS_DIR = join(process.cwd(), 'presets')
+// Get the root directory of Polish installation
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const POLISH_ROOT = join(__dirname, '..')
+const PRESETS_DIR = join(POLISH_ROOT, 'presets')
 
 async function loadPresetFile(name: string): Promise<Preset> {
   const filePath = join(PRESETS_DIR, `${name}.json`)
