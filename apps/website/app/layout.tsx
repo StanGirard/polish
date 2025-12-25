@@ -3,11 +3,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Polish | Autonomous Code Quality",
-  description: "AI-powered autonomous code improvement. Polish continuously monitors, analyzes, and enhances your codebase quality.",
-  keywords: ["code quality", "AI", "automation", "linting", "code review", "autonomous"],
+  description: "AI-powered autonomous code improvement. Polish runs LLMs for hours to guarantee production-ready code. Ship when metrics say 95%+, not when it feels good enough.",
+  keywords: ["code quality", "AI", "automation", "linting", "code review", "autonomous", "LLM"],
   openGraph: {
     title: "Polish | Autonomous Code Quality",
-    description: "AI-powered autonomous code improvement",
+    description: "AI-generated code is fast, but not done. Polish iterates until metrics say 95%+.",
     url: "https://polish.run",
     siteName: "Polish",
     type: "website",
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Polish | Autonomous Code Quality",
-    description: "AI-powered autonomous code improvement",
+    description: "AI-generated code is fast, but not done. Polish iterates until metrics say 95%+.",
   },
 };
 
@@ -32,10 +32,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-mono bg-black text-green-400 antialiased" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-        <div className="bg-grid scanlines vignette min-h-screen">
-          {children}
-        </div>
+      <body
+        className="antialiased bg-grid"
+        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+      >
+        {children}
       </body>
     </html>
   );

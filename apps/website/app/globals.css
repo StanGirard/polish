@@ -3,8 +3,6 @@
 :root {
   --neon-green: #00ff00;
   --neon-cyan: #00ffff;
-  --neon-magenta: #ff00ff;
-  --neon-yellow: #ffff00;
 }
 
 * {
@@ -17,286 +15,24 @@ html {
 
 body {
   background: #000000;
-  color: #00ff00;
+  color: #e5e5e5;
   min-height: 100vh;
   overflow-x: hidden;
 }
 
-/* Grid background pattern */
+/* Subtle grid background */
 .bg-grid {
+  background-color: #000000;
   background-image:
-    linear-gradient(rgba(0, 255, 0, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 0, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* Scanline effect */
-.scanlines::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.15),
-    rgba(0, 0, 0, 0.15) 1px,
-    transparent 1px,
-    transparent 2px
-  );
-  z-index: 1000;
-}
-
-/* Vignette effect */
-.vignette::after {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  box-shadow: inset 0 0 150px rgba(0, 0, 0, 0.7);
-  z-index: 999;
-}
-
-/* Glow effects */
-.glow-green {
-  text-shadow:
-    0 0 10px rgba(0, 255, 0, 0.8),
-    0 0 20px rgba(0, 255, 0, 0.6),
-    0 0 40px rgba(0, 255, 0, 0.4),
-    0 0 80px rgba(0, 255, 0, 0.2);
-}
-
-.glow-cyan {
-  text-shadow:
-    0 0 10px rgba(0, 255, 255, 0.8),
-    0 0 20px rgba(0, 255, 255, 0.6),
-    0 0 40px rgba(0, 255, 255, 0.4),
-    0 0 80px rgba(0, 255, 255, 0.2);
-}
-
-.glow-magenta {
-  text-shadow:
-    0 0 10px rgba(255, 0, 255, 0.8),
-    0 0 20px rgba(255, 0, 255, 0.6),
-    0 0 40px rgba(255, 0, 255, 0.4),
-    0 0 80px rgba(255, 0, 255, 0.2);
-}
-
-/* Box glow effects */
-.box-glow {
-  box-shadow:
-    0 0 10px rgba(0, 255, 0, 0.3),
-    0 0 20px rgba(0, 255, 0, 0.2),
-    0 0 40px rgba(0, 255, 0, 0.1),
-    inset 0 0 20px rgba(0, 255, 0, 0.05);
-}
-
-.box-glow-cyan {
-  box-shadow:
-    0 0 10px rgba(0, 255, 255, 0.3),
-    0 0 20px rgba(0, 255, 255, 0.2),
-    0 0 40px rgba(0, 255, 255, 0.1),
-    inset 0 0 20px rgba(0, 255, 255, 0.05);
-}
-
-.box-glow-magenta {
-  box-shadow:
-    0 0 10px rgba(255, 0, 255, 0.3),
-    0 0 20px rgba(255, 0, 255, 0.2),
-    0 0 40px rgba(255, 0, 255, 0.1),
-    inset 0 0 20px rgba(255, 0, 255, 0.05);
-}
-
-/* Neon border */
-.neon-border {
-  border: 1px solid rgba(0, 255, 0, 0.5);
-  position: relative;
-}
-
-.neon-border::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border: 1px solid rgba(0, 255, 0, 0.2);
-  border-radius: inherit;
-  animation: border-pulse 2s ease-in-out infinite;
-}
-
-@keyframes border-pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-/* Terminal cursor */
-.cursor {
-  display: inline-block;
-  width: 10px;
-  height: 20px;
-  background: #00ff00;
-  animation: blink 1s step-end infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-/* Code rain effect */
-.code-rain {
-  position: absolute;
-  font-size: 14px;
-  color: rgba(0, 255, 0, 0.3);
-  writing-mode: vertical-rl;
-  text-orientation: upright;
-  animation: rain-fall linear infinite;
-  pointer-events: none;
-}
-
-@keyframes rain-fall {
-  0% { transform: translateY(-100%); opacity: 1; }
-  100% { transform: translateY(100vh); opacity: 0; }
-}
-
-/* Glitch effect */
-.glitch {
-  position: relative;
-}
-
-.glitch::before,
-.glitch::after {
-  content: attr(data-text);
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.glitch::before {
-  animation: glitch-1 0.3s infinite linear alternate-reverse;
-  color: #ff00ff;
-  z-index: -1;
-  clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
-}
-
-.glitch::after {
-  animation: glitch-2 0.3s infinite linear alternate-reverse;
-  color: #00ffff;
-  z-index: -1;
-  clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
-}
-
-@keyframes glitch-1 {
-  0% { transform: translateX(0); }
-  20% { transform: translateX(-3px); }
-  40% { transform: translateX(3px); }
-  60% { transform: translateX(-1px); }
-  80% { transform: translateX(2px); }
-  100% { transform: translateX(0); }
-}
-
-@keyframes glitch-2 {
-  0% { transform: translateX(0); }
-  20% { transform: translateX(3px); }
-  40% { transform: translateX(-3px); }
-  60% { transform: translateX(1px); }
-  80% { transform: translateX(-2px); }
-  100% { transform: translateX(0); }
-}
-
-/* Matrix text gradient */
-.matrix-text {
-  background: linear-gradient(180deg, #00ff00 0%, #004400 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Scroll indicator */
-.scroll-indicator {
-  animation: bounce 2s ease-in-out infinite;
-}
-
-@keyframes bounce {
-  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-  40% { transform: translateY(-10px); }
-  60% { transform: translateY(-5px); }
-}
-
-/* Hover effects */
-.hover-glow {
-  transition: all 0.3s ease;
-}
-
-.hover-glow:hover {
-  box-shadow:
-    0 0 20px rgba(0, 255, 0, 0.5),
-    0 0 40px rgba(0, 255, 0, 0.3),
-    0 0 60px rgba(0, 255, 0, 0.1);
-  transform: translateY(-2px);
-}
-
-/* Progress bar animation */
-.progress-fill {
-  background: linear-gradient(90deg, #004400, #00ff00, #004400);
-  background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-/* Typing animation */
-.typing {
-  overflow: hidden;
-  border-right: 2px solid #00ff00;
-  white-space: nowrap;
-  animation:
-    typing 3s steps(40, end),
-    blink-caret 0.75s step-end infinite;
-}
-
-@keyframes typing {
-  from { width: 0; }
-  to { width: 100%; }
-}
-
-@keyframes blink-caret {
-  from, to { border-color: transparent; }
-  50% { border-color: #00ff00; }
-}
-
-/* Floating animation */
-.float {
-  animation: float 6s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-20px); }
-}
-
-/* Rotate animation */
-.spin-slow {
-  animation: spin-slow 20s linear infinite;
-}
-
-@keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 60px 60px;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -304,97 +40,28 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #00ff00;
-  border-radius: 4px;
+  background: #333;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #00cc00;
+  background: #444;
 }
 
 /* Selection */
 ::selection {
-  background: rgba(0, 255, 0, 0.3);
-  color: #00ff00;
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
 }
 
-/* Feature card hover effect */
-.feature-card {
-  transition: all 0.3s ease;
-  background: rgba(0, 255, 0, 0.02);
+/* Focus states */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid #4ade80;
+  outline-offset: 2px;
 }
 
-.feature-card:hover {
-  background: rgba(0, 255, 0, 0.05);
-  transform: translateY(-5px);
-  box-shadow:
-    0 10px 40px rgba(0, 255, 0, 0.1),
-    0 0 1px rgba(0, 255, 0, 0.5);
-}
-
-/* Step connector line */
-.step-line {
-  position: absolute;
-  width: 2px;
-  height: 100%;
-  background: linear-gradient(180deg, #00ff00, transparent);
-  left: 24px;
-  top: 50px;
-}
-
-/* Orbiting elements */
-.orbit {
-  animation: orbit 15s linear infinite;
-}
-
-@keyframes orbit {
-  from { transform: rotate(0deg) translateX(120px) rotate(0deg); }
-  to { transform: rotate(360deg) translateX(120px) rotate(-360deg); }
-}
-
-/* Pulse ring animation */
-.pulse-ring {
-  animation: pulse-ring 2s ease-out infinite;
-}
-
-@keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 1; }
-  100% { transform: scale(2); opacity: 0; }
-}
-
-/* Stagger fade in */
-.stagger-1 { animation-delay: 0.1s; }
-.stagger-2 { animation-delay: 0.2s; }
-.stagger-3 { animation-delay: 0.3s; }
-.stagger-4 { animation-delay: 0.4s; }
-.stagger-5 { animation-delay: 0.5s; }
-.stagger-6 { animation-delay: 0.6s; }
-
-/* Terminal window */
-.terminal-window {
-  background: #0a0a0a;
-  border: 1px solid rgba(0, 255, 0, 0.3);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.terminal-header {
-  background: rgba(0, 255, 0, 0.1);
-  padding: 8px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid rgba(0, 255, 0, 0.2);
-}
-
-.terminal-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.terminal-body {
-  padding: 16px;
-  font-size: 14px;
-  line-height: 1.6;
+/* Smooth transitions */
+a, button {
+  transition: all 0.2s ease;
 }

@@ -1,678 +1,710 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
-// Animation variants
-const fadeInUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0 },
-};
+// Animated typing terminal
+function TypingTerminal() {
+  const [lines, setLines] = useState<{ text: string; color: string }[]>([]);
+  const [currentLineIndex, setCurrentLineIndex] = useState(0);
+  const [currentCharIndex, setCurrentCharIndex] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-const stagger = {
-  visible: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.8 },
-  visible: { opacity: 1, scale: 1 },
-};
-
-// Components
-function CodeRain() {
-  const columns = Array.from({ length: 20 }, (_, i) => i);
-  const chars = "01アイウエオカキクケコサシスセソタチツテト";
-
-  return (
-    <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
-      {columns.map((col) => (
-        <motion.div
-          key={col}
-          className="absolute text-green-500 text-sm font-mono"
-          style={{ left: `${col * 5}%` }}
-          initial={{ y: "-100%" }}
-          animate={{ y: "100vh" }}
-          transition={{
-            duration: Math.random() * 10 + 10,
-            repeat: Infinity,
-            ease: "linear",
-            delay: Math.random() * 5,
-          }}
-        >
-          {Array.from({ length: 30 }, (_, i) => (
-            <div key={i} className="opacity-50">
-              {chars[Math.floor(Math.random() * chars.length)]}
-            </div>
-          ))}
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-function GlowingOrb({ className, delay = 0 }: { className?: string; delay?: number }) {
-  return (
-    <motion.div
-      className={`absolute rounded-full blur-3xl ${className}`}
-      animate={{
-        scale: [1, 1.2, 1],
-        opacity: [0.3, 0.5, 0.3],
-      }}
-      transition={{
-        duration: 4,
-        repeat: Infinity,
-        delay,
-      }}
-    />
-  );
-}
-
-function TerminalDemo() {
-  const lines = [
-    { text: "$ polish init", delay: 0 },
-    { text: "> Analyzing codebase...", delay: 0.5, color: "text-gray-500" },
-    { text: "> Found 247 files to analyze", delay: 1, color: "text-cyan-400" },
-    { text: "> Running quality checks...", delay: 1.5, color: "text-gray-500" },
-    { text: "", delay: 2 },
-    { text: "  SCORE: 0x4B (75/100)", delay: 2.2, color: "text-yellow-400" },
-    { text: "  Issues: 23 warnings, 5 errors", delay: 2.5, color: "text-yellow-400" },
-    { text: "", delay: 2.8 },
-    { text: "> Starting autonomous fix loop...", delay: 3, color: "text-gray-500" },
-    { text: "> Iteration 1: Fixed 12 issues", delay: 3.5, color: "text-green-400" },
-    { text: "> Iteration 2: Fixed 8 issues", delay: 4, color: "text-green-400" },
-    { text: "> Iteration 3: Fixed 5 issues", delay: 4.5, color: "text-green-400" },
-    { text: "> Iteration 4: Fixed 3 issues", delay: 5, color: "text-green-400" },
-    { text: "", delay: 5.3 },
-    { text: "  SCORE: 0x5F (95/100)", delay: 5.5, color: "text-cyan-400 glow-cyan" },
-    { text: "  All issues resolved!", delay: 5.8, color: "text-green-400 glow-green" },
+  const allLines = [
+    { text: "$ polish 'Add OAuth with GitHub'", color: "text-white" },
+    { text: "", color: "" },
+    { text: "Phase 1: IMPLEMENT", color: "text-cyan-400" },
+    { text: "  Analyzing project structure...", color: "text-gray-500" },
+    { text: "  Creating auth/config.ts", color: "text-gray-400" },
+    { text: "  Creating auth/providers.ts", color: "text-gray-400" },
+    { text: "  Creating auth/middleware.ts", color: "text-gray-400" },
+    { text: "  Initial score: 34/100", color: "text-orange-400" },
+    { text: "", color: "" },
+    { text: "Phase 2: POLISH", color: "text-cyan-400" },
+    { text: "  [1/24] fix-types     +5 pts  Fix Optional<User> type", color: "text-green-400" },
+    { text: "  [2/24] add-tests     +8 pts  Add parseToken test", color: "text-green-400" },
+    { text: "  [3/24] fix-types     +3 pts  Add return type annotation", color: "text-green-400" },
+    { text: "  [4/24] fix-lint      +2 pts  Remove unused import", color: "text-green-400" },
+    { text: "  [5/24] fix-types     FAIL    Breaking change -> rollback", color: "text-red-400" },
+    { text: "  [6/24] add-tests     +7 pts  Test auth edge case", color: "text-green-400" },
+    { text: "  [7/24] fix-coverage  +4 pts  Cover error branch", color: "text-green-400" },
+    { text: "  ...", color: "text-gray-600" },
+    { text: "  [24/24] fix-types    +2 pts  Final type annotation", color: "text-green-400" },
+    { text: "", color: "" },
+    { text: "  Score: 34 -> 91 (+57 points)", color: "text-cyan-400" },
+    { text: "  Commits: 24 atomic changes", color: "text-gray-400" },
+    { text: "  Duration: 47 minutes", color: "text-gray-400" },
+    { text: "", color: "" },
+    { text: "Done. Ready for review.", color: "text-green-400" },
   ];
 
+  useEffect(() => {
+    if (isComplete) return;
+
+    const currentLine = allLines[currentLineIndex];
+    if (!currentLine) {
+      setIsComplete(true);
+      return;
+    }
+
+    if (currentCharIndex < currentLine.text.length) {
+      const timeout = setTimeout(() => {
+        setCurrentCharIndex((prev) => prev + 1);
+      }, currentLine.text.startsWith("$") ? 50 : 15);
+      return () => clearTimeout(timeout);
+    } else {
+      const timeout = setTimeout(() => {
+        setLines((prev) => [...prev, currentLine]);
+        setCurrentLineIndex((prev) => prev + 1);
+        setCurrentCharIndex(0);
+      }, currentLine.text === "" ? 100 : 200);
+      return () => clearTimeout(timeout);
+    }
+  }, [currentLineIndex, currentCharIndex, isComplete]);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [lines]);
+
+  const currentLine = allLines[currentLineIndex];
+
   return (
-    <div className="terminal-window max-w-2xl mx-auto">
-      <div className="terminal-header">
-        <div className="terminal-dot bg-red-500" />
-        <div className="terminal-dot bg-yellow-500" />
-        <div className="terminal-dot bg-green-500" />
-        <span className="text-gray-500 text-sm ml-2">polish-session</span>
+    <div className="border border-gray-800 rounded-lg overflow-hidden bg-black">
+      <div className="flex items-center gap-2 px-4 py-3 bg-gray-900/80 border-b border-gray-800">
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-500/80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+          <div className="w-3 h-3 rounded-full bg-green-500/80" />
+        </div>
+        <span className="text-gray-500 text-xs ml-2 font-mono">polish --session</span>
       </div>
-      <div className="terminal-body h-80 overflow-hidden">
+      <div ref={containerRef} className="p-4 h-[400px] overflow-y-auto font-mono text-sm">
         {lines.map((line, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: line.delay, duration: 0.3 }}
-            className={line.color || "text-green-400"}
-          >
+          <div key={i} className={`${line.color} leading-relaxed whitespace-pre`}>
             {line.text || "\u00A0"}
-          </motion.div>
+          </div>
         ))}
-        <motion.span
-          className="inline-block w-2 h-4 bg-green-400"
-          animate={{ opacity: [1, 0] }}
-          transition={{ duration: 0.5, repeat: Infinity }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function ScoreAnimation() {
-  const scores = [42, 55, 68, 75, 82, 89, 95];
-
-  return (
-    <div className="relative h-40 flex items-end justify-center gap-3">
-      {scores.map((score, i) => (
-        <motion.div
-          key={i}
-          className="relative"
-          initial={{ height: 0, opacity: 0 }}
-          whileInView={{ height: `${score}%`, opacity: 1 }}
-          transition={{ delay: i * 0.15, duration: 0.5, ease: "easeOut" }}
-          viewport={{ once: true }}
-        >
-          <div
-            className={`w-8 rounded-t ${
-              score >= 90
-                ? "bg-cyan-400 shadow-[0_0_20px_rgba(0,255,255,0.5)]"
-                : score >= 70
-                ? "bg-green-400 shadow-[0_0_20px_rgba(0,255,0,0.5)]"
-                : score >= 50
-                ? "bg-yellow-400"
-                : "bg-red-400"
-            }`}
-            style={{ height: "100%" }}
-          />
-          <motion.span
-            className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            transition={{ delay: i * 0.15 + 0.5 }}
-          >
-            {score}
-          </motion.span>
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  description,
-  delay = 0,
-}: {
-  icon: string;
-  title: string;
-  description: string;
-  delay?: number;
-}) {
-  return (
-    <motion.div
-      className="feature-card p-6 rounded-lg border border-green-900/50 neon-border"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, margin: "-50px" }}
-      variants={fadeInUp}
-      transition={{ delay, duration: 0.5 }}
-      whileHover={{ scale: 1.02 }}
-    >
-      <div className="text-4xl mb-4">{icon}</div>
-      <h3 className="text-xl font-semibold text-green-400 mb-2">{title}</h3>
-      <p className="text-gray-400 text-sm leading-relaxed">{description}</p>
-    </motion.div>
-  );
-}
-
-function HowItWorksStep({
-  number,
-  title,
-  description,
-  isLast = false,
-}: {
-  number: number;
-  title: string;
-  description: string;
-  isLast?: boolean;
-}) {
-  return (
-    <motion.div
-      className="relative flex gap-6"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, margin: "-50px" }}
-      variants={fadeInUp}
-      transition={{ delay: number * 0.2 }}
-    >
-      {/* Step number with glow */}
-      <div className="relative">
-        <motion.div
-          className="w-12 h-12 rounded-full border-2 border-green-400 flex items-center justify-center text-green-400 font-bold relative z-10 bg-black"
-          whileHover={{ scale: 1.1, boxShadow: "0 0 30px rgba(0,255,0,0.5)" }}
-        >
-          {number}
-        </motion.div>
-        {/* Connecting line */}
-        {!isLast && (
-          <motion.div
-            className="absolute left-1/2 top-12 w-0.5 h-24 -translate-x-1/2"
-            initial={{ height: 0, background: "linear-gradient(180deg, #00ff00, transparent)" }}
-            whileInView={{ height: 96 }}
-            transition={{ delay: number * 0.2 + 0.3, duration: 0.5 }}
-            style={{ background: "linear-gradient(180deg, #00ff00, transparent)" }}
-          />
+        {currentLine && !isComplete && (
+          <div className={`${currentLine.color} leading-relaxed whitespace-pre`}>
+            {currentLine.text.slice(0, currentCharIndex)}
+            <span className="inline-block w-2 h-4 bg-green-400 ml-0.5 animate-pulse" />
+          </div>
         )}
-        {/* Pulse ring */}
-        <motion.div
-          className="absolute inset-0 rounded-full border-2 border-green-400"
-          animate={{
-            scale: [1, 1.5, 1],
-            opacity: [0.5, 0, 0.5],
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            delay: number * 0.3,
-          }}
-        />
       </div>
-
-      {/* Content */}
-      <div className="flex-1 pb-16">
-        <h3 className="text-xl font-semibold text-green-400 mb-2">{title}</h3>
-        <p className="text-gray-400 leading-relaxed">{description}</p>
-      </div>
-    </motion.div>
+    </div>
   );
 }
 
-function FloatingCode() {
-  const codeSnippets = [
-    "function polish(code) {",
-    "  analyze()",
-    "  fix()",
-    "  repeat()",
-    "}",
-    "score++",
-    "quality.improve()",
-    "bugs.eliminate()",
+// Score with animated progress bar
+function ScoreVisualization() {
+  const [score, setScore] = useState(34);
+  const [targetScore, setTargetScore] = useState(34);
+  const scores = [34, 47, 58, 67, 76, 83, 89, 95];
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPhase((prev) => {
+        const next = (prev + 1) % scores.length;
+        setTargetScore(scores[next]);
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (score === targetScore) return;
+    const step = score < targetScore ? 1 : -1;
+    const timeout = setTimeout(() => {
+      setScore((prev) => prev + step);
+    }, 30);
+    return () => clearTimeout(timeout);
+  }, [score, targetScore]);
+
+  const getColor = (s: number) => {
+    if (s >= 90) return { text: "text-cyan-400", bar: "bg-cyan-400", glow: "shadow-cyan-400/50" };
+    if (s >= 70) return { text: "text-green-400", bar: "bg-green-400", glow: "shadow-green-400/30" };
+    if (s >= 50) return { text: "text-yellow-400", bar: "bg-yellow-400", glow: "" };
+    return { text: "text-orange-400", bar: "bg-orange-400", glow: "" };
+  };
+
+  const colors = getColor(score);
+
+  return (
+    <div className="text-center">
+      <div className="text-gray-600 text-xs tracking-[0.2em] mb-4">QUALITY SCORE</div>
+      <div className={`text-8xl md:text-9xl font-bold tabular-nums ${colors.text} transition-colors duration-300`}>
+        {score}
+      </div>
+      <div className="text-gray-700 text-lg mb-8">/100</div>
+
+      {/* Progress bar */}
+      <div className="max-w-xs mx-auto">
+        <div className="h-2 bg-gray-900 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${colors.bar} transition-all duration-300 ${colors.glow} shadow-lg`}
+            style={{ width: `${score}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-2 text-xs text-gray-600 font-mono">
+          <span>0</span>
+          <span className={score >= 90 ? "text-cyan-400" : "text-gray-600"}>90+</span>
+          <span>100</span>
+        </div>
+      </div>
+
+      {/* Phase indicators */}
+      <div className="flex justify-center gap-2 mt-6">
+        {scores.map((_, i) => (
+          <div
+            key={i}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              i === phase ? `${colors.bar} scale-125` : i < phase ? "bg-gray-600" : "bg-gray-800"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Animated polish loop
+function PolishLoopVisualization() {
+  const [activeStep, setActiveStep] = useState(0);
+  const steps = [
+    { num: "01", label: "Measure", detail: "Run lint, types, tests, coverage", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+    { num: "02", label: "Identify", detail: "Find worst metric to fix", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
+    { num: "03", label: "Fix", detail: "LLM makes ONE atomic change", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
+    { num: "04", label: "Validate", detail: "Run tests, recalculate score", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+    { num: "05", label: "Commit", detail: "Keep if better, rollback if worse", icon: "M5 13l4 4L19 7" },
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % steps.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="border border-gray-800 rounded-lg p-6 bg-gray-950/50">
+      <div className="flex items-center justify-between mb-6">
+        <span className="text-green-400 text-sm font-medium tracking-wide">THE LOOP</span>
+        <span className="text-gray-600 text-xs font-mono">repeat until score &gt;= 90</span>
+      </div>
+
+      <div className="space-y-4">
+        {steps.map((step, i) => (
+          <div
+            key={i}
+            className={`flex items-start gap-4 p-3 rounded-lg transition-all duration-500 ${
+              i === activeStep ? "bg-green-950/30 border border-green-900/50" : "border border-transparent"
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-300 ${
+              i === activeStep ? "bg-green-400/20" : "bg-gray-900"
+            }`}>
+              <svg
+                className={`w-4 h-4 transition-colors duration-300 ${
+                  i === activeStep ? "text-green-400" : "text-gray-600"
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-mono transition-colors duration-300 ${
+                  i === activeStep ? "text-green-400" : "text-gray-700"
+                }`}>
+                  {step.num}
+                </span>
+                <span className={`text-sm transition-colors duration-300 ${
+                  i === activeStep ? "text-gray-200" : "text-gray-400"
+                }`}>
+                  {step.label}
+                </span>
+              </div>
+              <div className={`text-xs mt-1 transition-colors duration-300 ${
+                i === activeStep ? "text-gray-400" : "text-gray-600"
+              }`}>
+                {step.detail}
+              </div>
+            </div>
+            {i === activeStep && (
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Time comparison visualization
+function TimeComparison() {
+  const [hoveredSide, setHoveredSide] = useState<"traditional" | "polish" | null>(null);
+
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      {/* Traditional */}
+      <div
+        className={`p-6 rounded-lg border transition-all duration-300 cursor-default ${
+          hoveredSide === "traditional"
+            ? "border-red-900/50 bg-red-950/10"
+            : "border-gray-800 bg-gray-950/30"
+        }`}
+        onMouseEnter={() => setHoveredSide("traditional")}
+        onMouseLeave={() => setHoveredSide(null)}
+      >
+        <div className="text-red-400/80 text-sm font-medium mb-6">Traditional AI Coding</div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500 text-sm">Generate</span>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-2 bg-gray-700 rounded" />
+              <span className="text-gray-400 text-sm font-mono">30s</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500 text-sm">Fix types</span>
+            <div className="flex items-center gap-2">
+              <div className="w-24 h-2 bg-red-900/50 rounded" />
+              <span className="text-red-400/80 text-sm font-mono">45m</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500 text-sm">Add tests</span>
+            <div className="flex items-center gap-2">
+              <div className="w-32 h-2 bg-red-900/50 rounded" />
+              <span className="text-red-400/80 text-sm font-mono">1h</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500 text-sm">Debug</span>
+            <div className="flex items-center gap-2">
+              <div className="w-16 h-2 bg-red-900/50 rounded" />
+              <span className="text-red-400/80 text-sm font-mono">30m</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-gray-800">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400 text-sm">Your time</span>
+            <span className="text-red-400 text-xl font-bold font-mono">3+ hours</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Polish */}
+      <div
+        className={`p-6 rounded-lg border transition-all duration-300 cursor-default ${
+          hoveredSide === "polish"
+            ? "border-green-900/50 bg-green-950/10"
+            : "border-gray-800 bg-gray-950/30"
+        }`}
+        onMouseEnter={() => setHoveredSide("polish")}
+        onMouseLeave={() => setHoveredSide(null)}
+      >
+        <div className="text-green-400 text-sm font-medium mb-6">Polish</div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500 text-sm">Generate + Polish</span>
+            <div className="flex items-center gap-2">
+              <div className="w-32 h-2 bg-cyan-900/30 rounded" />
+              <span className="text-cyan-400/80 text-sm font-mono">~1h</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500 text-sm">Review commits</span>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-2 bg-green-900/50 rounded" />
+              <span className="text-green-400/80 text-sm font-mono">10m</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between opacity-0">
+            <span>-</span>
+            <span>-</span>
+          </div>
+          <div className="flex items-center justify-between opacity-0">
+            <span>-</span>
+            <span>-</span>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-gray-800">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400 text-sm">Your time</span>
+            <span className="text-green-400 text-xl font-bold font-mono">10 minutes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Problem visualization with animated counters
+function ProblemSection() {
+  const [isVisible, setIsVisible] = useState(false);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.2 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  const painPoints = [
+    { time: "30s", label: "Generate", yours: false },
+    { time: "45m", label: "Fix types", yours: true },
+    { time: "30m", label: "Fix lint", yours: true },
+    { time: "1h", label: "Add tests", yours: true },
+    { time: "20m", label: "Debug", yours: true },
   ];
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {codeSnippets.map((code, i) => (
-        <motion.div
-          key={i}
-          className="absolute text-green-900/30 text-sm font-mono whitespace-nowrap"
-          style={{
-            left: `${Math.random() * 80 + 10}%`,
-            top: `${Math.random() * 80 + 10}%`,
-          }}
-          animate={{
-            y: [0, -20, 0],
-            opacity: [0.2, 0.4, 0.2],
-          }}
-          transition={{
-            duration: 5 + Math.random() * 3,
-            repeat: Infinity,
-            delay: i * 0.5,
-          }}
+    <div ref={sectionRef}>
+      <div className="text-red-400/60 text-xs tracking-[0.15em] mb-8">THE PAINFUL REALITY</div>
+
+      <div className="flex flex-wrap items-center gap-3 mb-12">
+        {painPoints.map((point, i) => (
+          <div
+            key={i}
+            className={`transform transition-all duration-500 ${
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+            style={{ transitionDelay: `${i * 100}ms` }}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`px-4 py-3 rounded-lg border ${
+                point.yours
+                  ? "border-red-900/40 bg-red-950/20"
+                  : "border-gray-800 bg-gray-900/30"
+              }`}>
+                <div className={`text-xl font-mono font-bold ${
+                  point.yours ? "text-red-400" : "text-gray-400"
+                }`}>
+                  {point.time}
+                </div>
+                <div className="text-gray-600 text-xs mt-1">{point.label}</div>
+                {point.yours && (
+                  <div className="text-red-400/60 text-[10px] mt-1 uppercase tracking-wide">you</div>
+                )}
+              </div>
+              {i < painPoints.length - 1 && (
+                <span className="text-gray-700 text-lg">+</span>
+              )}
+            </div>
+          </div>
+        ))}
+        <span className="text-gray-700 text-lg">=</span>
+        <div
+          className={`px-5 py-3 rounded-lg border border-red-800/50 bg-red-950/30 transform transition-all duration-500 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+          }`}
+          style={{ transitionDelay: "600ms" }}
         >
-          {code}
-        </motion.div>
+          <div className="text-3xl font-mono font-bold text-red-400">3h+</div>
+          <div className="text-red-400/60 text-xs mt-1">your time wasted</div>
+        </div>
+      </div>
+
+      {/* Core issues */}
+      <div className="grid md:grid-cols-3 gap-8">
+        {[
+          { title: "One-shot generation", desc: "AI generates code once and hopes it works. No iteration, no improvement, no guarantee." },
+          { title: "No quality metrics", desc: "How good is the code? Nobody knows. No tests, no types, no lint. Just vibes." },
+          { title: "Human cleanup", desc: "You become the debugger. Fix the AI's mistakes, add missing tests, handle edge cases." },
+        ].map((item, i) => (
+          <div
+            key={i}
+            className={`transform transition-all duration-500 ${
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+            style={{ transitionDelay: `${700 + i * 100}ms` }}
+          >
+            <div className="text-gray-200 text-sm font-medium mb-2">{item.title}</div>
+            <div className="text-gray-600 text-sm leading-relaxed">{item.desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Principles grid with hover effects
+function PrinciplesGrid() {
+  const principles = [
+    { title: "Persistent", desc: "Runs for hours, not seconds. Time unlocks quality.", color: "green" },
+    { title: "Objective", desc: "Metrics over vibes. Numbers don't lie.", color: "cyan" },
+    { title: "Atomic", desc: "One fix per commit. Easy to review and revert.", color: "green" },
+    { title: "Efficient", desc: "Small models at scale beat big models once.", color: "cyan" },
+    { title: "Safe", desc: "Auto-rollback on failure. Never breaks working code.", color: "green" },
+    { title: "Transparent", desc: "See every change. Understand every decision.", color: "cyan" },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {principles.map((p, i) => (
+        <div
+          key={i}
+          className="group p-4 rounded-lg border border-gray-800 bg-gray-950/30 hover:border-gray-700 hover:bg-gray-900/30 transition-all duration-300 cursor-default"
+        >
+          <div className={`text-sm font-medium mb-2 ${
+            p.color === "green" ? "text-green-400" : "text-cyan-400"
+          }`}>
+            {p.title}
+          </div>
+          <div className="text-gray-600 text-sm leading-relaxed group-hover:text-gray-500 transition-colors">
+            {p.desc}
+          </div>
+        </div>
       ))}
+    </div>
+  );
+}
+
+// CLI usage with copy button
+function UsageSection() {
+  const [copied, setCopied] = useState(false);
+
+  const copyCommand = () => {
+    navigator.clipboard.writeText('npx polish "Your task here"');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="max-w-xl">
+      <div className="border border-gray-800 rounded-lg overflow-hidden bg-black">
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-900/50 border-b border-gray-800">
+          <span className="text-gray-500 text-xs font-mono">terminal</span>
+          <button
+            onClick={copyCommand}
+            className="text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
+          >
+            {copied ? (
+              <>
+                <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-green-400">Copied</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
+        <div className="p-4 font-mono text-sm space-y-4">
+          <div>
+            <div className="text-gray-600 text-xs mb-2"># Run with a mission</div>
+            <div>
+              <span className="text-gray-500">$</span>{" "}
+              <span className="text-white">npx polish</span>{" "}
+              <span className="text-green-400">&quot;Add user authentication with OAuth&quot;</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-gray-600 text-xs mb-2"># Just polish existing code</div>
+            <div>
+              <span className="text-gray-500">$</span>{" "}
+              <span className="text-white">npx polish</span>{" "}
+              <span className="text-yellow-400">--polish-only</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-gray-600 text-xs mb-2"># Set a time budget</div>
+            <div>
+              <span className="text-gray-500">$</span>{" "}
+              <span className="text-white">npx polish</span>{" "}
+              <span className="text-green-400">&quot;Add API endpoint&quot;</span>{" "}
+              <span className="text-yellow-400">--duration 2h</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function LandingPage() {
-  const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.95]);
-
   return (
-    <main className="relative">
-      {/* Background effects */}
-      <CodeRain />
-      <GlowingOrb className="w-96 h-96 bg-green-500/20 -top-48 -left-48" />
-      <GlowingOrb className="w-64 h-64 bg-cyan-500/20 top-1/4 -right-32" delay={1} />
-      <GlowingOrb className="w-80 h-80 bg-magenta-500/20 bottom-1/4 -left-40" delay={2} />
-
+    <main className="relative bg-black text-gray-100 min-h-screen">
       {/* Navigation */}
-      <motion.nav
-        className="fixed top-0 left-0 right-0 z-50 px-6 py-4"
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <motion.div
-            className="text-2xl font-bold text-green-400 glow-green"
-            whileHover={{ scale: 1.05 }}
-          >
-            POLISH
-          </motion.div>
-          <div className="flex items-center gap-6">
-            <a href="#features" className="text-gray-400 hover:text-green-400 transition-colors text-sm">
-              Features
-            </a>
-            <a href="#how-it-works" className="text-gray-400 hover:text-green-400 transition-colors text-sm">
-              How it Works
-            </a>
-            <motion.a
-              href="https://github.com/stangirard/polish"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 border border-green-400 text-green-400 rounded text-sm hover-glow"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              GitHub
-            </motion.a>
-          </div>
-        </div>
-      </motion.nav>
-
-      {/* Hero Section */}
-      <motion.section
-        ref={heroRef}
-        className="relative min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden"
-        style={{ opacity: heroOpacity, scale: heroScale }}
-      >
-        <FloatingCode />
-
-        <motion.div
-          className="relative z-10 text-center max-w-4xl"
-          initial="hidden"
-          animate="visible"
-          variants={stagger}
-        >
-          {/* Status badge */}
-          <motion.div
-            variants={fadeInUp}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-green-900/50 bg-green-900/10 mb-8"
-          >
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-sm text-gray-400">Autonomous Code Quality</span>
-          </motion.div>
-
-          {/* Main title with glitch effect */}
-          <motion.h1
-            variants={fadeInUp}
-            className="text-6xl md:text-8xl font-bold mb-6 relative"
-          >
-            <span className="glitch text-green-400 glow-green" data-text="POLISH">
-              POLISH
-            </span>
-          </motion.h1>
-
-          {/* Subtitle */}
-          <motion.p
-            variants={fadeInUp}
-            className="text-xl md:text-2xl text-gray-400 mb-4"
-          >
-            AI-powered code improvement that never sleeps
-          </motion.p>
-
-          <motion.p
-            variants={fadeInUp}
-            className="text-gray-500 mb-12 max-w-2xl mx-auto"
-          >
-            Polish autonomously analyzes, fixes, and improves your codebase.
-            Watch your quality score rise as it iterates toward perfection.
-          </motion.p>
-
-          {/* CTA buttons */}
-          <motion.div variants={fadeInUp} className="flex flex-wrap gap-4 justify-center">
-            <motion.a
-              href="https://github.com/stangirard/polish"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-4 bg-green-400 text-black font-semibold rounded hover-glow"
-              whileHover={{ scale: 1.05, boxShadow: "0 0 40px rgba(0,255,0,0.5)" }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Get Started
-            </motion.a>
-            <motion.a
-              href="#how-it-works"
-              className="px-8 py-4 border border-green-400 text-green-400 rounded hover-glow"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              See How It Works
-            </motion.a>
-          </motion.div>
-
-          {/* Score preview */}
-          <motion.div
-            variants={fadeInUp}
-            className="mt-16"
-          >
-            <div className="text-gray-500 text-sm mb-4">Quality Score Over Time</div>
-            <ScoreAnimation />
-          </motion.div>
-        </motion.div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <div className="text-gray-500 text-sm mb-2">Scroll</div>
-          <div className="w-6 h-10 border-2 border-gray-600 rounded-full flex justify-center pt-2">
-            <motion.div
-              className="w-1.5 h-3 bg-green-400 rounded-full"
-              animate={{ y: [0, 12, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-          </div>
-        </motion.div>
-      </motion.section>
-
-      {/* Terminal Demo Section */}
-      <section className="py-24 px-6 relative">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            className="text-center mb-16"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-          >
-            <h2 className="text-3xl md:text-4xl font-bold text-green-400 mb-4">
-              Watch Polish in Action
-            </h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">
-              See how Polish autonomously improves your code quality
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={scaleIn}
-          >
-            <TerminalDemo />
-          </motion.div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-24 px-6 relative">
-        <div className="max-w-4xl mx-auto">
-          <motion.div
-            className="text-center mb-16"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-          >
-            <h2 className="text-3xl md:text-4xl font-bold text-green-400 mb-4">
-              How It Works
-            </h2>
-            <p className="text-gray-400">
-              Polish uses an autonomous loop to continuously improve your code
-            </p>
-          </motion.div>
-
-          <div className="space-y-0">
-            <HowItWorksStep
-              number={1}
-              title="Initialize"
-              description="Polish scans your codebase and understands its structure, dependencies, and coding patterns. It identifies areas that need improvement."
-            />
-            <HowItWorksStep
-              number={2}
-              title="Analyze"
-              description="Using AI-powered analysis, Polish evaluates code quality across multiple dimensions: type safety, linting, complexity, and best practices."
-            />
-            <HowItWorksStep
-              number={3}
-              title="Plan"
-              description="Polish creates a strategic plan to address issues, prioritizing high-impact fixes and considering dependencies between changes."
-            />
-            <HowItWorksStep
-              number={4}
-              title="Execute"
-              description="Automated fixes are applied to your codebase. Polish handles everything from simple lint fixes to complex refactoring."
-            />
-            <HowItWorksStep
-              number={5}
-              title="Iterate"
-              description="The loop continues until your code reaches the target quality score. Each iteration builds on the previous improvements."
-              isLast
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-24 px-6 relative">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            className="text-center mb-16"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-          >
-            <h2 className="text-3xl md:text-4xl font-bold text-green-400 mb-4">
-              Features
-            </h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">
-              Everything you need for autonomous code quality improvement
-            </p>
-          </motion.div>
-
-          <motion.div
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-          >
-            <FeatureCard
-              icon="🔄"
-              title="Autonomous Loops"
-              description="Set a target score and let Polish iterate until it's achieved. No manual intervention required."
-              delay={0}
-            />
-            <FeatureCard
-              icon="📊"
-              title="Quality Metrics"
-              description="Track your code quality with detailed metrics including type coverage, lint score, and complexity analysis."
-              delay={0.1}
-            />
-            <FeatureCard
-              icon="🤖"
-              title="AI-Powered Fixes"
-              description="Leverages advanced AI to understand context and apply intelligent fixes that respect your codebase patterns."
-              delay={0.2}
-            />
-            <FeatureCard
-              icon="👁️"
-              title="Real-time Monitoring"
-              description="Watch progress in real-time with a beautiful terminal UI showing every change as it happens."
-              delay={0.3}
-            />
-            <FeatureCard
-              icon="🔍"
-              title="Deep Analysis"
-              description="Goes beyond surface-level linting to analyze architecture, patterns, and potential improvements."
-              delay={0.4}
-            />
-            <FeatureCard
-              icon="🛡️"
-              title="Safe by Design"
-              description="All changes are validated and tested. Polish never breaks working code—only makes it better."
-              delay={0.5}
-            />
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="py-24 px-6 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            className="grid md:grid-cols-3 gap-8 text-center"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-          >
-            {[
-              { value: "95%", label: "Average Score Improvement" },
-              { value: "10x", label: "Faster Than Manual Review" },
-              { value: "0", label: "Breaking Changes" },
-            ].map((stat, i) => (
-              <motion.div
-                key={i}
-                variants={scaleIn}
-                className="p-8 rounded-lg border border-green-900/30 bg-green-900/5"
-              >
-                <motion.div
-                  className="text-5xl font-bold text-green-400 glow-green mb-2"
-                  initial={{ scale: 0 }}
-                  whileInView={{ scale: 1 }}
-                  transition={{ delay: i * 0.1 + 0.3, type: "spring" }}
-                >
-                  {stat.value}
-                </motion.div>
-                <div className="text-gray-400">{stat.label}</div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-24 px-6 relative">
-        <motion.div
-          className="max-w-4xl mx-auto text-center"
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={fadeInUp}
-        >
-          <h2 className="text-3xl md:text-5xl font-bold text-green-400 mb-6 glow-green">
-            Ready to Polish Your Code?
-          </h2>
-          <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">
-            Join developers who trust Polish to maintain and improve their code quality automatically.
-          </p>
-          <motion.a
+      <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-5 bg-black/90 backdrop-blur-sm border-b border-gray-900/50">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="text-xl font-bold text-green-400 tracking-tight">POLISH</div>
+          <a
             href="https://github.com/stangirard/polish"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-3 px-8 py-4 bg-green-400 text-black font-semibold rounded text-lg"
-            whileHover={{ scale: 1.05, boxShadow: "0 0 50px rgba(0,255,0,0.5)" }}
-            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors text-sm"
           >
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            GitHub
+          </a>
+        </div>
+      </nav>
+
+      {/* Hero */}
+      <section className="min-h-screen flex flex-col items-center justify-center px-6 pt-20">
+        <div className="text-center max-w-3xl mb-16">
+          <ScoreVisualization />
+        </div>
+
+        <h1 className="text-2xl md:text-4xl text-gray-200 mb-4 text-center max-w-2xl leading-relaxed">
+          AI-generated code is <span className="text-green-400">fast</span>, but not <span className="text-gray-500">done</span>.
+        </h1>
+
+        <p className="text-gray-500 max-w-xl mx-auto text-center text-sm md:text-base leading-relaxed mb-10">
+          Polish runs LLMs for hours to get your code to production quality. Ship when metrics say 95%+, not when it feels good enough.
+        </p>
+
+        <div className="flex flex-wrap gap-4 justify-center">
+          <a
+            href="https://github.com/stangirard/polish"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3 bg-green-400 text-black text-sm font-medium rounded-lg hover:bg-green-300 transition-colors"
+          >
+            Get Started
+          </a>
+          <a
+            href="#how-it-works"
+            className="px-6 py-3 border border-gray-700 text-gray-300 text-sm font-medium rounded-lg hover:border-gray-600 hover:bg-gray-900/50 transition-colors"
+          >
+            See How It Works
+          </a>
+        </div>
+      </section>
+
+      {/* Problem */}
+      <section className="py-32 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">The Problem</h2>
+            <p className="text-gray-600 text-sm md:text-base max-w-2xl">
+              AI generates code in 30 seconds. Then you spend 3 hours making it work.
+            </p>
+          </div>
+          <ProblemSection />
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how-it-works" className="py-32 px-6 border-t border-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">How It Works</h2>
+            <p className="text-gray-600 text-sm md:text-base max-w-2xl">
+              Two phases: Implement (fast generation) then Polish (iterate until 95%+).
+            </p>
+          </div>
+          <div className="grid lg:grid-cols-2 gap-8">
+            <TypingTerminal />
+            <PolishLoopVisualization />
+          </div>
+        </div>
+      </section>
+
+      {/* Time Comparison */}
+      <section className="py-32 px-6 border-t border-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">The Math</h2>
+            <p className="text-gray-600 text-sm md:text-base max-w-2xl">
+              Developer time is expensive. Compute time is cheap. Let machines iterate for hours.
+            </p>
+          </div>
+          <TimeComparison />
+        </div>
+      </section>
+
+      {/* Principles */}
+      <section className="py-32 px-6 border-t border-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">Principles</h2>
+          </div>
+          <PrinciplesGrid />
+        </div>
+      </section>
+
+      {/* Usage */}
+      <section className="py-32 px-6 border-t border-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">Usage</h2>
+          </div>
+          <UsageSection />
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-32 px-6 border-t border-gray-900">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl text-gray-200 mb-6">
+            Ready to ship <span className="text-green-400">production-ready</span> code?
+          </h2>
+          <p className="text-gray-600 mb-10 text-sm md:text-base">
+            Stop debugging AI-generated code. Let Polish iterate until it&apos;s done.
+          </p>
+          <a
+            href="https://github.com/stangirard/polish"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-3 px-8 py-4 bg-green-400 text-black font-medium rounded-lg hover:bg-green-300 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
             </svg>
             View on GitHub
-          </motion.a>
-        </motion.div>
+          </a>
+        </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-green-900/30">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="text-green-400 font-bold text-xl">POLISH</div>
-            <div className="text-gray-500 text-sm">
-              Built with autonomy in mind. Made for developers who value quality.
-            </div>
-            <div className="flex items-center gap-6">
-              <a
-                href="https://github.com/stangirard/polish"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-green-400 transition-colors"
-              >
-                GitHub
-              </a>
-            </div>
+      <footer className="py-12 px-6 border-t border-gray-900">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-green-400 font-bold">POLISH</div>
+          <div className="text-gray-700 text-sm text-center">
+            Optimize for time to production, not time to first draft.
           </div>
-          <div className="mt-8 pt-8 border-t border-green-900/20 text-center text-gray-600 text-sm">
-            <p>
-              &copy; {new Date().getFullYear()} Polish. Autonomous code quality for the modern developer.
-            </p>
-          </div>
+          <a
+            href="https://github.com/stangirard/polish"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-600 hover:text-gray-400 transition-colors text-sm"
+          >
+            GitHub
+          </a>
         </div>
       </footer>
     </main>
