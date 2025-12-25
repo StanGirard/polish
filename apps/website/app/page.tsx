@@ -576,43 +576,52 @@ function EconomicsSection() {
         <div className="p-6 bg-gray-900/30 border-b border-gray-800">
           <div className="text-gray-400 text-sm mb-1">Real session example</div>
           <div className="text-gray-200">300 lines of code, 5 hours of polishing, 100M tokens</div>
+          <div className="text-gray-600 text-xs mt-2">Industry standard: 3:1 input/output ratio, 70% cache hits</div>
         </div>
         <div className="grid md:grid-cols-2">
           <div className="p-6 border-b md:border-b-0 md:border-r border-gray-800">
             <div className="text-green-400 text-xs tracking-wide mb-4">WITH GLM-4.7</div>
-            <div className="space-y-3 text-sm mb-6">
+            <div className="space-y-2 text-sm mb-6">
               <div className="flex justify-between">
-                <span className="text-gray-500">70M input tokens</span>
-                <span className="text-gray-400 font-mono">70 x $0.60 = $42</span>
+                <span className="text-gray-500">Fresh input (22M)</span>
+                <span className="text-gray-400 font-mono">22 x $0.60 = $13</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">30M output tokens</span>
-                <span className="text-gray-400 font-mono">30 x $2.20 = $66</span>
+                <span className="text-gray-500">Cache reads (53M)</span>
+                <span className="text-gray-400 font-mono">53 x $0.06 = $3</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Output (25M)</span>
+                <span className="text-gray-400 font-mono">25 x $2.20 = $55</span>
               </div>
               <div className="flex justify-between pt-3 border-t border-gray-800">
                 <span className="text-gray-400">Total cost</span>
-                <span className="text-green-400 font-mono font-bold text-lg">$108</span>
+                <span className="text-green-400 font-mono font-bold text-lg">$71</span>
               </div>
             </div>
-            <div className="text-gray-600 text-xs">5 hours of autonomous iteration</div>
+            <div className="text-gray-600 text-xs">5 hours, 1000+ iterations</div>
           </div>
           <div className="p-6">
             <div className="text-cyan-400 text-xs tracking-wide mb-4">WITH CLAUDE SONNET 4.5</div>
-            <div className="space-y-3 text-sm mb-6">
+            <div className="space-y-2 text-sm mb-6">
               <div className="flex justify-between">
-                <span className="text-gray-500">70M input tokens</span>
-                <span className="text-gray-400 font-mono">70 x $3 = $210</span>
+                <span className="text-gray-500">Fresh input (22M)</span>
+                <span className="text-gray-400 font-mono">22 x $3 = $66</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">30M output tokens</span>
-                <span className="text-gray-400 font-mono">30 x $15 = $450</span>
+                <span className="text-gray-500">Cache reads (53M)</span>
+                <span className="text-gray-400 font-mono">53 x $0.30 = $16</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Output (25M)</span>
+                <span className="text-gray-400 font-mono">25 x $15 = $375</span>
               </div>
               <div className="flex justify-between pt-3 border-t border-gray-800">
                 <span className="text-gray-400">Total cost</span>
-                <span className="text-cyan-400 font-mono font-bold text-lg">$660</span>
+                <span className="text-cyan-400 font-mono font-bold text-lg">$457</span>
               </div>
             </div>
-            <div className="text-gray-600 text-xs">Maximum quality, still cheaper than human</div>
+            <div className="text-gray-600 text-xs">Maximum quality, with prompt caching</div>
           </div>
         </div>
       </div>
@@ -625,12 +634,12 @@ function EconomicsSection() {
           <div className="text-gray-600 text-xs mt-2">1 day of work</div>
         </div>
         <div className="p-6 rounded-lg border border-cyan-900/50 bg-cyan-950/10">
-          <div className="text-cyan-400 text-3xl font-bold mb-2">$660</div>
+          <div className="text-cyan-400 text-3xl font-bold mb-2">$457</div>
           <div className="text-gray-500 text-sm">Claude Sonnet 4.5</div>
           <div className="text-gray-600 text-xs mt-2">100M tokens, 5 hours</div>
         </div>
         <div className="p-6 rounded-lg border border-green-900/50 bg-green-950/10">
-          <div className="text-green-400 text-3xl font-bold mb-2">$108</div>
+          <div className="text-green-400 text-3xl font-bold mb-2">$71</div>
           <div className="text-gray-500 text-sm">GLM-4.7</div>
           <div className="text-gray-600 text-xs mt-2">100M tokens, 5 hours</div>
         </div>
