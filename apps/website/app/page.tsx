@@ -115,46 +115,135 @@ function AnimatedScore() {
   );
 }
 
-function ComparisonTable() {
-  const rows = [
-    { traditional: "Generate code in 30 sec", polish: "Generate in 5 min" },
-    { traditional: "YOU fix for 2-3 hours", polish: "AI polishes for 2 hours" },
-    { traditional: "Ship when 'good enough'", polish: "Ship when metrics say 95%+" },
-    { traditional: "Black box magic", polish: "24 atomic commits you can review" },
-    { traditional: "No quality metrics", polish: "Score: 34 -> 89 (proven)" },
-    { traditional: "One-shot, hope it works", polish: "1000 iterations, tested" },
+function ProblemVisualization() {
+  const painPoints = [
+    { time: "30s", label: "Generate", status: "fast" },
+    { time: "45m", label: "Fix types", status: "you" },
+    { time: "30m", label: "Fix lint", status: "you" },
+    { time: "1h", label: "Add tests", status: "you" },
+    { time: "20m", label: "Debug", status: "you" },
+    { time: "15m", label: "Review", status: "you" },
   ];
 
   return (
-    <div className="overflow-x-auto -mx-6 px-6">
-      <div className="min-w-[640px]">
-        <div className="border border-gray-800 rounded-lg overflow-hidden">
-          <div className="grid grid-cols-2">
-            <div className="p-5 bg-gray-900/50 border-b border-r border-gray-800">
-              <span className="text-red-400/80 text-sm font-medium tracking-wide">Traditional AI Coding</span>
-            </div>
-            <div className="p-5 bg-gray-900/50 border-b border-gray-800">
-              <span className="text-green-400 text-sm font-medium tracking-wide">Polish</span>
-            </div>
-          </div>
-          {rows.map((row, i) => (
+    <div className="space-y-12">
+      {/* Pain cycle visualization */}
+      <div>
+        <div className="text-red-400/60 text-xs tracking-widest mb-6">THE PAINFUL REALITY</div>
+        <div className="flex items-center gap-2 overflow-x-auto pb-4">
+          {painPoints.map((point, i) => (
             <motion.div
               key={i}
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.08 }}
-              className="grid grid-cols-2"
+              transition={{ delay: i * 0.1 }}
+              className="flex items-center"
             >
-              <div className={`p-4 text-gray-500 text-sm border-r border-gray-800 ${i < rows.length - 1 ? "border-b border-gray-800/50" : ""}`}>
-                {row.traditional}
+              <div className={`px-4 py-3 rounded-lg border ${
+                point.status === "fast"
+                  ? "border-gray-700 bg-gray-900/30"
+                  : "border-red-900/30 bg-red-950/10"
+              }`}>
+                <div className={`text-lg font-mono ${
+                  point.status === "fast" ? "text-gray-400" : "text-red-400/80"
+                }`}>
+                  {point.time}
+                </div>
+                <div className="text-gray-600 text-xs mt-1">{point.label}</div>
+                {point.status === "you" && (
+                  <div className="text-red-400/50 text-[10px] mt-1">you</div>
+                )}
               </div>
-              <div className={`p-4 text-gray-300 text-sm ${i < rows.length - 1 ? "border-b border-gray-800/50" : ""}`}>
-                {row.polish}
-              </div>
+              {i < painPoints.length - 1 && (
+                <div className="text-gray-700 px-1">+</div>
+              )}
             </motion.div>
           ))}
+          <div className="text-gray-700 px-2">=</div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.7 }}
+            className="px-4 py-3 rounded-lg border border-red-900/50 bg-red-950/20"
+          >
+            <div className="text-2xl font-mono text-red-400">3h+</div>
+            <div className="text-red-400/50 text-xs mt-1">your time</div>
+          </motion.div>
         </div>
+      </div>
+
+      {/* The core issues */}
+      <div className="grid md:grid-cols-3 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="space-y-2"
+        >
+          <div className="text-gray-300 text-sm">One-shot generation</div>
+          <div className="text-gray-600 text-xs leading-relaxed">
+            AI generates once, hopes it works. No iteration, no refinement.
+          </div>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.1 }}
+          className="space-y-2"
+        >
+          <div className="text-gray-300 text-sm">No quality metrics</div>
+          <div className="text-gray-600 text-xs leading-relaxed">
+            How good is the code? No score, no tests, no lint. Just vibes.
+          </div>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2 }}
+          className="space-y-2"
+        >
+          <div className="text-gray-300 text-sm">Human cleanup required</div>
+          <div className="text-gray-600 text-xs leading-relaxed">
+            You debug the AI. Fix types, add tests, handle edge cases. Every time.
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Comparison */}
+      <div className="border border-gray-800 rounded-lg overflow-hidden">
+        <div className="grid grid-cols-2">
+          <div className="p-4 border-r border-b border-gray-800 bg-gray-900/30">
+            <span className="text-gray-500 text-xs tracking-wide">Traditional</span>
+          </div>
+          <div className="p-4 border-b border-gray-800 bg-gray-900/30">
+            <span className="text-green-400/80 text-xs tracking-wide">Polish</span>
+          </div>
+        </div>
+        {[
+          { old: "Ship when 'good enough'", new: "Ship when score hits 95%" },
+          { old: "Black box magic", new: "24 atomic commits to review" },
+          { old: "Hope it works", new: "1000 iterations, all tested" },
+        ].map((row, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: i * 0.1 }}
+            className="grid grid-cols-2"
+          >
+            <div className={`p-4 text-gray-600 text-sm border-r border-gray-800 ${i < 2 ? "border-b border-gray-800/50" : ""}`}>
+              {row.old}
+            </div>
+            <div className={`p-4 text-gray-300 text-sm ${i < 2 ? "border-b border-gray-800/50" : ""}`}>
+              {row.new}
+            </div>
+          </motion.div>
+        ))}
       </div>
     </div>
   );
@@ -485,14 +574,14 @@ export default function LandingPage() {
             whileInView="visible"
             viewport={{ once: true }}
             variants={fadeInUp}
-            className="mb-12"
+            className="mb-16"
           >
             <h2 className="text-xl md:text-2xl text-gray-200 mb-3">The Problem</h2>
             <p className="text-gray-600 text-sm max-w-2xl">
-              Current AI tools give you code fast, but you spend hours fixing it. One-shot generation, no quality metrics, human cleanup required.
+              AI generates code in 30 seconds. Then you spend 3 hours making it work.
             </p>
           </motion.div>
-          <ComparisonTable />
+          <ProblemVisualization />
         </div>
       </section>
 
