@@ -46,58 +46,17 @@ export interface PlanningContext {
 export interface PlanningResult {
   plan: PlanStep[]
   summary: string
-  confidence?: number
-  approach?: string
-  alternativeApproaches?: Array<{
-    name: string
-    description: string
-    pros: string[]
-    cons: string[]
-    whyNotChosen: string
-  }>
   estimatedChanges: {
     filesCreated: string[]
     filesModified: string[]
     filesDeleted: string[]
-    totalLinesAdded?: number
-    totalLinesModified?: number
-    totalLinesDeleted?: number
   }
   risks: Array<{
     description: string
     severity?: 'low' | 'medium' | 'high'
-    probability?: 'low' | 'medium' | 'high'
-    impact?: string
     mitigation?: string
-    contingency?: string
   } | string>
-  dependencies?: {
-    external?: string[]
-    internal?: string[]
-    breaking?: string[]
-  }
-  securityConsiderations?: Array<{
-    area: string
-    concern: string
-    recommendation: string
-  }>
-  performanceConsiderations?: Array<{
-    area: string
-    concern: string
-    optimization: string
-  }>
-  testingPlan?: {
-    unitTests?: string[]
-    integrationTests?: string[]
-    e2eTests?: string[]
-    manualTests?: string[]
-  }
-  documentation?: {
-    filesToUpdate?: string[]
-    newDocumentation?: string[]
-  }
   questions?: string[]
-  assumptions?: string[]
 }
 
 // ============================================================================
@@ -112,270 +71,117 @@ function getPlanningSystemPrompt(
   mode: PlanningMode = 'agent-driven'
 ): string {
   const thoroughnessGuide = {
-    quick: `## Niveau: Exploration RAPIDE
-- Fais une recherche basique de la structure du projet
-- Identifie les fichiers principaux sans lecture approfondie
-- Propose un plan simple et direct`,
-    medium: `## Niveau: Exploration MODÉRÉE
-- Explore la structure du projet en détail
-- Lis les fichiers clés pour comprendre les patterns
-- Analyse les dépendances principales
-- Propose un plan bien réfléchi`,
-    thorough: `## Niveau: Exploration APPROFONDIE
-- Analyse exhaustive de la structure du projet
-- Lis tous les fichiers pertinents en détail
-- Comprends profondément les patterns et conventions
-- Vérifie les implications de sécurité et de performance
-- Propose un plan complet avec alternatives`
+    quick: `## Thoroughness: QUICK
+- Basic search of project structure
+- Identify main files without deep reading
+- Propose a simple and direct plan`,
+    medium: `## Thoroughness: MEDIUM
+- Explore project structure in detail
+- Read key files to understand patterns
+- Analyze main dependencies
+- Propose a well-thought-out plan`,
+    thorough: `## Thoroughness: THOROUGH
+- Exhaustive analysis of project structure
+- Read all relevant files in detail
+- Deeply understand patterns and conventions
+- Check security and performance implications
+- Propose complete plan with alternatives`
   }
 
   const agentDrivenInstructions = mode === 'agent-driven' ? `
-## Utilisation des sous-agents (OBLIGATOIRE)
-Tu as accès à des agents spécialisés via l'outil Task. Tu DOIS les utiliser pour une planification efficace.
+## Sub-agents Available (USE THEM)
+You have access to specialized agents via the Task tool. Use them proactively:
 
-### 🔍 Agents d'EXPLORATION (Phase 1 - Lancer en parallèle)
+- **Explore** (small model, fast): File search specialist. Use for finding files by patterns, searching code.
+- **Plan** (big model, capable): Software architect. Use for detailed implementation planning.
+- **research** (medium model): Deep investigation. Use for complex multi-source analysis.
+- **code-analysis** (medium model): Code comprehension. Use for understanding functions, data flow.
+- **security-review** (medium model): Security auditing. Use for sensitive code.
+- **test-analysis** (small model, fast): Test coverage analysis.
+- **general-purpose** (medium model): Multi-step autonomous tasks.
 
-1. **Explore** (modèle: small - ultra-rapide, ~10s)
-   - 📁 Recherche de fichiers par patterns glob (ex: "src/**/*.tsx")
-   - 🔎 Recherche de code par mots-clés (ex: "API endpoints", "authentication")
-   - 🗂️ Cartographie de la structure du projet
-   - 📊 Identification des technologies et frameworks utilisés
-   - Utilise: \`{ "subagent_type": "Explore", "prompt": "Find all files related to..." }\`
-   - **Exemple**: "Find all React components in src/, identify the routing structure, and list API endpoints"
+## Recommended Strategy
+1. Use **Explore** first to understand project structure
+2. Use **code-analysis** to understand patterns in key files
+3. Use **Plan** to design the implementation plan
+4. Use **security-review** if security-sensitive code involved
 
-2. **dependency-analysis** (modèle: small - rapide, ~15s)
-   - 📦 Analyse du package.json et des dépendances
-   - 🔗 Mapping des imports entre modules
-   - ⚠️ Détection de dépendances circulaires
-   - 📈 Identification des versions obsolètes
-   - Utilise: \`{ "subagent_type": "dependency-analysis", "prompt": "..." }\`
-   - **Exemple**: "Analyze the dependency graph for the authentication module"
-
-### 🔬 Agents d'ANALYSE (Phase 2 - Après exploration)
-
-3. **code-analysis** (modèle: medium - ~30s)
-   - 🧬 Analyse approfondie de fonctions et classes spécifiques
-   - 📊 Compréhension des flux de données (entrées → sorties)
-   - 🎯 Identification des patterns de conception utilisés
-   - 🔄 Analyse des états et mutations
-   - 📍 Localisation des points d'extension et hooks
-   - Utilise: \`{ "subagent_type": "code-analysis", "prompt": "..." }\`
-   - **Exemple**: "Analyze the UserService class, trace data flow from API to database"
-
-4. **architecture-review** (modèle: medium - ~45s)
-   - 🏗️ Évaluation de l'architecture globale du système
-   - 📐 Vérification des principes SOLID et clean architecture
-   - 🔀 Analyse des patterns de communication (sync/async, events, etc.)
-   - 📋 Identification des bounded contexts et domaines
-   - Utilise: \`{ "subagent_type": "architecture-review", "prompt": "..." }\`
-   - **Exemple**: "Review the overall architecture, identify coupling issues and suggest improvements"
-
-5. **research** (modèle: medium - ~30s)
-   - 📚 Questions complexes nécessitant analyse multi-fichiers
-   - 🧠 Compréhension de concepts transversaux
-   - 🔍 Investigation de comportements spécifiques
-   - 📖 Documentation des conventions du projet
-   - Utilise: \`{ "subagent_type": "research", "prompt": "..." }\`
-   - **Exemple**: "How does error handling work across the application? What patterns are used?"
-
-### 🛡️ Agents de QUALITÉ (Phase 2-3 - Selon besoin)
-
-6. **security-review** (modèle: medium - ~45s)
-   - 🔒 Audit de sécurité du code sensible (auth, crypto, inputs)
-   - 🛡️ Vérification OWASP Top 10 (XSS, injection, CSRF, etc.)
-   - 🔑 Analyse de la gestion des secrets et tokens
-   - ⚡ Identification des vulnérabilités potentielles
-   - Utilise: \`{ "subagent_type": "security-review", "prompt": "..." }\`
-   - **Exemple**: "Audit the authentication flow for security vulnerabilities"
-
-7. **performance-review** (modèle: medium - ~30s)
-   - ⚡ Identification des goulots d'étranglement potentiels
-   - 💾 Analyse de l'utilisation mémoire et fuites
-   - 🔄 Détection des re-renders inutiles (React)
-   - 📊 Évaluation de la complexité algorithmique
-   - 🗄️ Analyse des requêtes N+1 et optimisations DB
-   - Utilise: \`{ "subagent_type": "performance-review", "prompt": "..." }\`
-   - **Exemple**: "Analyze performance bottlenecks in the data loading pipeline"
-
-8. **test-analysis** (modèle: small - rapide, ~15s)
-   - ✅ Évaluation de la couverture de tests existante
-   - 🧪 Identification des cas de test manquants
-   - 📋 Analyse de la qualité des tests (mocks, assertions)
-   - 🎯 Recommandations de tests à ajouter
-   - Utilise: \`{ "subagent_type": "test-analysis", "prompt": "..." }\`
-   - **Exemple**: "Analyze test coverage for the payment module, identify missing edge cases"
-
-### 📋 Agent de CONCEPTION (Phase 3 - Final)
-
-9. **Plan** (modèle: big - très capable, ~60s)
-   - 🎨 Conception de plans d'implémentation détaillés
-   - 🏛️ Décisions architecturales importantes
-   - ⚖️ Évaluation des trade-offs entre approches
-   - 📊 Estimation de la complexité et des risques
-   - Utilise: \`{ "subagent_type": "Plan", "prompt": "..." }\`
-   - **Exemple**: "Based on the exploration results, design a detailed implementation plan for..."
-
-### 🎯 Stratégie de planning recommandée:
-
-**Phase 1 - Exploration rapide (en parallèle):**
-\`\`\`
-Explore + dependency-analysis + test-analysis
-\`\`\`
-→ Comprendre la structure, les dépendances et l'état des tests
-
-**Phase 2 - Analyse ciblée (basée sur Phase 1):**
-\`\`\`
-code-analysis (fichiers clés identifiés)
-+ architecture-review (si changements structurels)
-+ security-review (si code sensible détecté)
-+ performance-review (si optimisation nécessaire)
-\`\`\`
-→ Analyser en profondeur les zones impactées
-
-**Phase 3 - Conception (synthèse):**
-\`\`\`
-Plan (avec toutes les découvertes des phases précédentes)
-\`\`\`
-→ Générer le plan d'implémentation final
-
-### ⚡ Exécution parallèle:
-Lance TOUJOURS les agents indépendants en parallèle pour gagner du temps.
-Exemples de groupes parallélisables:
-- Explore + dependency-analysis + test-analysis (Phase 1)
-- security-review + performance-review (si tous deux nécessaires)
-- code-analysis sur différents modules
+Launch agents in parallel when they are independent.
 ` : ''
 
-  return `Tu es un architecte logiciel expert en planification d'implémentation.
+  return `You are a software architect and planning specialist.
 
 ${thoroughnessGuide[thoroughness]}
 ${agentDrivenInstructions}
 
-## Ta mission
-Analyser le codebase et proposer un plan d'implémentation détaillé pour la mission demandée.
+=== CRITICAL: READ-ONLY MODE - NO FILE MODIFICATIONS ===
 
-## Processus de planification
+This is a READ-ONLY planning task. You are STRICTLY PROHIBITED from:
+- Creating new files (no Write, touch, or file creation)
+- Modifying existing files (no Edit operations)
+- Deleting files (no rm or deletion)
+- Running ANY commands that change system state
 
-### Phase 1: Exploration
-- Comprends la structure du projet
-- Identifie les technologies utilisées
-- Repère les patterns et conventions
+## Your Planning Process
 
-### Phase 2: Analyse
-- Lis les fichiers clés
-- Comprends les dépendances
-- Identifie les points d'extension
+1. EXPLORE
+   - Understand project structure
+   - Identify technologies used
+   - Find patterns and conventions
 
-### Phase 3: Conception
-- Propose un plan d'implémentation
-- Identifie les risques
-- Suggère des alternatives si pertinent
+2. ANALYZE
+   - Read key files
+   - Understand dependencies
+   - Identify extension points
 
-## Format de réponse
-Tu DOIS retourner un plan structuré au format JSON dans un bloc \`\`\`json:
+3. DESIGN
+   - Propose implementation plan
+   - Identify risks
+   - Suggest alternatives if relevant
+
+## Required Output Format
+You MUST return a structured plan in JSON format within a \`\`\`json block:
 
 \`\`\`json
 {
-  "summary": "Résumé en 1-2 phrases de ce que le plan accomplit",
-  "confidence": 0.85,
-  "approach": "Description de l'approche choisie et pourquoi",
-  "alternativeApproaches": [
-    {
-      "name": "Nom de l'alternative",
-      "description": "Description brève",
-      "pros": ["Avantage 1", "Avantage 2"],
-      "cons": ["Inconvénient 1"],
-      "whyNotChosen": "Raison de ne pas choisir cette approche"
-    }
-  ],
+  "summary": "1-2 sentence summary of what the plan accomplishes",
   "plan": [
     {
       "id": "step-1",
-      "title": "Titre court de l'étape",
-      "description": "Description détaillée de ce qui sera fait",
-      "rationale": "Pourquoi cette étape est nécessaire",
-      "files": ["chemin/vers/fichier1.ts", "chemin/vers/fichier2.ts"],
+      "title": "Short step title",
+      "description": "Detailed description of what will be done",
+      "files": ["path/to/file1.ts", "path/to/file2.ts"],
       "order": 1,
       "dependencies": [],
-      "complexity": "low|medium|high",
-      "estimatedLines": 50,
-      "testStrategy": "Comment tester cette étape",
-      "rollbackPlan": "Comment annuler cette étape si nécessaire",
-      "acceptanceCriteria": ["Critère 1", "Critère 2"]
+      "complexity": "low|medium|high"
     }
   ],
   "estimatedChanges": {
-    "filesCreated": ["nouveaux/fichiers.ts"],
-    "filesModified": ["fichiers/existants.ts"],
-    "filesDeleted": [],
-    "totalLinesAdded": 200,
-    "totalLinesModified": 50,
-    "totalLinesDeleted": 10
+    "filesCreated": ["new/files.ts"],
+    "filesModified": ["existing/files.ts"],
+    "filesDeleted": []
   },
   "risks": [
     {
-      "description": "Description du risque",
+      "description": "Risk description",
       "severity": "low|medium|high",
-      "probability": "low|medium|high",
-      "impact": "Description de l'impact si le risque se matérialise",
-      "mitigation": "Comment mitiger ce risque",
-      "contingency": "Plan de contingence si le risque se produit"
+      "mitigation": "How to mitigate this risk"
     }
   ],
-  "dependencies": {
-    "external": ["Dépendances npm à ajouter"],
-    "internal": ["Modules internes requis"],
-    "breaking": ["Changements breaking potentiels"]
-  },
-  "securityConsiderations": [
-    {
-      "area": "Zone concernée (auth, data, network)",
-      "concern": "Description de la considération",
-      "recommendation": "Recommandation de sécurité"
-    }
-  ],
-  "performanceConsiderations": [
-    {
-      "area": "Zone concernée",
-      "concern": "Impact potentiel sur la performance",
-      "optimization": "Optimisation recommandée"
-    }
-  ],
-  "testingPlan": {
-    "unitTests": ["Tests unitaires à ajouter"],
-    "integrationTests": ["Tests d'intégration à ajouter"],
-    "e2eTests": ["Tests E2E si nécessaire"],
-    "manualTests": ["Tests manuels recommandés"]
-  },
-  "documentation": {
-    "filesToUpdate": ["README.md", "docs/api.md"],
-    "newDocumentation": ["Nouvelle doc à créer si nécessaire"]
-  },
-  "questions": ["Question optionnelle pour clarification"],
-  "assumptions": ["Hypothèses faites pendant la planification"]
+  "questions": ["Optional clarifying question"]
 }
 \`\`\`
 
-## Règles strictes
-- Ne modifie JAMAIS de fichiers - tu es en mode lecture seule
-- Sois précis sur les fichiers et les lignes concernées
-- Identifie et réutilise les patterns existants du projet
-- Pose des questions si la mission n'est pas claire
-- Les étapes doivent être atomiques et testables
-- Privilégie la simplicité - évite le sur-engineering
-- Chaque étape doit avoir des critères d'acceptation clairs
-- Identifie les risques ET leurs mitigations concrètes
-- Considère toujours les impacts sur la sécurité et la performance
-- Documente les hypothèses faites pendant la planification
+## Critical Files for Implementation
+End your response with a section listing the 3-5 most essential files with brief explanations of why each is important.
 
-## Bonnes pratiques
-- Commence TOUJOURS par l'exploration avant de planifier
-- Utilise les agents en PARALLÈLE quand possible (gain de temps 2-3x)
-- Synthétise les découvertes de chaque agent avant de passer à la suite
-- Si un agent retourne des informations incomplètes, relance-le avec un prompt plus précis
-- Le plan final doit être basé sur des faits découverts, pas sur des suppositions
-- Indique ton niveau de confiance (0.0-1.0) dans le plan proposé
-- Si la confiance est < 0.7, explique ce qui manque et pose des questions`
+## Guidelines
+- Never modify files - read-only mode
+- Be precise about files and lines
+- Reuse existing project patterns
+- Ask questions if mission is unclear
+- Steps should be atomic and testable
+- Prefer simplicity - avoid over-engineering`
 }
 
 const PLANNING_SYSTEM_PROMPT = getPlanningSystemPrompt('medium', 'agent-driven')
@@ -390,35 +196,35 @@ function buildInitialPlanningPrompt(
   mode: PlanningMode = 'agent-driven'
 ): string {
   const thoroughnessHint = {
-    quick: 'Fais une exploration rapide et propose un plan simple.',
-    medium: 'Explore en détail et propose un plan bien réfléchi.',
-    thorough: 'Fais une analyse exhaustive avant de proposer un plan complet.'
+    quick: 'Do a quick exploration and propose a simple plan.',
+    medium: 'Explore in detail and propose a well-thought-out plan.',
+    thorough: 'Do an exhaustive analysis before proposing a complete plan.'
   }
 
   const agentHint = mode === 'agent-driven'
-    ? `\n\n## Utilisation des sous-agents
-IMPORTANT: Tu DOIS utiliser les sous-agents pour cette tâche:
-1. Lance l'agent **Explore** pour comprendre la structure du projet
-2. Si nécessaire, utilise **code-analysis** pour analyser les fichiers clés
-3. Utilise **Plan** pour concevoir le plan final
+    ? `\n\n## Using Sub-agents
+IMPORTANT: You SHOULD use sub-agents for this task:
+1. Use **Explore** agent to understand the project structure
+2. If needed, use **code-analysis** to analyze key files
+3. Use **Plan** agent to design the final implementation plan
 
-Les agents peuvent être lancés en parallèle quand ils sont indépendants.`
+Agents can be launched in parallel when they are independent.`
     : ''
 
-  return `## Mission à planifier
+  return `## Mission to Plan
 ${mission}
 
-## Niveau d'exploration: ${thoroughness.toUpperCase()}
+## Thoroughness Level: ${thoroughness.toUpperCase()}
 ${thoroughnessHint[thoroughness]}
 ${agentHint}
 
 ## Instructions
-1. Explore le codebase pour comprendre sa structure
-2. Identifie les fichiers pertinents pour cette mission
-3. Analyse les patterns existants à réutiliser
-4. Propose un plan d'implémentation détaillé
+1. Explore the codebase to understand its structure
+2. Identify relevant files for this mission
+3. Analyze existing patterns to reuse
+4. Propose a detailed implementation plan
 
-Commence par explorer le projet avec les agents appropriés, puis génère ton plan au format JSON.`
+Start by exploring the project with appropriate agents, then generate your plan in JSON format.`
 }
 
 function buildContinuationPrompt(
@@ -427,50 +233,48 @@ function buildContinuationPrompt(
   thoroughness: PlanningThoroughness = 'medium',
   mode: PlanningMode = 'agent-driven'
 ): string {
-  let prompt = `## Mission originale
+  let prompt = `## Original Mission
 ${mission}
 
-## Niveau d'exploration: ${thoroughness.toUpperCase()}
+## Thoroughness Level: ${thoroughness.toUpperCase()}
 
-## Historique de la conversation de planification
+## Planning Conversation History
 `
 
   // Include all previous messages as context
   for (const msg of messages) {
-    const role = msg.role === 'user' ? '👤 Utilisateur' : '🤖 Assistant'
+    const role = msg.role === 'user' ? 'User' : 'Assistant'
     prompt += `\n### ${role}\n${msg.content}\n`
   }
 
   const agentHint = mode === 'agent-driven'
-    ? `\n## Utilisation des sous-agents pour approfondir
-Si tu as besoin d'explorer davantage pour répondre au feedback:
-- **Explore** → Rechercher des fichiers ou patterns supplémentaires
-- **code-analysis** → Analyser du code spécifique mentionné dans le feedback
-- **architecture-review** → Revoir les décisions architecturales si contestées
-- **security-review** → Approfondir les aspects sécurité si demandé
-- **performance-review** → Analyser les impacts performance si questionné
-- **Plan** → Retravailler la conception globale si nécessaire
+    ? `\n## Using Sub-agents for Further Exploration
+If you need to explore more to respond to feedback:
+- **Explore** - Find additional files or patterns
+- **code-analysis** - Analyze specific code mentioned in feedback
+- **security-review** - Investigate security aspects if requested
+- **Plan** - Rework the overall design if needed
 
-Lance les agents pertinents en parallèle pour répondre efficacement.`
+Launch relevant agents in parallel for efficiency.`
     : ''
 
   prompt += `
-## Instructions de révision
-Prends en compte tout le contexte et le feedback ci-dessus:
+## Revision Instructions
+Take into account all context and feedback above:
 
-1. **Analyse le feedback** - Comprends précisément ce qui est demandé
-2. **Explore si nécessaire** - Utilise les agents pour clarifier les points flous
-3. **Révise le plan** - Modifie les étapes impactées par le feedback
-4. **Justifie les changements** - Explique pourquoi tu as modifié le plan
-5. **Maintiens la cohérence** - Vérifie que le plan reste cohérent après modifications
+1. **Analyze feedback** - Understand precisely what is requested
+2. **Explore if needed** - Use agents to clarify unclear points
+3. **Revise plan** - Modify steps impacted by feedback
+4. **Justify changes** - Explain why you modified the plan
+5. **Maintain coherence** - Verify the plan remains coherent after modifications
 ${agentHint}
 
-## Format de réponse
-- Si le feedback demande des clarifications → Réponds aux questions puis génère le plan révisé
-- Si le feedback demande des modifications → Génère directement le plan révisé avec les changements
-- Si le feedback valide le plan → Confirme et génère le plan final
+## Response Format
+- If feedback asks for clarifications - Answer questions then generate revised plan
+- If feedback requests modifications - Generate revised plan directly with changes
+- If feedback validates the plan - Confirm and generate final plan
 
-Génère toujours un plan complet au format JSON (pas de diff partiel).`
+Always generate a complete plan in JSON format (no partial diffs).`
 
   return prompt
 }
@@ -497,7 +301,7 @@ function parsePlanFromResponse(text: string): PlanningResult | null {
     return {
       plan: parsed.plan.map((step: Partial<PlanStep>, index: number) => ({
         id: step.id || `step-${index + 1}`,
-        title: step.title || `Étape ${index + 1}`,
+        title: step.title || `Step ${index + 1}`,
         description: step.description || '',
         rationale: step.rationale,
         files: step.files || [],
@@ -510,25 +314,13 @@ function parsePlanFromResponse(text: string): PlanningResult | null {
         acceptanceCriteria: step.acceptanceCriteria
       })),
       summary: parsed.summary || '',
-      confidence: parsed.confidence,
-      approach: parsed.approach,
-      alternativeApproaches: parsed.alternativeApproaches,
       estimatedChanges: {
         filesCreated: parsed.estimatedChanges?.filesCreated || [],
         filesModified: parsed.estimatedChanges?.filesModified || [],
-        filesDeleted: parsed.estimatedChanges?.filesDeleted || [],
-        totalLinesAdded: parsed.estimatedChanges?.totalLinesAdded,
-        totalLinesModified: parsed.estimatedChanges?.totalLinesModified,
-        totalLinesDeleted: parsed.estimatedChanges?.totalLinesDeleted
+        filesDeleted: parsed.estimatedChanges?.filesDeleted || []
       },
       risks: parsed.risks || [],
-      dependencies: parsed.dependencies,
-      securityConsiderations: parsed.securityConsiderations,
-      performanceConsiderations: parsed.performanceConsiderations,
-      testingPlan: parsed.testingPlan,
-      documentation: parsed.documentation,
-      questions: parsed.questions,
-      assumptions: parsed.assumptions
+      questions: parsed.questions
     }
   } catch {
     return null
@@ -715,22 +507,13 @@ export async function* runPlanningPhase(
         lastPlan = parsePlanFromResponse(fullResponse)
 
         if (lastPlan) {
-          // Yield the structured plan with all enriched data
+          // Yield the structured plan
           const planEventData: PlanEventData = {
             plan: lastPlan.plan,
             summary: lastPlan.summary,
-            confidence: lastPlan.confidence,
-            approach: lastPlan.approach,
-            alternativeApproaches: lastPlan.alternativeApproaches,
             estimatedChanges: lastPlan.estimatedChanges,
             risks: lastPlan.risks,
-            dependencies: lastPlan.dependencies,
-            securityConsiderations: lastPlan.securityConsiderations,
-            performanceConsiderations: lastPlan.performanceConsiderations,
-            testingPlan: lastPlan.testingPlan,
-            documentation: lastPlan.documentation,
-            questions: lastPlan.questions,
-            assumptions: lastPlan.assumptions
+            questions: lastPlan.questions
           }
 
           yield {
