@@ -1,71 +1,6 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef, useState, useEffect } from "react";
-
-const fadeInUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.6 }
-  },
-};
-
-const fadeIn = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { duration: 0.6 }
-  },
-};
-
-const stagger = {
-  hidden: { opacity: 1 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.15,
-    },
-  },
-};
-
-function TypewriterText({ text, delay = 0 }: { text: string; delay?: number }) {
-  const [displayedText, setDisplayedText] = useState("");
-  const [started, setStarted] = useState(false);
-
-  useEffect(() => {
-    const startTimer = setTimeout(() => setStarted(true), delay * 1000);
-    return () => clearTimeout(startTimer);
-  }, [delay]);
-
-  useEffect(() => {
-    if (!started) return;
-    let index = 0;
-    const interval = setInterval(() => {
-      if (index <= text.length) {
-        setDisplayedText(text.slice(0, index));
-        index++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 40);
-    return () => clearInterval(interval);
-  }, [text, started]);
-
-  return (
-    <span>
-      {displayedText}
-      {displayedText.length < text.length && started && (
-        <motion.span
-          className="inline-block w-0.5 h-6 md:h-8 bg-green-400 ml-1"
-          animate={{ opacity: [1, 0] }}
-          transition={{ duration: 0.5, repeat: Infinity }}
-        />
-      )}
-    </span>
-  );
-}
+import { useState, useEffect } from "react";
 
 function AnimatedScore() {
   const [score, setScore] = useState(34);
@@ -90,25 +25,14 @@ function AnimatedScore() {
     return "text-orange-400";
   };
 
-  const getGlow = (s: number) => {
-    if (s >= 90) return "0 0 60px rgba(34, 211, 238, 0.4)";
-    if (s >= 70) return "0 0 40px rgba(74, 222, 128, 0.3)";
-    return "none";
-  };
-
   return (
-    <div className="relative">
+    <div className="relative text-center">
       <div className="text-gray-600 text-xs tracking-widest mb-3">QUALITY SCORE</div>
-      <motion.div
-        key={score}
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 200, damping: 20 }}
-        className={`text-7xl md:text-9xl font-bold tabular-nums ${getColor(score)}`}
-        style={{ textShadow: getGlow(score) }}
+      <div
+        className={`text-7xl md:text-9xl font-bold tabular-nums transition-all duration-300 ${getColor(score)}`}
       >
         {score}
-      </motion.div>
+      </div>
       <div className="text-gray-700 text-lg mt-1">/100</div>
       <div className="flex justify-center gap-1.5 mt-6">
         {targetScores.map((_, i) => (
@@ -136,19 +60,11 @@ function ProblemVisualization() {
 
   return (
     <div className="space-y-12">
-      {/* Pain cycle visualization */}
       <div>
         <div className="text-red-400/60 text-xs tracking-widest mb-6">THE PAINFUL REALITY</div>
         <div className="flex items-center gap-2 overflow-x-auto pb-4">
           {painPoints.map((point, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="flex items-center"
-            >
+            <div key={i} className="flex items-center">
               <div className={`px-4 py-3 rounded-lg border ${
                 point.status === "fast"
                   ? "border-gray-700 bg-gray-900/30"
@@ -167,62 +83,37 @@ function ProblemVisualization() {
               {i < painPoints.length - 1 && (
                 <div className="text-gray-700 px-1">+</div>
               )}
-            </motion.div>
+            </div>
           ))}
           <div className="text-gray-700 px-2">=</div>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.7 }}
-            className="px-4 py-3 rounded-lg border border-red-900/50 bg-red-950/20"
-          >
+          <div className="px-4 py-3 rounded-lg border border-red-900/50 bg-red-950/20">
             <div className="text-2xl font-mono text-red-400">3h+</div>
             <div className="text-red-400/50 text-xs mt-1">your time</div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
-      {/* The core issues */}
       <div className="grid md:grid-cols-3 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="space-y-2"
-        >
+        <div className="space-y-2">
           <div className="text-gray-300 text-sm">One-shot generation</div>
           <div className="text-gray-600 text-xs leading-relaxed">
             AI generates once, hopes it works. No iteration, no refinement.
           </div>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.1 }}
-          className="space-y-2"
-        >
+        </div>
+        <div className="space-y-2">
           <div className="text-gray-300 text-sm">No quality metrics</div>
           <div className="text-gray-600 text-xs leading-relaxed">
             How good is the code? No score, no tests, no lint. Just vibes.
           </div>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.2 }}
-          className="space-y-2"
-        >
+        </div>
+        <div className="space-y-2">
           <div className="text-gray-300 text-sm">Human cleanup required</div>
           <div className="text-gray-600 text-xs leading-relaxed">
             You debug the AI. Fix types, add tests, handle edge cases. Every time.
           </div>
-        </motion.div>
+        </div>
       </div>
 
-      {/* Comparison */}
       <div className="border border-gray-800 rounded-lg overflow-hidden">
         <div className="grid grid-cols-2">
           <div className="p-4 border-r border-b border-gray-800 bg-gray-900/30">
@@ -237,21 +128,14 @@ function ProblemVisualization() {
           { old: "Black box magic", new: "24 atomic commits to review" },
           { old: "Hope it works", new: "1000 iterations, all tested" },
         ].map((row, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.1 }}
-            className="grid grid-cols-2"
-          >
+          <div key={i} className="grid grid-cols-2">
             <div className={`p-4 text-gray-600 text-sm border-r border-gray-800 ${i < 2 ? "border-b border-gray-800/50" : ""}`}>
               {row.old}
             </div>
             <div className={`p-4 text-gray-300 text-sm ${i < 2 ? "border-b border-gray-800/50" : ""}`}>
               {row.new}
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
     </div>
@@ -272,20 +156,13 @@ function PolishLoop() {
       <div className="text-green-400 text-sm font-medium tracking-wide mb-6">THE LOOP</div>
       <div className="space-y-4">
         {steps.map((step, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, x: -10 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.1 }}
-            className="flex items-start gap-4"
-          >
+          <div key={i} className="flex items-start gap-4">
             <span className="text-gray-700 text-xs font-mono">{step.num}</span>
             <div>
               <div className="text-gray-200 text-sm">{step.label}</div>
               <div className="text-gray-600 text-xs mt-0.5">{step.detail}</div>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
       <div className="mt-6 pt-4 border-t border-gray-800/50 text-gray-600 text-xs">
@@ -310,7 +187,7 @@ function TerminalSession() {
     { text: "  #2  add-tests    +8 pts", color: "text-green-400" },
     { text: "  #3  fix-types    +3 pts", color: "text-green-400" },
     { text: "  #4  fix-lint     +2 pts", color: "text-green-400" },
-    { text: "  #5  fix-types    FAIL -> rollback", color: "text-red-400/70" },
+    { text: "  #5  fix-types    FAIL", color: "text-red-400/70" },
     { text: "  #6  add-tests    +7 pts", color: "text-green-400" },
     { text: "  ...", color: "text-gray-700" },
     { text: "  #24 fix-types    +2 pts", color: "text-green-400" },
@@ -331,16 +208,9 @@ function TerminalSession() {
       </div>
       <div className="p-4 h-80 overflow-y-auto text-xs md:text-sm font-mono">
         {lines.map((line, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.03 }}
-            className={`${line.color} leading-relaxed`}
-          >
+          <div key={i} className={`${line.color} leading-relaxed`}>
             {line.text || "\u00A0"}
-          </motion.div>
+          </div>
         ))}
       </div>
     </div>
@@ -450,16 +320,10 @@ function CorePrinciples() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
       {principles.map((p, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: i * 0.08 }}
-        >
+        <div key={i}>
           <div className="text-green-400 text-sm font-medium">{p.title}</div>
           <div className="text-gray-600 text-sm mt-1">{p.desc}</div>
-        </motion.div>
+        </div>
       ))}
     </div>
   );
@@ -493,17 +357,10 @@ function UsageExample() {
 }
 
 export default function LandingPage() {
-  const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
-
   return (
-    <main className="relative bg-black min-h-screen">
+    <main className="relative bg-black text-gray-100 min-h-screen">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-5">
+      <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-5 bg-black/80 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="text-lg font-semibold text-green-400 tracking-tight">POLISH</div>
           <a
@@ -518,78 +375,40 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <motion.section
-        ref={heroRef}
-        className="min-h-screen flex flex-col items-center justify-center px-6"
-        style={{ opacity: heroOpacity }}
-      >
-        <motion.div
-          className="text-center max-w-3xl"
-          initial="hidden"
-          animate="visible"
-          variants={stagger}
-        >
-          <motion.div variants={fadeIn} className="mb-16">
+      <section className="min-h-screen flex flex-col items-center justify-center px-6 pt-16">
+        <div className="text-center max-w-3xl">
+          <div className="mb-16">
             <AnimatedScore />
-          </motion.div>
+          </div>
 
-          <motion.h1
-            variants={fadeInUp}
-            className="text-2xl md:text-3xl text-gray-300 mb-4 leading-relaxed"
-          >
-            <TypewriterText text="AI-generated code is fast, but not done." delay={0.3} />
-          </motion.h1>
+          <h1 className="text-2xl md:text-3xl text-gray-300 mb-4 leading-relaxed">
+            AI-generated code is fast, but not done.
+          </h1>
 
-          <motion.p
-            variants={fadeInUp}
-            className="text-gray-600 max-w-xl mx-auto text-sm leading-relaxed mb-10"
-          >
+          <p className="text-gray-600 max-w-xl mx-auto text-sm leading-relaxed mb-10">
             Polish runs LLMs for hours to get your code to production quality. Ship when metrics say 95%+, not when it feels good enough.
-          </motion.p>
+          </p>
 
-          <motion.div variants={fadeInUp}>
-            <a
-              href="https://github.com/stangirard/polish"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block px-6 py-3 bg-green-400 text-black text-sm font-medium rounded hover:bg-green-300 transition-colors"
-            >
-              Get Started
-            </a>
-          </motion.div>
-        </motion.div>
-
-        <motion.div
-          className="absolute bottom-12"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 2 }}
-        >
-          <motion.div
-            className="w-5 h-8 border border-gray-700 rounded-full flex justify-center pt-2"
-            animate={{ y: [0, 5, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
+          <a
+            href="https://github.com/stangirard/polish"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block px-6 py-3 bg-green-400 text-black text-sm font-medium rounded hover:bg-green-300 transition-colors"
           >
-            <div className="w-1 h-2 bg-gray-600 rounded-full" />
-          </motion.div>
-        </motion.div>
-      </motion.section>
+            Get Started
+          </a>
+        </div>
+      </section>
 
       {/* Problem */}
       <section className="py-32 px-6">
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="mb-16"
-          >
+          <div className="mb-16">
             <h2 className="text-xl md:text-2xl text-gray-200 mb-3">The Problem</h2>
             <p className="text-gray-600 text-sm max-w-2xl">
               AI generates code in 30 seconds. Then you spend 3 hours making it work.
             </p>
-          </motion.div>
+          </div>
           <ProblemVisualization />
         </div>
       </section>
@@ -597,18 +416,12 @@ export default function LandingPage() {
       {/* How It Works */}
       <section className="py-32 px-6 border-t border-gray-900">
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="mb-12"
-          >
+          <div className="mb-12">
             <h2 className="text-xl md:text-2xl text-gray-200 mb-3">How It Works</h2>
             <p className="text-gray-600 text-sm max-w-2xl">
               Two phases: Implement (rough generation) then Polish (iterate until 95%+).
             </p>
-          </motion.div>
+          </div>
           <div className="grid lg:grid-cols-2 gap-6">
             <TerminalSession />
             <PolishLoop />
@@ -619,18 +432,12 @@ export default function LandingPage() {
       {/* Transparency */}
       <section className="py-32 px-6 border-t border-gray-900">
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="mb-12"
-          >
+          <div className="mb-12">
             <h2 className="text-xl md:text-2xl text-gray-200 mb-3">No Black Boxes</h2>
             <p className="text-gray-600 text-sm max-w-2xl">
               Every change is tracked, tested, and committed atomically. See exactly what changed and why.
             </p>
-          </motion.div>
+          </div>
           <TransparencySection />
         </div>
       </section>
@@ -638,18 +445,12 @@ export default function LandingPage() {
       {/* Math */}
       <section className="py-32 px-6 border-t border-gray-900">
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="mb-12"
-          >
+          <div className="mb-12">
             <h2 className="text-xl md:text-2xl text-gray-200 mb-3">The Math</h2>
             <p className="text-gray-600 text-sm max-w-2xl">
               Developer time is expensive. Compute time is cheap.
             </p>
-          </motion.div>
+          </div>
           <MathSection />
         </div>
       </section>
@@ -657,15 +458,9 @@ export default function LandingPage() {
       {/* Principles */}
       <section className="py-32 px-6 border-t border-gray-900">
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="mb-12"
-          >
+          <div className="mb-12">
             <h2 className="text-xl md:text-2xl text-gray-200 mb-3">Principles</h2>
-          </motion.div>
+          </div>
           <CorePrinciples />
         </div>
       </section>
@@ -673,15 +468,9 @@ export default function LandingPage() {
       {/* Usage */}
       <section className="py-32 px-6 border-t border-gray-900">
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="mb-12"
-          >
+          <div className="mb-12">
             <h2 className="text-xl md:text-2xl text-gray-200 mb-3">Usage</h2>
-          </motion.div>
+          </div>
           <div className="max-w-md">
             <UsageExample />
           </div>
@@ -690,13 +479,7 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="py-32 px-6 border-t border-gray-900">
-        <motion.div
-          className="max-w-2xl mx-auto text-center"
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={fadeInUp}
-        >
+        <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">
             Ready to ship production-ready code?
           </h2>
@@ -714,7 +497,7 @@ export default function LandingPage() {
             </svg>
             View on GitHub
           </a>
-        </motion.div>
+        </div>
       </section>
 
       {/* Footer */}
