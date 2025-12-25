@@ -37,8 +37,8 @@ export async function GET(
         try {
           const eventData = JSON.parse(e.data)
           send({ type: e.type, data: eventData } as PolishEvent)
-        } catch {
-          // Skip malformed events
+        } catch (err) {
+          console.warn(`[SSE] Skipping malformed event (id: ${e.id}, type: ${e.type}):`, err)
         }
       }
 
@@ -76,8 +76,11 @@ export async function GET(
             controller.close()
             unsubscribe()
           }
-        } catch {
-          // Controller might be closed
+        } catch (err) {
+          // Controller might be closed - log only if it's not a closed stream error
+          if (err instanceof Error && !err.message.includes('closed')) {
+            console.warn(`[SSE] Failed to send event (session: ${id}, type: ${event.type}):`, err)
+          }
         }
       })
 
