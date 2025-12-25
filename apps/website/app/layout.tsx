@@ -2,20 +2,20 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Polish | Autonomous Code Quality",
-  description: "AI-powered autonomous code improvement. Polish runs LLMs for hours to guarantee production-ready code. Ship when metrics say 95%+, not when it feels good enough.",
-  keywords: ["code quality", "AI", "automation", "linting", "code review", "autonomous", "LLM"],
+  title: "Polish | Virtual Engineers for Your Team",
+  description: "Scale your dev team with virtual engineers that write production-quality code. No more vibe coding nightmares - maintainable, tested code at a fraction of the cost.",
+  keywords: ["code quality", "AI", "automation", "virtual engineers", "team scaling", "LLM", "production code"],
   openGraph: {
-    title: "Polish | Autonomous Code Quality",
-    description: "AI-generated code is fast, but not done. Polish iterates until metrics say 95%+.",
+    title: "Polish | Virtual Engineers for Your Team",
+    description: "Vibe coding is fast. Maintaining it is hell. Polish gives you virtual engineers that write code your team can actually maintain.",
     url: "https://polish.run",
     siteName: "Polish",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Polish | Autonomous Code Quality",
-    description: "AI-generated code is fast, but not done. Polish iterates until metrics say 95%+.",
+    title: "Polish | Virtual Engineers for Your Team",
+    description: "Vibe coding is fast. Maintaining it is hell. Polish gives you virtual engineers that write code your team can actually maintain.",
   },
 };
 

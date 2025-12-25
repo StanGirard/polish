@@ -432,9 +432,9 @@ function ProblemSection() {
       {/* Core issues */}
       <div className="grid md:grid-cols-3 gap-8">
         {[
-          { title: "One-shot generation", desc: "AI generates code once and hopes it works. No iteration, no improvement, no guarantee." },
-          { title: "No quality metrics", desc: "How good is the code? Nobody knows. No tests, no types, no lint. Just vibes." },
-          { title: "Human cleanup", desc: "You become the debugger. Fix the AI's mistakes, add missing tests, handle edge cases." },
+          { title: "Impressive at first", desc: "AI generates code fast. It works! Ship it. But wait a month and watch the cracks appear." },
+          { title: "Technical debt explosion", desc: "No tests, no types, spaghetti code. Bugs pile up. Each fix breaks something else. Maintenance becomes a nightmare." },
+          { title: "LLM dependency trap", desc: "Code that only the LLM understands. Can't debug without AI. Can't maintain without AI. Costs spiral up." },
         ].map((item, i) => (
           <div
             key={i}
@@ -564,10 +564,10 @@ function EconomicsSection() {
     <div className="space-y-16">
       {/* Main value prop */}
       <div className="text-center">
-        <div className="text-gray-500 text-sm mb-4">The question is simple</div>
+        <div className="text-gray-500 text-sm mb-4">Scale your team, not your headcount</div>
         <h3 className="text-2xl md:text-3xl text-gray-200 mb-6">
-          Why pay an engineer <span className="text-red-400">$500/day</span> to polish code<br />
-          when an LLM does it for <span className="text-green-400">$50</span>?
+          Add <span className="text-green-400">virtual engineers</span> to your team<br />
+          that write <span className="text-cyan-400">production-quality</span> code for <span className="text-green-400">$50/task</span>
         </h3>
       </div>
 
@@ -626,22 +626,22 @@ function EconomicsSection() {
         </div>
       </div>
 
-      {/* Comparison with engineer */}
+      {/* Team scaling example */}
       <div className="grid md:grid-cols-3 gap-6 text-center">
         <div className="p-6 rounded-lg border border-gray-800 bg-gray-950/30">
-          <div className="text-red-400 text-3xl font-bold mb-2">$500+</div>
-          <div className="text-gray-500 text-sm">Senior Engineer</div>
-          <div className="text-gray-600 text-xs mt-2">1 day of work</div>
-        </div>
-        <div className="p-6 rounded-lg border border-cyan-900/50 bg-cyan-950/10">
-          <div className="text-cyan-400 text-3xl font-bold mb-2">$457</div>
-          <div className="text-gray-500 text-sm">Claude Sonnet 4.5</div>
-          <div className="text-gray-600 text-xs mt-2">100M tokens, 5 hours</div>
+          <div className="text-gray-200 text-3xl font-bold mb-2">3 devs</div>
+          <div className="text-gray-500 text-sm">Your current team</div>
+          <div className="text-gray-600 text-xs mt-2">Limited bandwidth</div>
         </div>
         <div className="p-6 rounded-lg border border-green-900/50 bg-green-950/10">
-          <div className="text-green-400 text-3xl font-bold mb-2">$71</div>
-          <div className="text-gray-500 text-sm">GLM-4.7</div>
-          <div className="text-gray-600 text-xs mt-2">100M tokens, 5 hours</div>
+          <div className="text-green-400 text-3xl font-bold mb-2">+10</div>
+          <div className="text-gray-500 text-sm">Virtual Engineers</div>
+          <div className="text-gray-600 text-xs mt-2">$50-70 per task</div>
+        </div>
+        <div className="p-6 rounded-lg border border-cyan-900/50 bg-cyan-950/10">
+          <div className="text-cyan-400 text-3xl font-bold mb-2">3x</div>
+          <div className="text-gray-500 text-sm">Team Output</div>
+          <div className="text-gray-600 text-xs mt-2">Same quality standards</div>
         </div>
       </div>
 
@@ -649,9 +649,9 @@ function EconomicsSection() {
       <div className="text-center py-8 border-y border-gray-800">
         <div className="text-gray-600 text-sm mb-3">The insight</div>
         <div className="text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto leading-relaxed">
-          LLMs can iterate for <span className="text-green-400">5 hours</span>, process{" "}
-          <span className="text-green-400">100M tokens</span>, and still cost{" "}
-          <span className="text-green-400">less than a day</span> of engineering time.
+          Your engineers focus on <span className="text-cyan-400">architecture and reviews</span>.{" "}
+          Polish handles the <span className="text-green-400">implementation grunt work</span>{" "}
+          with the same quality standards.
         </div>
       </div>
 
@@ -730,11 +730,11 @@ export default function LandingPage() {
         </div>
 
         <h1 className="text-2xl md:text-4xl text-gray-200 mb-4 text-center max-w-2xl leading-relaxed">
-          AI-generated code is <span className="text-green-400">fast</span>, but not <span className="text-gray-500">done</span>.
+          Vibe coding is <span className="text-red-400">fast</span>. Maintaining it is <span className="text-gray-500">hell</span>.
         </h1>
 
         <p className="text-gray-500 max-w-xl mx-auto text-center text-sm md:text-base leading-relaxed mb-10">
-          Polish runs LLMs for hours to get your code to production quality. Ship when metrics say 95%+, not when it feels good enough.
+          Polish gives your team virtual engineers that write maintainable, tested, production-quality code. Scale your output without the technical debt.
         </p>
 
         <div className="flex flex-wrap gap-4 justify-center">
@@ -759,9 +759,9 @@ export default function LandingPage() {
       <section className="py-32 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="mb-16">
-            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">The Problem</h2>
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">The Vibe Coding Trap</h2>
             <p className="text-gray-600 text-sm md:text-base max-w-2xl">
-              AI generates code in 30 seconds. Then you spend 3 hours making it work.
+              AI-generated code looks great on day one. After a month? Bugs, spaghetti, no best practices. Impossible to maintain without AI. And it only gets more expensive.
             </p>
           </div>
           <ProblemSection />
@@ -801,9 +801,9 @@ export default function LandingPage() {
       <section className="py-32 px-6 border-t border-gray-900">
         <div className="max-w-5xl mx-auto">
           <div className="mb-16">
-            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">The Economics</h2>
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">Scale Your Team</h2>
             <p className="text-gray-600 text-sm md:text-base max-w-2xl">
-              Why pay $500/day for an engineer to polish code when an LLM can do the same for cents?
+              Don&apos;t replace your engineers. Give them an army of virtual teammates that ship production-quality code at a fraction of the cost.
             </p>
           </div>
           <EconomicsSection />
@@ -834,10 +834,10 @@ export default function LandingPage() {
       <section className="py-32 px-6 border-t border-gray-900">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl text-gray-200 mb-6">
-            Ready to ship <span className="text-green-400">production-ready</span> code?
+            Ready to <span className="text-green-400">scale your team</span>?
           </h2>
           <p className="text-gray-600 mb-10 text-sm md:text-base">
-            Stop debugging AI-generated code. Let Polish iterate until it&apos;s done.
+            Add virtual engineers that write code your team can actually maintain. No more vibe coding nightmares.
           </p>
           <a
             href="https://github.com/stangirard/polish"
@@ -858,7 +858,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-green-400 font-bold">POLISH</div>
           <div className="text-gray-700 text-sm text-center">
-            Optimize for time to production, not time to first draft.
+            Virtual engineers that ship production-quality code.
           </div>
           <a
             href="https://github.com/stangirard/polish"
