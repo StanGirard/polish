@@ -555,100 +555,140 @@ function UsageSection() {
 // Economics section - why LLMs beat expensive engineers
 function EconomicsSection() {
   const models = [
-    { name: "Claude Sonnet 4", provider: "Anthropic", costPer1k: "$0.003", speed: "Fast", tag: "recommended" },
-    { name: "GPT-4o Mini", provider: "OpenAI", costPer1k: "$0.00015", speed: "Very Fast", tag: null },
-    { name: "DeepSeek V3", provider: "DeepSeek", costPer1k: "$0.0007", speed: "Fast", tag: "cheapest" },
-    { name: "Gemini 2.0 Flash", provider: "Google", costPer1k: "$0.0001", speed: "Very Fast", tag: null },
-    { name: "Grok", provider: "xAI", costPer1k: "$0.002", speed: "Fast", tag: null },
-    { name: "GLM-4", provider: "Zhipu", costPer1k: "$0.001", speed: "Fast", tag: null },
+    { name: "GLM-4.7", provider: "Zhipu AI", input: "$0.60", output: "$2.20", tag: "best value" },
+    { name: "Claude Sonnet 4.5", provider: "Anthropic", input: "$3.00", output: "$15.00", tag: "recommended" },
+    { name: "DeepSeek V3", provider: "DeepSeek", input: "$0.27", output: "$1.10", tag: "cheapest" },
+    { name: "GPT-4o Mini", provider: "OpenAI", input: "$0.15", output: "$0.60", tag: null },
+    { name: "Gemini 2.0 Flash", provider: "Google", input: "$0.10", output: "$0.40", tag: null },
   ];
 
   return (
-    <div className="space-y-12">
-      {/* Cost comparison */}
-      <div className="grid md:grid-cols-2 gap-8">
-        <div className="p-6 rounded-lg border border-red-900/30 bg-red-950/10">
-          <div className="text-red-400/60 text-xs tracking-wide mb-4">TRADITIONAL</div>
-          <div className="text-5xl font-bold text-red-400 mb-2">$500+</div>
-          <div className="text-gray-500 text-sm mb-6">per day / senior engineer</div>
-          <div className="space-y-2 text-sm text-gray-600">
-            <div className="flex justify-between">
-              <span>Code review</span>
-              <span className="text-gray-500">2-3 hours</span>
+    <div className="space-y-16">
+      {/* Main value prop */}
+      <div className="text-center">
+        <div className="text-gray-500 text-sm mb-4">The question is simple</div>
+        <h3 className="text-2xl md:text-3xl text-gray-200 mb-6">
+          Why pay an engineer <span className="text-red-400">$500/day</span> to polish code<br />
+          when an LLM does it for <span className="text-green-400">$50</span>?
+        </h3>
+      </div>
+
+      {/* Real cost calculation */}
+      <div className="border border-gray-800 rounded-lg overflow-hidden">
+        <div className="p-6 bg-gray-900/30 border-b border-gray-800">
+          <div className="text-gray-400 text-sm mb-1">Real session example</div>
+          <div className="text-gray-200">300 lines of code, 5 hours of polishing, 100M tokens</div>
+        </div>
+        <div className="grid md:grid-cols-2">
+          <div className="p-6 border-b md:border-b-0 md:border-r border-gray-800">
+            <div className="text-green-400 text-xs tracking-wide mb-4">WITH GLM-4.7</div>
+            <div className="space-y-3 text-sm mb-6">
+              <div className="flex justify-between">
+                <span className="text-gray-500">70M input tokens</span>
+                <span className="text-gray-400 font-mono">70 x $0.60 = $42</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">30M output tokens</span>
+                <span className="text-gray-400 font-mono">30 x $2.20 = $66</span>
+              </div>
+              <div className="flex justify-between pt-3 border-t border-gray-800">
+                <span className="text-gray-400">Total cost</span>
+                <span className="text-green-400 font-mono font-bold text-lg">$108</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>Writing tests</span>
-              <span className="text-gray-500">2-4 hours</span>
+            <div className="text-gray-600 text-xs">5 hours of autonomous iteration</div>
+          </div>
+          <div className="p-6">
+            <div className="text-cyan-400 text-xs tracking-wide mb-4">WITH CLAUDE SONNET 4.5</div>
+            <div className="space-y-3 text-sm mb-6">
+              <div className="flex justify-between">
+                <span className="text-gray-500">70M input tokens</span>
+                <span className="text-gray-400 font-mono">70 x $3 = $210</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">30M output tokens</span>
+                <span className="text-gray-400 font-mono">30 x $15 = $450</span>
+              </div>
+              <div className="flex justify-between pt-3 border-t border-gray-800">
+                <span className="text-gray-400">Total cost</span>
+                <span className="text-cyan-400 font-mono font-bold text-lg">$660</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>Fixing edge cases</span>
-              <span className="text-gray-500">1-2 hours</span>
-            </div>
+            <div className="text-gray-600 text-xs">Maximum quality, still cheaper than human</div>
           </div>
         </div>
+      </div>
 
+      {/* Comparison with engineer */}
+      <div className="grid md:grid-cols-3 gap-6 text-center">
+        <div className="p-6 rounded-lg border border-gray-800 bg-gray-950/30">
+          <div className="text-red-400 text-3xl font-bold mb-2">$500+</div>
+          <div className="text-gray-500 text-sm">Senior Engineer</div>
+          <div className="text-gray-600 text-xs mt-2">1 day of work</div>
+        </div>
+        <div className="p-6 rounded-lg border border-cyan-900/50 bg-cyan-950/10">
+          <div className="text-cyan-400 text-3xl font-bold mb-2">$660</div>
+          <div className="text-gray-500 text-sm">Claude Sonnet 4.5</div>
+          <div className="text-gray-600 text-xs mt-2">100M tokens, 5 hours</div>
+        </div>
         <div className="p-6 rounded-lg border border-green-900/50 bg-green-950/10">
-          <div className="text-green-400 text-xs tracking-wide mb-4">POLISH</div>
-          <div className="text-5xl font-bold text-green-400 mb-2">$0.15</div>
-          <div className="text-gray-500 text-sm mb-6">per session / same output</div>
-          <div className="space-y-2 text-sm text-gray-600">
-            <div className="flex justify-between">
-              <span>1000+ iterations</span>
-              <span className="text-green-400/70">automated</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Full test coverage</span>
-              <span className="text-green-400/70">automated</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Type safety</span>
-              <span className="text-green-400/70">automated</span>
-            </div>
-          </div>
+          <div className="text-green-400 text-3xl font-bold mb-2">$108</div>
+          <div className="text-gray-500 text-sm">GLM-4.7</div>
+          <div className="text-gray-600 text-xs mt-2">100M tokens, 5 hours</div>
         </div>
       </div>
 
-      {/* ROI callout */}
+      {/* Key insight */}
       <div className="text-center py-8 border-y border-gray-800">
-        <div className="text-gray-600 text-sm mb-2">Return on investment</div>
-        <div className="text-4xl md:text-5xl font-bold">
-          <span className="text-green-400">3000x</span>
-          <span className="text-gray-600"> cheaper</span>
+        <div className="text-gray-600 text-sm mb-3">The insight</div>
+        <div className="text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto leading-relaxed">
+          LLMs can iterate for <span className="text-green-400">5 hours</span>, process{" "}
+          <span className="text-green-400">100M tokens</span>, and still cost{" "}
+          <span className="text-green-400">less than a day</span> of engineering time.
         </div>
-        <div className="text-gray-600 text-sm mt-2">Same quality. Fraction of the cost.</div>
       </div>
 
-      {/* Supported models */}
+      {/* Model pricing table */}
       <div>
-        <div className="text-gray-400 text-sm mb-6">Powered by efficient models</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="text-gray-400 text-sm mb-6">Model pricing (per 1M tokens)</div>
+        <div className="border border-gray-800 rounded-lg overflow-hidden">
+          <div className="grid grid-cols-4 gap-4 p-4 bg-gray-900/50 border-b border-gray-800 text-xs text-gray-500">
+            <div>Model</div>
+            <div>Input</div>
+            <div>Output</div>
+            <div></div>
+          </div>
           {models.map((model, i) => (
             <div
               key={i}
-              className="p-4 rounded-lg border border-gray-800 bg-gray-950/50 hover:border-gray-700 transition-colors"
+              className={`grid grid-cols-4 gap-4 p-4 text-sm ${
+                i < models.length - 1 ? "border-b border-gray-800/50" : ""
+              }`}
             >
-              <div className="flex items-start justify-between mb-2">
-                <div className="text-gray-200 text-sm font-medium">{model.name}</div>
+              <div>
+                <div className="text-gray-200">{model.name}</div>
+                <div className="text-gray-600 text-xs">{model.provider}</div>
+              </div>
+              <div className="text-gray-400 font-mono">{model.input}</div>
+              <div className="text-gray-400 font-mono">{model.output}</div>
+              <div className="flex justify-end">
                 {model.tag && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  <span className={`text-[10px] px-2 py-1 rounded ${
                     model.tag === "recommended"
+                      ? "bg-cyan-400/20 text-cyan-400"
+                      : model.tag === "best value"
                       ? "bg-green-400/20 text-green-400"
-                      : "bg-cyan-400/20 text-cyan-400"
+                      : "bg-yellow-400/20 text-yellow-400"
                   }`}>
                     {model.tag}
                   </span>
                 )}
               </div>
-              <div className="text-gray-600 text-xs mb-2">{model.provider}</div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">{model.costPer1k}/1k tokens</span>
-                <span className="text-gray-600">{model.speed}</span>
-              </div>
             </div>
           ))}
         </div>
         <div className="text-gray-700 text-xs mt-4 text-center">
-          Polish uses small, fast models for iteration. Big models for initial generation.
+          Use fast models for iteration. Premium models for initial generation.
         </div>
       </div>
     </div>
