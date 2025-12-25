@@ -360,8 +360,15 @@ export interface PlanStep {
   id: string
   title: string
   description: string
+  rationale?: string
   files: string[]
   order: number
+  dependencies?: string[]
+  complexity?: 'low' | 'medium' | 'high'
+  estimatedLines?: number
+  testStrategy?: string
+  rollbackPlan?: string
+  acceptanceCriteria?: string[]
 }
 
 /** Message in the planning conversation */
@@ -372,17 +379,83 @@ export interface PlanMessage {
   timestamp: string
 }
 
+/** Risk assessment for a plan */
+export interface PlanRisk {
+  description: string
+  severity: 'low' | 'medium' | 'high'
+  probability?: 'low' | 'medium' | 'high'
+  impact?: string
+  mitigation: string
+  contingency?: string
+}
+
+/** Alternative approach that was considered */
+export interface AlternativeApproach {
+  name: string
+  description: string
+  pros: string[]
+  cons: string[]
+  whyNotChosen: string
+}
+
+/** Security consideration */
+export interface SecurityConsideration {
+  area: string
+  concern: string
+  recommendation: string
+}
+
+/** Performance consideration */
+export interface PerformanceConsideration {
+  area: string
+  concern: string
+  optimization: string
+}
+
+/** Testing plan structure */
+export interface TestingPlan {
+  unitTests?: string[]
+  integrationTests?: string[]
+  e2eTests?: string[]
+  manualTests?: string[]
+}
+
+/** Documentation requirements */
+export interface DocumentationPlan {
+  filesToUpdate?: string[]
+  newDocumentation?: string[]
+}
+
+/** Dependency information */
+export interface DependencyInfo {
+  external?: string[]
+  internal?: string[]
+  breaking?: string[]
+}
+
 /** Plan event data - sent when plan is generated/updated */
 export interface PlanEventData {
   plan: PlanStep[]
   summary: string
+  confidence?: number  // 0.0-1.0 confidence score
+  approach?: string    // Description of the chosen approach
+  alternativeApproaches?: AlternativeApproach[]
   estimatedChanges: {
     filesCreated: string[]
     filesModified: string[]
     filesDeleted: string[]
+    totalLinesAdded?: number
+    totalLinesModified?: number
+    totalLinesDeleted?: number
   }
-  risks: string[]
+  risks: PlanRisk[] | string[]  // Support both detailed and simple format
+  dependencies?: DependencyInfo
+  securityConsiderations?: SecurityConsideration[]
+  performanceConsiderations?: PerformanceConsideration[]
+  testingPlan?: TestingPlan
+  documentation?: DocumentationPlan
   questions?: string[]  // Clarifying questions for the user
+  assumptions?: string[]  // Assumptions made during planning
 }
 
 /** Plan message event - chat message during planning */
