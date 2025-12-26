@@ -197,12 +197,13 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             <button
               onClick={handleSubmit}
               disabled={disabled}
+              title={enablePlanning ? 'Start planning phase' : mission.trim() ? 'Launch session with mission' : 'Launch polish-only session'}
               className={`
                 flex-1 px-5 py-2.5 rounded font-bold transition-all
                 ${enablePlanning
                   ? 'bg-orange-600/20 hover:bg-orange-600/30 border border-orange-400 text-orange-400'
                   : 'bg-green-600/20 hover:bg-green-600/30 border border-green-400 text-green-400'}
-                hover:box-glow uppercase text-sm tracking-wider
+                hover:box-glow hover:scale-105 uppercase text-sm tracking-wider
                 flex items-center justify-center gap-2 group
                 disabled:opacity-50 disabled:cursor-not-allowed
               `}

@@ -15,6 +15,7 @@ interface SessionListProps {
 }
 
 type FilterStatus = 'all' | 'running' | 'completed' | 'failed'
+type SortBy = 'newest' | 'oldest' | 'score' | 'commits'
 
 export function SessionList({
   sessions,
@@ -27,6 +28,8 @@ export function SessionList({
 }: SessionListProps) {
   const [filter, setFilter] = useState<FilterStatus>('all')
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<SortBy>('newest')
 
   // Active session statuses
   const isActiveStatus = (status: string) =>
@@ -43,13 +46,39 @@ export function SessionList({
     return () => clearInterval(interval)
   }, [sessions, autoRefresh, onRefresh])
 
-  const filteredSessions = sessions.filter(s => {
-    if (filter === 'all') return true
-    if (filter === 'running') return isActiveStatus(s.status)
-    if (filter === 'completed') return s.status === 'completed'
-    if (filter === 'failed') return s.status === 'failed' || s.status === 'cancelled'
-    return true
-  })
+  const filteredSessions = sessions
+    .filter(s => {
+      if (filter === 'all') return true
+      if (filter === 'running') return isActiveStatus(s.status)
+      if (filter === 'completed') return s.status === 'completed'
+      if (filter === 'failed') return s.status === 'failed' || s.status === 'cancelled'
+      return true
+    })
+    .filter(s => {
+      if (!searchQuery) return true
+      const query = searchQuery.toLowerCase()
+      return (
+        s.mission?.toLowerCase().includes(query) ||
+        s.id.toLowerCase().includes(query) ||
+        s.branchName?.toLowerCase().includes(query)
+      )
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'newest':
+          return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+        case 'oldest':
+          return new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+        case 'score':
+          const scoreA = a.finalScore ?? a.initialScore ?? 0
+          const scoreB = b.finalScore ?? b.initialScore ?? 0
+          return scoreB - scoreA
+        case 'commits':
+          return b.commits - a.commits
+        default:
+          return 0
+      }
+    })
 
   const counts = {
     all: sessions.length,
@@ -60,8 +89,33 @@ export function SessionList({
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex items-center justify-between">
+      {/* Search Bar */}
+      <div className="relative">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder=">> Search sessions (mission, ID, branch)..."
+          className="
+            w-full bg-black/50 border border-green-800/50 rounded px-4 py-2.5
+            text-sm text-green-300 placeholder-green-900
+            focus:outline-none focus:border-green-400 focus:box-glow
+            font-mono pl-10
+          "
+        />
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-700">🔍</span>
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-green-400 transition-colors"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* Filters & Sort */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <FilterButton
             label="ALL"
@@ -94,6 +148,16 @@ export function SessionList({
         </div>
 
         <div className="flex items-center gap-3">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="text-[10px] tracking-widest px-2 py-1 rounded border bg-black text-gray-400 border-gray-800 hover:border-green-800 transition-colors cursor-pointer"
+          >
+            <option value="newest">NEWEST FIRST</option>
+            <option value="oldest">OLDEST FIRST</option>
+            <option value="score">HIGHEST SCORE</option>
+            <option value="commits">MOST COMMITS</option>
+          </select>
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={`text-[10px] tracking-widest px-2 py-1 rounded border transition-colors ${
