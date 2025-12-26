@@ -188,11 +188,13 @@ export function SessionDetail({
           if (!isMounted) return
 
           try {
-            const data = JSON.parse((e as MessageEvent).data)
+            const rawData = JSON.parse((e as MessageEvent).data)
+            // Extract server timestamp from payload
+            const { _timestamp, ...data } = rawData
             const polishEvent: PolishEvent = {
               type,
               data,
-              timestamp: new Date()
+              timestamp: _timestamp ? new Date(_timestamp) : new Date()
             }
 
             if (type === 'session_status') {

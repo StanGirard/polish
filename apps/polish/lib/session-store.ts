@@ -281,18 +281,25 @@ export function deleteSession(id: string): void {
 export function addEvent(sessionId: string, event: PolishEvent): void {
   const db = getDb()
   const now = new Date()
+  const timestampStr = now.toISOString()
 
   db.prepare(`
     INSERT INTO session_events (session_id, type, data, timestamp)
     VALUES (?, ?, ?, ?)
-  `).run(sessionId, event.type, JSON.stringify(event.data), now.toISOString())
+  `).run(sessionId, event.type, JSON.stringify(event.data), timestampStr)
+
+  // Include timestamp in the event for subscribers
+  const eventWithTimestamp = {
+    ...event,
+    timestamp: timestampStr
+  }
 
   // Notify subscribers
   const callbacks = eventCallbacks.get(sessionId)
   if (callbacks) {
     callbacks.forEach(callback => {
       try {
-        callback(event)
+        callback(eventWithTimestamp as PolishEvent & { timestamp: string })
       } catch (err) {
         console.error(`[Session Store] Callback error for session ${sessionId}, event ${event.type}:`, err)
       }

@@ -26,17 +26,26 @@ export async function GET(
 
   const stream = new ReadableStream({
     start(controller) {
-      const send = (event: PolishEvent) => {
-        const data = `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`
+      // Send event with timestamp included in the payload
+      const send = (event: PolishEvent & { timestamp?: string }, fallbackTimestamp?: string) => {
+        const timestamp = event.timestamp || fallbackTimestamp || new Date().toISOString()
+        const payload = {
+          ...event.data,
+          _timestamp: timestamp
+        }
+        const data = `event: ${event.type}\ndata: ${JSON.stringify(payload)}\n\n`
         controller.enqueue(encoder.encode(data))
       }
 
-      // Send existing events first
+      // Send existing events first (with their original timestamps)
       const existingEvents = getLatestEvents(id, 200)
       for (const e of existingEvents) {
         try {
           const eventData = JSON.parse(e.data)
-          send({ type: e.type, data: eventData } as PolishEvent)
+          send(
+            { type: e.type, data: eventData } as PolishEvent,
+            e.timestamp.toISOString()
+          )
         } catch (err) {
           console.warn(`[SSE] Skipping malformed event (id: ${e.id}, type: ${e.type}):`, err)
         }
