@@ -21,9 +21,9 @@ describe('exec', () => {
   })
 
   it('should timeout long-running commands', async () => {
-    const result = await exec('sleep 10', process.cwd(), 100)
+    const result = await exec('sleep 5', process.cwd(), 100)
     expect(result.exitCode).toBe(-1)
-  }, 10000)
+  }, 5000)
 
   it('should handle command not found', async () => {
     const result = await exec('nonexistentcommand123', process.cwd())
