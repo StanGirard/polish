@@ -188,9 +188,41 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
   const stats = calculateStats()
 
   // Filter to only show agent-related events and result
-  const agentEvents = events
+  const filteredEvents = events
     .filter(e => e.type === 'agent' || e.type === 'status' || e.type === 'result')
-    .slice(-maxDisplay)
+
+  // Merge PreToolUse and PostToolUse events into single entries
+  const mergedEvents: Array<AgentEvent & { preEvent?: AgentEvent }> = []
+  const pendingPreEvents = new Map<string, { event: AgentEvent; index: number }>()
+
+  for (const event of filteredEvents) {
+    if (event.data.tool && event.data.phase === 'PreToolUse') {
+      // Store PreToolUse event temporarily
+      const key = `${event.data.tool}-${event.timestamp?.getTime() || Date.now()}`
+      pendingPreEvents.set(key, { event, index: mergedEvents.length })
+    } else if (event.data.tool && event.data.phase === 'PostToolUse') {
+      // Find matching PreToolUse event
+      const key = `${event.data.tool}-${event.timestamp?.getTime() || Date.now()}`
+      const preData = pendingPreEvents.get(key)
+
+      if (preData) {
+        // Merge with PreToolUse event
+        mergedEvents.push({ ...event, preEvent: preData.event })
+        pendingPreEvents.delete(key)
+      } else {
+        // No matching PreToolUse, show PostToolUse alone
+        mergedEvents.push(event)
+      }
+    } else if (event.data.phase === 'InProgress') {
+      // Skip InProgress events to reduce clutter
+      continue
+    } else {
+      // Non-tool events (status, result, etc.)
+      mergedEvents.push(event)
+    }
+  }
+
+  const agentEvents = mergedEvents.slice(-maxDisplay)
 
   if (agentEvents.length === 0) {
     return (
@@ -212,7 +244,7 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     })
   }
 
-  const isSubAgentEvent = (event: AgentEvent): boolean => {
+  const isSubAgentEvent = (event: AgentEvent & { preEvent?: AgentEvent }): boolean => {
     return event.data.tool === 'Task' && !!event.data.subAgentType
   }
 
@@ -226,7 +258,7 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     }
   }
 
-  const getIcon = (event: AgentEvent) => {
+  const getIcon = (event: AgentEvent & { preEvent?: AgentEvent }) => {
     // Sub-agent icons
     if (isSubAgentEvent(event)) {
       const config = getSubAgentConfig(event.data.subAgentType)
@@ -236,8 +268,9 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     // Progress indicator for in-progress tools
     if (event.data.phase === 'InProgress') return '⟳'
 
+    // For tool events, always show success icon (merged events are PostToolUse)
     if (event.data.tool) {
-      return event.data.phase === 'PreToolUse' ? '▸' : '✓'
+      return '✓'
     }
     if (event.type === 'result') {
       return event.data.success ? '✓' : '■'
@@ -246,7 +279,7 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     return '●'
   }
 
-  const getColor = (event: AgentEvent) => {
+  const getColor = (event: AgentEvent & { preEvent?: AgentEvent }) => {
     // Sub-agent colors
     if (isSubAgentEvent(event)) {
       const config = getSubAgentConfig(event.data.subAgentType)
@@ -256,8 +289,8 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     // Progress events get a distinct yellow color
     if (event.data.phase === 'InProgress') return 'text-yellow-400'
 
+    // For tool events, always show success color (merged events are PostToolUse)
     if (event.data.tool) {
-      if (event.data.phase === 'PreToolUse') return 'text-cyan-400'
       return 'text-green-600'
     }
     if (event.type === 'result') {
@@ -267,7 +300,7 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     return 'text-gray-400'
   }
 
-  const getBorderClass = (event: AgentEvent) => {
+  const getBorderClass = (event: AgentEvent & { preEvent?: AgentEvent }) => {
     // Sub-agent border colors
     if (isSubAgentEvent(event)) {
       const config = getSubAgentConfig(event.data.subAgentType)
@@ -286,16 +319,14 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
         ? 'border-green-400/70 bg-green-900/10'
         : 'border-orange-400/70 bg-orange-900/10'
     }
-    if (event.data.tool && event.data.phase === 'PreToolUse') {
-      return 'border-cyan-600/50'
-    }
+    // For tool events, always show success border (merged events are PostToolUse)
     if (event.data.tool) {
       return 'border-green-600/30'
     }
     return 'border-gray-800/50'
   }
 
-  const formatTimestamp = (event: AgentEvent) => {
+  const formatTimestamp = (event: AgentEvent & { preEvent?: AgentEvent }) => {
     if (!event.timestamp) return ''
     const date = new Date(event.timestamp)
     const h = date.getHours().toString().padStart(2, '0')
@@ -315,7 +346,7 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     }
   }
 
-  const formatEvent = (event: AgentEvent, isExpanded: boolean) => {
+  const formatEvent = (event: AgentEvent & { preEvent?: AgentEvent }, isExpanded: boolean) => {
     // Special formatting for sub-agents
     if (isSubAgentEvent(event)) {
       const subAgentType = event.data.subAgentType
@@ -369,33 +400,8 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     if (event.data.tool) {
       const tool = event.data.tool
 
-      if (event.data.phase === 'PreToolUse') {
-        const summary = extractToolSummary(tool, event.data.input)
-
-        if (isExpanded) {
-          // Show full JSON when expanded
-          const fullInput = JSON.stringify(event.data.input, null, 2)
-          return (
-            <div className="space-y-1">
-              <div>
-                <span className="font-semibold text-cyan-400">{tool}</span>
-                <span className="text-gray-500 ml-1">: {summary}</span>
-              </div>
-              <pre className="text-[10px] text-gray-600 bg-gray-900/50 p-2 rounded overflow-x-auto max-h-40">
-                {fullInput}
-              </pre>
-            </div>
-          )
-        }
-
-        return (
-          <span>
-            <span className="font-semibold text-cyan-400">{tool}</span>
-            <span className="text-gray-500 ml-1">: {summary}</span>
-          </span>
-        )
-      } else {
-        // PostToolUse - show result summary
+      // For merged events (PostToolUse with preEvent), show complete flow
+      if (event.data.phase === 'PostToolUse') {
         const inputSummary = extractToolSummary(tool, event.data.input)
         const outputSummary = extractOutputSummary(tool, event.data.output)
 
@@ -426,6 +432,32 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
             <span className="text-green-600">{outputSummary}</span>
           </span>
         )
+      } else if (event.data.phase === 'PreToolUse') {
+        // Standalone PreToolUse (shouldn't happen with merging, but keep for safety)
+        const summary = extractToolSummary(tool, event.data.input)
+
+        if (isExpanded) {
+          // Show full JSON when expanded
+          const fullInput = JSON.stringify(event.data.input, null, 2)
+          return (
+            <div className="space-y-1">
+              <div>
+                <span className="font-semibold text-cyan-400">{tool}</span>
+                <span className="text-gray-500 ml-1">: {summary}</span>
+              </div>
+              <pre className="text-[10px] text-gray-600 bg-gray-900/50 p-2 rounded overflow-x-auto max-h-40">
+                {fullInput}
+              </pre>
+            </div>
+          )
+        }
+
+        return (
+          <span>
+            <span className="font-semibold text-cyan-400">{tool}</span>
+            <span className="text-gray-500 ml-1">: {summary}</span>
+          </span>
+        )
       }
     }
 
@@ -442,7 +474,7 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
     return JSON.stringify(event.data).slice(0, isExpanded ? 500 : 100)
   }
 
-  const hasExpandableContent = (event: AgentEvent): boolean => {
+  const hasExpandableContent = (event: AgentEvent & { preEvent?: AgentEvent }): boolean => {
     if (isSubAgentEvent(event)) return true
     if (event.data.tool) {
       const content = event.data.phase === 'PreToolUse'
