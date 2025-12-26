@@ -12,6 +12,102 @@ const SUB_AGENT_CONFIG: Record<string, { icon: string; color: string; borderColo
   'test-analysis': { icon: '🧪', color: 'text-yellow-400', borderColor: 'border-yellow-600/50', bgColor: 'bg-yellow-900/10' },
 }
 
+// Extract relevant info from tool input for concise display
+const extractToolSummary = (tool: string, input: unknown): string => {
+  const data = typeof input === 'object' && input !== null ? input as Record<string, unknown> : {}
+
+  switch (tool.toLowerCase()) {
+    case 'bash': {
+      const cmd = data.command as string || ''
+      // Truncate long commands
+      return cmd.length > 80 ? cmd.slice(0, 77) + '...' : cmd
+    }
+    case 'read': {
+      const filePath = data.file_path as string || ''
+      // Show just filename for short paths, or last 2 segments for context
+      const parts = filePath.split('/')
+      return parts.length > 2 ? parts.slice(-2).join('/') : parts.pop() || filePath
+    }
+    case 'write': {
+      const writePath = data.file_path as string || ''
+      const parts = writePath.split('/')
+      return parts.length > 2 ? parts.slice(-2).join('/') : parts.pop() || writePath
+    }
+    case 'edit': {
+      const editPath = data.file_path as string || ''
+      const parts = editPath.split('/')
+      return parts.length > 2 ? parts.slice(-2).join('/') : parts.pop() || editPath
+    }
+    case 'glob': {
+      return data.pattern as string || ''
+    }
+    case 'grep': {
+      const pattern = data.pattern as string || ''
+      const path = data.path as string || ''
+      const pathPart = path ? path.split('/').pop() || '' : ''
+      return `"${pattern.slice(0, 30)}"${pathPart ? ` in ${pathPart}` : ''}`
+    }
+    case 'task': {
+      const subType = data.subAgentType as string || ''
+      const desc = data.description as string || ''
+      return subType || desc || 'agent'
+    }
+    default: {
+      const str = JSON.stringify(input)
+      return str.length > 50 ? str.slice(0, 47) + '...' : str
+    }
+  }
+}
+
+// Extract summary from tool output for concise display
+const extractOutputSummary = (tool: string, output: unknown): string => {
+  const data = typeof output === 'object' && output !== null ? output as Record<string, unknown> : {}
+
+  switch (tool.toLowerCase()) {
+    case 'bash': {
+      const stderr = data.stderr as string || ''
+      if (stderr && stderr.trim()) {
+        return `err: ${stderr.trim().slice(0, 40)}...`
+      }
+      const stdout = data.stdout as string || ''
+      if (!stdout || !stdout.trim()) return '(empty)'
+      const lines = stdout.split('\n').filter(l => l.trim()).length
+      return `${lines} line${lines !== 1 ? 's' : ''}`
+    }
+    case 'read': {
+      const file = data.file as Record<string, unknown> | undefined
+      const content = file?.content as string || ''
+      if (!content) return '(read)'
+      const lines = content.split('\n').length
+      return `${lines} line${lines !== 1 ? 's' : ''}`
+    }
+    case 'glob': {
+      const filenames = data.filenames as string[] || []
+      return `${filenames.length} file${filenames.length !== 1 ? 's' : ''}`
+    }
+    case 'grep': {
+      // Grep might return files_with_matches or content
+      if (Array.isArray(data)) {
+        return `${data.length} match${data.length !== 1 ? 'es' : ''}`
+      }
+      const str = JSON.stringify(output)
+      return str.length > 30 ? str.slice(0, 27) + '...' : str
+    }
+    case 'edit':
+    case 'write': {
+      return 'done'
+    }
+    case 'task': {
+      const str = typeof output === 'string' ? output : JSON.stringify(output)
+      return str.length > 50 ? str.slice(0, 47) + '...' : str
+    }
+    default: {
+      const str = typeof output === 'string' ? output : JSON.stringify(output)
+      return str.length > 50 ? str.slice(0, 47) + '...' : str
+    }
+  }
+}
+
 interface AgentEvent {
   type: string
   data: {
@@ -269,21 +365,67 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
       )
     }
 
-    // Regular tool events
+    // Regular tool events - concise display with expand option
     if (event.data.tool) {
       const tool = event.data.tool
+
       if (event.data.phase === 'PreToolUse') {
-        const input = typeof event.data.input === 'string'
-          ? event.data.input
-          : JSON.stringify(event.data.input)
-        const maxLen = isExpanded ? 500 : 60
-        return `${tool.toUpperCase()}(${input.slice(0, maxLen)}${input.length > maxLen ? '...' : ''})`
+        const summary = extractToolSummary(tool, event.data.input)
+
+        if (isExpanded) {
+          // Show full JSON when expanded
+          const fullInput = JSON.stringify(event.data.input, null, 2)
+          return (
+            <div className="space-y-1">
+              <div>
+                <span className="font-semibold text-cyan-400">{tool}</span>
+                <span className="text-gray-500 ml-1">: {summary}</span>
+              </div>
+              <pre className="text-[10px] text-gray-600 bg-gray-900/50 p-2 rounded overflow-x-auto max-h-40">
+                {fullInput}
+              </pre>
+            </div>
+          )
+        }
+
+        return (
+          <span>
+            <span className="font-semibold text-cyan-400">{tool}</span>
+            <span className="text-gray-500 ml-1">: {summary}</span>
+          </span>
+        )
       } else {
-        const output = typeof event.data.output === 'string'
-          ? event.data.output
-          : JSON.stringify(event.data.output)
-        const maxLen = isExpanded ? 800 : 80
-        return `${tool.toUpperCase()} → ${output.slice(0, maxLen)}${output.length > maxLen ? '...' : ''}`
+        // PostToolUse - show result summary
+        const inputSummary = extractToolSummary(tool, event.data.input)
+        const outputSummary = extractOutputSummary(tool, event.data.output)
+
+        if (isExpanded) {
+          // Show full JSON when expanded
+          const fullOutput = JSON.stringify(event.data.output, null, 2)
+          const truncatedOutput = fullOutput.length > 2000 ? fullOutput.slice(0, 2000) + '\n...(truncated)' : fullOutput
+          return (
+            <div className="space-y-1">
+              <div>
+                <span className="font-semibold text-green-500">{tool}</span>
+                <span className="text-gray-500 ml-1">: {inputSummary}</span>
+                <span className="text-gray-400 mx-2">→</span>
+                <span className="text-green-600">{outputSummary}</span>
+              </div>
+              <pre className="text-[10px] text-gray-600 bg-gray-900/50 p-2 rounded overflow-x-auto max-h-40">
+                {truncatedOutput}
+              </pre>
+            </div>
+          )
+        }
+
+        return (
+          <span>
+            <span className="font-semibold text-green-500">{tool}</span>
+            <span className="text-gray-500 ml-1">: {inputSummary}</span>
+            <span className="text-gray-400 mx-2">→</span>
+            <span className="text-green-600">{outputSummary}</span>
+          </span>
+        )
       }
     }
 
