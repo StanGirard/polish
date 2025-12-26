@@ -14,14 +14,14 @@
     {
       "name": "testCoverage",
       "weight": 20,
-      "command": "pnpm test:coverage 2>&1 | grep 'All files' | awk '{print $4}' | tr -d '%' || echo 0",
+      "command": "bun test:coverage 2>&1 | grep 'All files' | awk '{print $4}' | tr -d '%' || echo 0",
       "higherIsBetter": true,
       "target": 80
     },
     {
       "name": "testsFailing",
       "weight": 15,
-      "command": "pnpm test 2>&1 | grep -c 'FAIL' || echo 0",
+      "command": "bun test 2>&1 | grep -c 'FAIL' || echo 0",
       "higherIsBetter": false,
       "target": 0
     },
@@ -65,12 +65,12 @@
     {
       "name": "add-tests",
       "focus": "testCoverage",
-      "prompt": "Increase test coverage. Run `pnpm test:coverage` to see current coverage. Identify ONE file with low coverage in lib/ and add tests for its uncovered functions. Create the test file in lib/__tests__/."
+      "prompt": "Increase test coverage. Run `bun test:coverage` to see current coverage. Identify ONE file with low coverage in lib/ and add tests for its uncovered functions. Create the test file in lib/__tests__/."
     },
     {
       "name": "fix-tests",
       "focus": "testsFailing",
-      "prompt": "Fix a failing test. Run `pnpm test` to see tests, identify ONE failing test, then fix it."
+      "prompt": "Fix a failing test. Run `bun test` to see tests, identify ONE failing test, then fix it."
     },
     {
       "name": "fix-types",

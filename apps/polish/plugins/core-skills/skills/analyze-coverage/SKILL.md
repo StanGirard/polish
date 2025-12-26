@@ -11,7 +11,7 @@ Use this skill when you need to:
 
 ## Instructions
 
-1. Run the coverage command: `pnpm test:coverage` or `npm test -- --coverage`
+1. Run the coverage command: `bun test --coverage` or `bun test:coverage`
 2. Parse the coverage report to identify files below threshold
 3. Focus on `lib/` and `app/` directories
 4. Exclude configuration files and generated code
