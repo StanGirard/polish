@@ -137,6 +137,9 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
       if (config) return config.icon
     }
 
+    // Progress indicator for in-progress tools
+    if (event.data.phase === 'InProgress') return '⟳'
+
     if (event.data.tool) {
       return event.data.phase === 'PreToolUse' ? '▸' : '✓'
     }
@@ -153,6 +156,9 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
       const config = getSubAgentConfig(event.data.subAgentType)
       if (config) return config.color
     }
+
+    // Progress events get a distinct yellow color
+    if (event.data.phase === 'InProgress') return 'text-yellow-400'
 
     if (event.data.tool) {
       if (event.data.phase === 'PreToolUse') return 'text-cyan-400'
@@ -172,6 +178,11 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
       if (config) {
         return `${config.borderColor} ${config.bgColor}`
       }
+    }
+
+    // Progress events get a yellow border with subtle background
+    if (event.data.phase === 'InProgress') {
+      return 'border-yellow-600/50 bg-yellow-900/10'
     }
 
     if (event.type === 'result') {
@@ -243,6 +254,19 @@ export function EventLog({ events, maxDisplay = 30, showStats = true }: EventLog
           </span>
         )
       }
+    }
+
+    // Progress events (InProgress phase)
+    if (event.data.phase === 'InProgress') {
+      const tool = event.data.tool || 'Tool'
+      const elapsed = event.data.elapsedTime as number | undefined
+      const elapsedStr = elapsed != null ? ` (${elapsed.toFixed(1)}s)` : ''
+      return (
+        <span className="animate-pulse">
+          <span className="font-semibold">{tool.toUpperCase()}</span>
+          <span className="text-yellow-500 ml-2">running...{elapsedStr}</span>
+        </span>
+      )
     }
 
     // Regular tool events

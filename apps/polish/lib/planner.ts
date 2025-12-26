@@ -445,12 +445,6 @@ export async function* runPlanningPhase(
         permissionMode: 'default', // More restrictive in planning
         maxTurns: maxTurnsMap[thoroughness],
         maxThinkingTokens: thoroughness === 'thorough' ? 32000 : 16000,
-        env: {
-          ...process.env,
-          ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api',
-          ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || process.env.OPENROUTER_API_KEY,
-          ANTHROPIC_API_KEY: ''
-        },
         hooks: {
           PreToolUse: [{ hooks: [toolHook] }],
           PostToolUse: [{ hooks: [toolHook] }]
@@ -460,6 +454,26 @@ export async function* runPlanningPhase(
       // Yield hook events
       while (hookEvents.length > 0) {
         yield hookEvents.shift()!
+      }
+
+      // Handle tool progress for real-time visibility during long-running operations
+      if (message.type === 'tool_progress') {
+        const isSubAgent = message.tool_name === 'Task'
+
+        yield {
+          type: 'agent',
+          data: {
+            phase: 'InProgress',
+            tool: message.tool_name,
+            elapsedTime: message.elapsed_time_seconds,
+            toolUseId: message.tool_use_id,
+            parentToolUseId: message.parent_tool_use_id,
+            message: isSubAgent
+              ? `Sub-agent running... (${message.elapsed_time_seconds.toFixed(1)}s)`
+              : `${message.tool_name} in progress... (${message.elapsed_time_seconds.toFixed(1)}s)`
+          }
+        }
+        continue
       }
 
       // Process SDK messages

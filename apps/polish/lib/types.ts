@@ -50,44 +50,13 @@ export interface SdkPluginConfig {
 }
 
 /**
- * Model size abstraction for agent configuration
- * This allows backends like OpenRouter to map to their own model equivalents:
- * - small: Fast, lightweight model (maps to haiku by default)
- * - medium: Balanced capability model (maps to sonnet by default)
- * - big: Most capable model (maps to opus by default)
+ * Model size - uses SDK-compatible model names directly
+ * - haiku: Fast, lightweight model
+ * - sonnet: Balanced capability model
+ * - opus: Most capable model
  * - inherit: Use the parent agent's model
  */
-export type ModelSize = 'small' | 'medium' | 'big' | 'inherit'
-
-/**
- * Default model mapping from size to Claude model names
- * This can be overridden by the backend (e.g., OpenRouter)
- */
-export const DEFAULT_MODEL_MAPPING: Record<Exclude<ModelSize, 'inherit'>, string> = {
-  small: 'haiku',
-  medium: 'sonnet',
-  big: 'opus'
-}
-
-/**
- * Resolve a model size to an actual model name
- * @param size - The model size (small, medium, big, inherit)
- * @param customMapping - Optional custom mapping to override defaults
- * @param inheritedModel - The model to use when size is 'inherit'
- * @returns The resolved model name
- */
-export function resolveModelSize(
-  size: ModelSize | undefined,
-  customMapping?: Partial<Record<Exclude<ModelSize, 'inherit'>, string>>,
-  inheritedModel?: string
-): string {
-  if (!size || size === 'inherit') {
-    return inheritedModel || DEFAULT_MODEL_MAPPING.medium
-  }
-
-  const mapping = { ...DEFAULT_MODEL_MAPPING, ...customMapping }
-  return mapping[size]
-}
+export type ModelSize = 'haiku' | 'sonnet' | 'opus' | 'inherit'
 
 /** Custom agent definition (matches SDK AgentDefinition) */
 export interface AgentDefinition {
@@ -277,11 +246,16 @@ export interface StrategyEventData {
 }
 
 export interface AgentEventData {
-  phase?: 'PreToolUse' | 'PostToolUse'
+  phase?: 'PreToolUse' | 'PostToolUse' | 'InProgress'
   tool?: string
   input?: unknown
   output?: unknown
   message?: string
+  subAgentType?: string
+  // Progress event fields
+  elapsedTime?: number
+  toolUseId?: string
+  parentToolUseId?: string | null
 }
 
 export interface CommitEventData {

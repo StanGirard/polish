@@ -230,12 +230,6 @@ export async function* runImplementPhase(
           maxTurns: 30,
           maxThinkingTokens: 16000,
           resume: sessionId,
-          env: {
-            ...process.env,
-            ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api',
-            ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || process.env.OPENROUTER_API_KEY,
-            ANTHROPIC_API_KEY: ''
-          },
           hooks: {
             PreToolUse: [{ hooks: [toolHook] }],
             PostToolUse: [{ hooks: [toolHook] }]
