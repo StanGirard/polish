@@ -126,8 +126,8 @@ export function SessionDetail({
 
   // Streaming states for real-time planning display
   const [streamingText, setStreamingText] = useState('')
-  const [thinkingText, setThinkingText] = useState('')
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false)
+  const [thinkingBlocks, setThinkingBlocks] = useState<Array<{ id: string; text: string; timestamp: Date }>>([])
+  const [expandedThinkingBlocks, setExpandedThinkingBlocks] = useState<Set<string>>(new Set())
   const [isStreaming, setIsStreaming] = useState(false)
 
   // Connection status for SSE
@@ -137,6 +137,9 @@ export function SessionDetail({
 
   // Maximum streaming text size (1MB) to prevent memory issues
   const MAX_STREAMING_TEXT_SIZE = 1024 * 1024
+
+  // Track the current thinking block being streamed
+  const currentThinkingBlockRef = useRef<{ id: string; startedAt: Date } | null>(null)
 
   // Initialize notification permission
   useEffect(() => {
@@ -234,8 +237,9 @@ export function SessionDetail({
               if (data.plan) setCurrentPlan(data.plan as PlanStep[])
               // Reset streaming states when plan is approved
               setStreamingText('')
-              setThinkingText('')
+              setThinkingBlocks([])
               setIsStreaming(false)
+              currentThinkingBlockRef.current = null
             }
 
             // Planning streaming events with size limit
@@ -254,20 +258,55 @@ export function SessionDetail({
 
             if (type === 'plan_thinking') {
               setIsStreaming(true)
-              setThinkingText(prev => {
-                const newText = prev + (data.chunk || '')
-                // Truncate if too large to prevent memory issues
-                if (newText.length > MAX_STREAMING_TEXT_SIZE) {
-                  console.warn('[SSE] Thinking text truncated due to size limit')
-                  return newText.slice(-MAX_STREAMING_TEXT_SIZE)
+              const chunk = data.chunk || ''
+              const now = new Date()
+
+              if (!chunk.trim()) return
+
+              // Each substantial thinking event is typically a separate thinking session
+              // We detect boundaries by looking for:
+              // 1. First thinking chunk (no current block)
+              // 2. Chunks that start with clear section markers or after a gap
+              const lastBlock = currentThinkingBlockRef.current
+              const timeSinceLastBlock = lastBlock ? now.getTime() - lastBlock.startedAt.getTime() : Infinity
+              const looksLikeNewSection = chunk.match(/^(Let me|I need to|Now let me|First|To |Looking at|I'll |I will|Okay|Alright)/)
+
+              // Start new block if: no current block, time gap > 2s, or clear section marker
+              const startsNewBlock = !lastBlock || timeSinceLastBlock > 2000 || looksLikeNewSection
+
+              if (startsNewBlock) {
+                // Create a new thinking block
+                const blockId = `thinking-${now.getTime()}-${Math.random()}`
+                currentThinkingBlockRef.current = { id: blockId, startedAt: now }
+
+                setThinkingBlocks(prev => [...prev, {
+                  id: blockId,
+                  text: chunk,
+                  timestamp: now
+                }])
+              } else {
+                // Append to the current thinking block
+                setThinkingBlocks(prev => {
+                  const blocks = [...prev]
+                  if (blocks.length > 0) {
+                    blocks[blocks.length - 1] = {
+                      ...blocks[blocks.length - 1],
+                      text: blocks[blocks.length - 1].text + chunk
+                    }
+                  }
+                  return blocks
+                })
+                // Update timestamp to track continuity
+                if (currentThinkingBlockRef.current) {
+                  currentThinkingBlockRef.current.startedAt = now
                 }
-                return newText
-              })
+              }
             }
 
             // Reset streaming when plan is received (end of streaming)
             if (type === 'plan') {
               setIsStreaming(false)
+              currentThinkingBlockRef.current = null
             }
 
             // Send browser notification for important events
@@ -444,7 +483,7 @@ export function SessionDetail({
         )}
 
         {/* Planning Streaming Panel (when planning is in progress) */}
-        {session.status === 'planning' && (streamingText || thinkingText || isStreaming) && (
+        {session.status === 'planning' && (streamingText || thinkingBlocks.length > 0 || isStreaming) && (
           <div className="mb-6 p-5 bg-black rounded border border-orange-500/30 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-400 to-transparent" />
             <div className="text-orange-400 text-xs mb-4 uppercase tracking-widest flex items-center gap-2">
@@ -453,24 +492,57 @@ export function SessionDetail({
               {isStreaming && <span className="text-orange-300 animate-pulse">▋</span>}
             </div>
 
-            {/* Thinking Toggle (Ultrathink mode) */}
-            {thinkingText && (
-              <div className="mb-4">
-                <button
-                  onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-                  className="flex items-center gap-2 text-purple-400 text-xs uppercase tracking-widest hover:text-purple-300 transition-colors"
-                >
-                  <span>{isThinkingExpanded ? '▼' : '▶'}</span>
-                  <span>Extended Thinking</span>
-                  <span className="text-purple-600 text-[10px]">({thinkingText.length} chars)</span>
-                </button>
-                {isThinkingExpanded && (
-                  <div className="mt-2 p-3 bg-purple-900/20 rounded border border-purple-800/30 max-h-64 overflow-y-auto">
-                    <pre className="text-purple-300 text-xs whitespace-pre-wrap font-mono leading-relaxed">
-                      {thinkingText}
-                    </pre>
-                  </div>
-                )}
+            {/* Extended Thinking Blocks */}
+            {thinkingBlocks.length > 0 && (
+              <div className="mb-4 space-y-2">
+                <div className="text-purple-400 text-xs uppercase tracking-widest flex items-center gap-2">
+                  <span>💭</span>
+                  <span>Extended Thinking ({thinkingBlocks.length} {thinkingBlocks.length === 1 ? 'block' : 'blocks'})</span>
+                </div>
+                {thinkingBlocks.map((block, idx) => {
+                  const isExpanded = expandedThinkingBlocks.has(block.id)
+                  const isLastBlock = idx === thinkingBlocks.length - 1
+                  const isStillStreaming = isLastBlock && isStreaming
+
+                  return (
+                    <div key={block.id} className="border border-purple-800/30 rounded overflow-hidden">
+                      <button
+                        onClick={() => {
+                          setExpandedThinkingBlocks(prev => {
+                            const next = new Set(prev)
+                            if (next.has(block.id)) {
+                              next.delete(block.id)
+                            } else {
+                              next.add(block.id)
+                            }
+                            return next
+                          })
+                        }}
+                        className="w-full flex items-center gap-2 p-2 bg-purple-900/20 text-purple-400 text-xs hover:bg-purple-900/30 transition-colors"
+                      >
+                        <span>{isExpanded ? '▼' : '▶'}</span>
+                        <span className="font-medium">Thinking Block #{idx + 1}</span>
+                        <span className="text-purple-600 text-[10px]">
+                          ({block.text.length.toLocaleString()} chars)
+                        </span>
+                        {isStillStreaming && (
+                          <span className="ml-auto text-purple-300 animate-pulse">●</span>
+                        )}
+                        <span className="ml-auto text-purple-700 text-[10px]">
+                          {block.timestamp.toLocaleTimeString()}
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div className="p-3 bg-purple-900/10 border-t border-purple-800/30 max-h-64 overflow-y-auto">
+                          <pre className="text-purple-300 text-xs whitespace-pre-wrap font-mono leading-relaxed">
+                            {block.text}
+                            {isStillStreaming && <span className="text-purple-400 animate-pulse">▋</span>}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
 
@@ -485,7 +557,7 @@ export function SessionDetail({
             )}
 
             {/* Empty state while waiting for first chunk */}
-            {!streamingText && !thinkingText && isStreaming && (
+            {!streamingText && thinkingBlocks.length === 0 && isStreaming && (
               <div className="flex items-center gap-3 text-gray-500 text-sm">
                 <span className="animate-spin">⟳</span>
                 <span>Analyzing codebase...</span>
