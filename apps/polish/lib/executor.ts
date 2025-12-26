@@ -15,6 +15,7 @@ export async function exec(
     const child = spawn('sh', ['-c', command], {
       cwd,
       env: { ...process.env },
+      detached: true,
     })
 
     let stdout = ''
@@ -23,7 +24,11 @@ export async function exec(
 
     const timer = setTimeout(() => {
       killed = true
-      child.kill('SIGTERM')
+      try {
+        process.kill(-child.pid!, 'SIGKILL')
+      } catch {
+        child.kill('SIGKILL')
+      }
     }, timeout)
 
     child.stdout.on('data', (data) => {
