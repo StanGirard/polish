@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { CapabilitiesSelector } from './CapabilitiesSelector'
+import { apiFetch } from '@/app/lib/api-client'
 import type { CapabilityOverride } from '@/lib/types'
 
 interface CapabilitiesConfig {
@@ -28,7 +29,7 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
   // Fetch capabilities when expanded
   useEffect(() => {
     if (isExpanded && !capabilities) {
-      fetch('/api/capabilities')
+      apiFetch('/api/capabilities')
         .then(res => res.json())
         .then(data => setCapabilities(data))
         .catch(err => console.error('Failed to load capabilities:', err))

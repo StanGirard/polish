@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FileChangesList, type FileChange } from './FileChangesList'
 import { FileDiffViewer } from './FileDiffViewer'
+import { apiFetch } from '@/app/lib/api-client'
 
 interface FileDiff {
   path: string
@@ -34,7 +35,7 @@ export function FileChangesSection({ sessionId, branchName }: FileChangesSection
       setError(null)
 
       try {
-        const response = await fetch(`/api/sessions/${sessionId}/files`)
+        const response = await apiFetch(`/api/sessions/${sessionId}/files`)
         const data = await response.json()
 
         if (data.error) {
@@ -61,7 +62,7 @@ export function FileChangesSection({ sessionId, branchName }: FileChangesSection
     setDiff(null)
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/sessions/${sessionId}/files?path=${encodeURIComponent(path)}`
       )
       const data = await response.json()

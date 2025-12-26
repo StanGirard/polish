@@ -5,6 +5,8 @@ import { SessionList } from './components/SessionList'
 import { SessionDetail } from './components/SessionDetail'
 import { NewSessionForm } from './components/NewSessionForm'
 import { SystemMonitor } from './components/SystemMonitor'
+import { BackendSettings, BackendIndicator } from './components/BackendSettings'
+import { apiFetch } from '@/app/lib/api-client'
 import type { Session } from '@/lib/session-store'
 import type { CapabilityOverride } from '@/lib/types'
 
@@ -12,6 +14,7 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [prState, setPrState] = useState<{
     sessionId: string
     loading: boolean
@@ -22,7 +25,7 @@ export default function Home() {
   // Load sessions
   const loadSessions = useCallback(async () => {
     try {
-      const res = await fetch('/api/sessions')
+      const res = await apiFetch('/api/sessions')
       if (res.ok) {
         const data = await res.json()
         setSessions(data.sessions.map((s: Session) => ({
@@ -50,7 +53,7 @@ export default function Home() {
   ) => {
     setIsCreating(true)
     try {
-      const res = await fetch('/api/sessions', {
+      const res = await apiFetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -77,7 +80,7 @@ export default function Home() {
   // Cancel session
   const handleCancelSession = async (sessionId: string) => {
     try {
-      await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+      await apiFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
       await loadSessions()
     } catch (error) {
       console.error('Failed to cancel session:', error)
@@ -87,7 +90,7 @@ export default function Home() {
   // Delete session
   const handleDeleteSession = async (sessionId: string) => {
     try {
-      await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+      await apiFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
       if (selectedSessionId === sessionId) {
         setSelectedSessionId(null)
       }
@@ -104,7 +107,7 @@ export default function Home() {
     setPrState({ sessionId: session.id, loading: true })
 
     try {
-      const res = await fetch('/api/create-pr', {
+      const res = await apiFetch('/api/create-pr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,7 +136,7 @@ export default function Home() {
   // Retry session with feedback
   const handleRetrySession = async (sessionId: string, feedback: string) => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/retry`, {
+      const res = await apiFetch(`/api/sessions/${sessionId}/retry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feedback })
@@ -155,7 +158,7 @@ export default function Home() {
     comment?: string
   ) => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/feedback`, {
+      const res = await apiFetch(`/api/sessions/${sessionId}/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rating, comment })
@@ -172,7 +175,7 @@ export default function Home() {
   // Approve plan and start implementation
   const handleApprovePlan = async (sessionId: string, plan?: unknown[]) => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/approve`, {
+      const res = await apiFetch(`/api/sessions/${sessionId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan })
@@ -189,7 +192,7 @@ export default function Home() {
   // Reject plan (with or without reason)
   const handleRejectPlan = async (sessionId: string, reason?: string) => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/reject`, {
+      const res = await apiFetch(`/api/sessions/${sessionId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -206,7 +209,7 @@ export default function Home() {
   // Send message during planning phase
   const handleSendPlanMessage = async (sessionId: string, message: string) => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/plan`, {
+      const res = await apiFetch(`/api/sessions/${sessionId}/plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message })
@@ -223,7 +226,7 @@ export default function Home() {
   // Abort session (planning or running)
   const handleAbortSession = async (sessionId: string) => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/abort`, {
+      const res = await apiFetch(`/api/sessions/${sessionId}/abort`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -269,7 +272,8 @@ export default function Home() {
                 █▓▒░ LLM-DRIVEN OPTIMIZATION ENGINE ░▒▓█
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-right flex items-start gap-4">
+              <BackendIndicator onClick={() => setShowSettings(true)} />
               {activeSessions.length > 0 ? (
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex items-center gap-2 px-3 py-1.5 border border-green-500/30 rounded bg-green-950/20">
@@ -414,6 +418,12 @@ export default function Home() {
           onAbortSession={handleAbortSession}
         />
       )}
+
+      {/* Backend Settings Modal */}
+      <BackendSettings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </main>
   )
 }

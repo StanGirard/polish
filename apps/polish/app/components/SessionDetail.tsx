@@ -12,6 +12,7 @@ import {
   getNotificationsEnabled,
   requestNotificationPermission
 } from '@/app/lib/notifications'
+import { createApiEventSource } from '@/app/lib/api-client'
 import type { Session } from '@/lib/session-store'
 import type { MetricResult, PlanStep } from '@/lib/types'
 
@@ -166,7 +167,7 @@ export function SessionDetail({
       }
 
       setConnectionStatus('connecting')
-      const eventSource = new EventSource(`/api/sessions/${session.id}/stream`)
+      const eventSource = createApiEventSource(`/api/sessions/${session.id}/stream`)
       eventSourceRef.current = eventSource
 
       eventSource.onopen = () => {
