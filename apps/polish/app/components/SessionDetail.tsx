@@ -130,142 +130,219 @@ export function SessionDetail({
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
 
+  // Connection status for SSE
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting')
+  const reconnectAttemptsRef = useRef(0)
+  const maxReconnectAttempts = 5
+
+  // Maximum streaming text size (1MB) to prevent memory issues
+  const MAX_STREAMING_TEXT_SIZE = 1024 * 1024
+
   // Initialize notification permission
   useEffect(() => {
     setNotificationsEnabled(getNotificationsEnabled())
   }, [])
 
-  // Subscribe to SSE stream
+  // Use ref to access notificationsEnabled in event handlers without causing reconnects
+  const notificationsEnabledRef = useRef(notificationsEnabled)
   useEffect(() => {
-    const eventSource = new EventSource(`/api/sessions/${session.id}/stream`)
-    eventSourceRef.current = eventSource
+    notificationsEnabledRef.current = notificationsEnabled
+  }, [notificationsEnabled])
 
-    eventSource.onmessage = (event) => {
-      // Handle generic messages if needed
-    }
+  // Subscribe to SSE stream with reconnection logic
+  useEffect(() => {
+    let isMounted = true
+    let reconnectTimeoutId: NodeJS.Timeout | null = null
 
-    // Handle specific event types
-    const eventTypes = [
-      'init', 'phase', 'implement_done', 'score', 'strategy',
-      'agent', 'commit', 'rollback', 'result', 'error', 'status',
-      'worktree_created', 'worktree_cleanup', 'session_status', 'done', 'aborted',
-      // Planning phase events
-      'plan', 'plan_message', 'plan_approved', 'plan_rejected',
-      // Planning streaming events
-      'plan_stream', 'plan_thinking'
-    ]
+    const createEventSource = () => {
+      if (!isMounted) return
 
-    for (const type of eventTypes) {
-      eventSource.addEventListener(type, (e) => {
-        try {
-          const data = JSON.parse((e as MessageEvent).data)
-          const polishEvent: PolishEvent = {
-            type,
-            data,
-            timestamp: new Date()
+      // Close existing connection if any
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
+
+      setConnectionStatus('connecting')
+      const eventSource = new EventSource(`/api/sessions/${session.id}/stream`)
+      eventSourceRef.current = eventSource
+
+      eventSource.onopen = () => {
+        if (!isMounted) return
+        setConnectionStatus('connected')
+        reconnectAttemptsRef.current = 0 // Reset attempts on successful connection
+      }
+
+      // Handle specific event types
+      const eventTypes = [
+        'init', 'phase', 'implement_done', 'score', 'strategy',
+        'agent', 'commit', 'rollback', 'result', 'error', 'status',
+        'worktree_created', 'worktree_cleanup', 'session_status', 'done', 'aborted',
+        // Planning phase events
+        'plan', 'plan_message', 'plan_approved', 'plan_rejected',
+        // Planning streaming events
+        'plan_stream', 'plan_thinking'
+      ]
+
+      for (const type of eventTypes) {
+        eventSource.addEventListener(type, (e) => {
+          if (!isMounted) return
+
+          try {
+            const data = JSON.parse((e as MessageEvent).data)
+            const polishEvent: PolishEvent = {
+              type,
+              data,
+              timestamp: new Date()
+            }
+
+            if (type === 'session_status') {
+              // Initial status update
+              if (data.initialScore) setInitialScore(data.initialScore)
+              if (data.finalScore) setScore(data.finalScore)
+              return
+            }
+
+            if (type === 'done') {
+              setConnectionStatus('disconnected')
+              eventSource.close()
+              return
+            }
+
+            setEvents(prev => [...prev, polishEvent])
+
+            // Update state based on event type
+            if (type === 'init') {
+              setInitialScore(data.initialScore)
+              setScore(data.initialScore)
+              if (data.metrics) setMetrics(data.metrics)
+            }
+
+            if (type === 'phase') {
+              setCurrentPhase(data.phase as 'planning' | 'implement' | 'polish')
+            }
+
+            // Planning events
+            if (type === 'plan') {
+              if (data.plan) setCurrentPlan(data.plan as PlanStep[])
+              if (data.summary) setPlanSummary(data.summary as string)
+              if (data.risks) setPlanRisks(data.risks as Risk[])
+            }
+
+            if (type === 'plan_approved') {
+              if (data.plan) setCurrentPlan(data.plan as PlanStep[])
+              // Reset streaming states when plan is approved
+              setStreamingText('')
+              setThinkingText('')
+              setIsStreaming(false)
+            }
+
+            // Planning streaming events with size limit
+            if (type === 'plan_stream') {
+              setIsStreaming(true)
+              setStreamingText(prev => {
+                const newText = prev + (data.chunk || '')
+                // Truncate if too large to prevent memory issues
+                if (newText.length > MAX_STREAMING_TEXT_SIZE) {
+                  console.warn('[SSE] Streaming text truncated due to size limit')
+                  return newText.slice(-MAX_STREAMING_TEXT_SIZE)
+                }
+                return newText
+              })
+            }
+
+            if (type === 'plan_thinking') {
+              setIsStreaming(true)
+              setThinkingText(prev => {
+                const newText = prev + (data.chunk || '')
+                // Truncate if too large to prevent memory issues
+                if (newText.length > MAX_STREAMING_TEXT_SIZE) {
+                  console.warn('[SSE] Thinking text truncated due to size limit')
+                  return newText.slice(-MAX_STREAMING_TEXT_SIZE)
+                }
+                return newText
+              })
+            }
+
+            // Reset streaming when plan is received (end of streaming)
+            if (type === 'plan') {
+              setIsStreaming(false)
+            }
+
+            // Send browser notification for important events
+            if (notificationsEnabledRef.current) {
+              handleEventNotification(session.id, type, data)
+            }
+
+            if (type === 'score') {
+              setScore(data.score)
+              if (data.metrics) setMetrics(data.metrics)
+            }
+
+            if (type === 'strategy') {
+              setCurrentStrategy(data.focus)
+            }
+
+            if (type === 'commit') {
+              setCommits(prev => [...prev, {
+                hash: data.hash,
+                message: data.message,
+                scoreDelta: data.scoreDelta
+              }])
+              setCurrentStrategy(null)
+            }
+
+            if (type === 'rollback') {
+              setCurrentStrategy(null)
+            }
+
+            if (type === 'result') {
+              setCurrentPhase('idle')
+              setConnectionStatus('disconnected')
+              if (data.finalScore) setScore(data.finalScore)
+            }
+          } catch (err) {
+            console.error('[SSE] Failed to parse event data:', err, 'Event type:', type)
           }
+        })
+      }
 
-          if (type === 'session_status') {
-            // Initial status update
-            if (data.initialScore) setInitialScore(data.initialScore)
-            if (data.finalScore) setScore(data.finalScore)
-            return
-          }
+      eventSource.onerror = (err) => {
+        if (!isMounted) return
 
-          if (type === 'done') {
-            eventSource.close()
-            return
-          }
+        console.error('[SSE] Connection error:', err)
+        setConnectionStatus('error')
+        eventSource.close()
 
-          setEvents(prev => [...prev, polishEvent])
+        // Attempt reconnection with exponential backoff
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000)
+          console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`)
+          reconnectAttemptsRef.current++
 
-          // Update state based on event type
-          if (type === 'init') {
-            setInitialScore(data.initialScore)
-            setScore(data.initialScore)
-            if (data.metrics) setMetrics(data.metrics)
-          }
-
-          if (type === 'phase') {
-            setCurrentPhase(data.phase as 'planning' | 'implement' | 'polish')
-          }
-
-          // Planning events
-          if (type === 'plan') {
-            if (data.plan) setCurrentPlan(data.plan as PlanStep[])
-            if (data.summary) setPlanSummary(data.summary as string)
-            if (data.risks) setPlanRisks(data.risks as Risk[])
-          }
-
-          if (type === 'plan_approved') {
-            if (data.plan) setCurrentPlan(data.plan as PlanStep[])
-            // Reset streaming states when plan is approved
-            setStreamingText('')
-            setThinkingText('')
-            setIsStreaming(false)
-          }
-
-          // Planning streaming events
-          if (type === 'plan_stream') {
-            setIsStreaming(true)
-            setStreamingText(prev => prev + (data.chunk || ''))
-          }
-
-          if (type === 'plan_thinking') {
-            setIsStreaming(true)
-            setThinkingText(prev => prev + (data.chunk || ''))
-          }
-
-          // Reset streaming when plan is received (end of streaming)
-          if (type === 'plan') {
-            setIsStreaming(false)
-          }
-
-          // Send browser notification for important events
-          if (notificationsEnabled) {
-            handleEventNotification(session.id, type, data)
-          }
-
-          if (type === 'score') {
-            setScore(data.score)
-            if (data.metrics) setMetrics(data.metrics)
-          }
-
-          if (type === 'strategy') {
-            setCurrentStrategy(data.focus)
-          }
-
-          if (type === 'commit') {
-            setCommits(prev => [...prev, {
-              hash: data.hash,
-              message: data.message,
-              scoreDelta: data.scoreDelta
-            }])
-            setCurrentStrategy(null)
-          }
-
-          if (type === 'rollback') {
-            setCurrentStrategy(null)
-          }
-
-          if (type === 'result') {
-            setCurrentPhase('idle')
-            if (data.finalScore) setScore(data.finalScore)
-          }
-        } catch {
-          // Ignore parse errors
+          reconnectTimeoutId = setTimeout(() => {
+            if (isMounted) {
+              createEventSource()
+            }
+          }, delay)
+        } else {
+          console.error('[SSE] Max reconnection attempts reached')
+          setConnectionStatus('error')
         }
-      })
+      }
     }
 
-    eventSource.onerror = () => {
-      eventSource.close()
-    }
+    createEventSource()
 
     return () => {
-      eventSource.close()
+      isMounted = false
+      if (reconnectTimeoutId) {
+        clearTimeout(reconnectTimeoutId)
+      }
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
     }
-  }, [session.id, notificationsEnabled])
+  }, [session.id, MAX_STREAMING_TEXT_SIZE])
 
   const shortId = session.id.slice(-6)
 
@@ -292,6 +369,20 @@ export function SessionDetail({
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Connection status indicator */}
+            {['running', 'planning', 'awaiting_approval'].includes(session.status) && (
+              <span className={`text-xs px-2 py-1 rounded ${
+                connectionStatus === 'connected' ? 'text-green-400 bg-green-900/30' :
+                connectionStatus === 'connecting' ? 'text-yellow-400 bg-yellow-900/30 animate-pulse' :
+                connectionStatus === 'error' ? 'text-red-400 bg-red-900/30' :
+                'text-gray-500 bg-gray-800/30'
+              }`}>
+                {connectionStatus === 'connected' ? '◉ LIVE' :
+                 connectionStatus === 'connecting' ? '◎ CONNECTING' :
+                 connectionStatus === 'error' ? '◌ RECONNECTING' :
+                 '○ OFFLINE'}
+              </span>
+            )}
             {session.status === 'running' && (
               <span className="text-green-400 text-sm blink">● RUNNING</span>
             )}

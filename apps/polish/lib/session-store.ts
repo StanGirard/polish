@@ -293,8 +293,8 @@ export function addEvent(sessionId: string, event: PolishEvent): void {
     callbacks.forEach(callback => {
       try {
         callback(event)
-      } catch {
-        // Ignore callback errors
+      } catch (err) {
+        console.error(`[Session Store] Callback error for session ${sessionId}, event ${event.type}:`, err)
       }
     })
   }
