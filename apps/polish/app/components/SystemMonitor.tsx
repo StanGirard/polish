@@ -49,10 +49,10 @@ export function SystemMonitor({ running, phase, eventsCount, commitsCount }: Sys
   }
 
   return (
-    <div className="fixed top-4 right-4 font-mono text-[10px] bg-black/80 border border-green-900/50 rounded p-3 space-y-2 backdrop-blur-sm z-20 min-w-[220px]">
+    <div className="fixed top-4 right-4 font-mono text-[10px] bg-black/90 border border-green-900/50 rounded p-3 space-y-2 backdrop-blur-sm z-20 min-w-[220px] shadow-lg">
       <div className="flex items-center justify-between border-b border-green-900/30 pb-2">
         <span className="text-green-500 tracking-widest uppercase font-bold">System Monitor</span>
-        <span className={`${running ? 'text-green-400 blink' : 'text-gray-700'}`}>●</span>
+        <span className={`${running ? 'text-green-400 blink' : 'text-gray-700'}`} title={running ? 'Active' : 'Idle'}>●</span>
       </div>
 
       <div className="space-y-1.5">

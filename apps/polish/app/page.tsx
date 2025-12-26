@@ -1,17 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { SessionList } from './components/SessionList'
 import { SessionDetail } from './components/SessionDetail'
 import { NewSessionForm } from './components/NewSessionForm'
 import { SystemMonitor } from './components/SystemMonitor'
+import { StatsOverview } from './components/StatsOverview'
+import { ToastProvider, useToast } from './components/Toast'
+import { KeyboardShortcuts } from './components/KeyboardShortcuts'
+import { Tooltip } from './components/Tooltip'
+import { HelpModal } from './components/HelpModal'
 import type { Session } from '@/lib/session-store'
 import type { CapabilityOverride } from '@/lib/types'
 
-export default function Home() {
+function HomeContent() {
+  const toast = useToast()
+
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const newSessionFormRef = useRef<{ expand: () => void }>(null)
   const [prState, setPrState] = useState<{
     sessionId: string
     loading: boolean
@@ -33,8 +41,9 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to load sessions:', error)
+      toast.showToast('Failed to load sessions', 'error')
     }
-  }, [])
+  }, [toast])
 
   // Initial load
   useEffect(() => {
@@ -63,12 +72,15 @@ export default function Home() {
 
       if (res.ok) {
         const data = await res.json()
-        // Add to list and select
         await loadSessions()
         setSelectedSessionId(data.sessionId)
+        toast.showToast('Session created successfully', 'success')
+      } else {
+        toast.showToast('Failed to create session', 'error')
       }
     } catch (error) {
       console.error('Failed to create session:', error)
+      toast.showToast('Failed to create session', 'error')
     } finally {
       setIsCreating(false)
     }
@@ -79,8 +91,10 @@ export default function Home() {
     try {
       await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
       await loadSessions()
+      toast.showToast('Session cancelled', 'info')
     } catch (error) {
       console.error('Failed to cancel session:', error)
+      toast.showToast('Failed to cancel session', 'error')
     }
   }
 
@@ -92,8 +106,10 @@ export default function Home() {
         setSelectedSessionId(null)
       }
       await loadSessions()
+      toast.showToast('Session deleted', 'info')
     } catch (error) {
       console.error('Failed to delete session:', error)
+      toast.showToast('Failed to delete session', 'error')
     }
   }
 
@@ -118,8 +134,10 @@ export default function Home() {
 
       if (res.ok) {
         setPrState({ sessionId: session.id, loading: false, url: data.prUrl })
+        toast.showToast('Pull request created successfully', 'success')
       } else {
         setPrState({ sessionId: session.id, loading: false, error: data.error })
+        toast.showToast('Failed to create PR', 'error')
       }
     } catch (error) {
       setPrState({
@@ -127,6 +145,7 @@ export default function Home() {
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to create PR'
       })
+      toast.showToast('Failed to create PR', 'error')
     }
   }
 
@@ -242,7 +261,14 @@ export default function Home() {
   )
 
   return (
-    <main className="min-h-screen bg-black text-white p-8 font-mono relative">
+    <>
+      <KeyboardShortcuts
+        onRefresh={loadSessions}
+        onCloseModal={() => setSelectedSessionId(null)}
+      />
+      <HelpModal />
+
+      <main className="min-h-screen bg-black text-white p-8 font-mono relative">
       {/* System Monitor - Fixed Position */}
       <SystemMonitor
         running={activeSessions.length > 0}
@@ -257,9 +283,11 @@ export default function Home() {
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-green-400 to-transparent" />
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-5xl font-bold glow-green tracking-wider mb-2">
-                <span className="text-green-400">&gt;&gt;</span> POLISH.RUN
-              </h1>
+              <Tooltip content="Autonomous code quality improvement system" position="bottom">
+                <h1 className="text-5xl font-bold glow-green tracking-wider mb-2 cursor-help">
+                  <span className="text-green-400">&gt;&gt;</span> POLISH.RUN
+                </h1>
+              </Tooltip>
               <div className="flex items-center gap-4 text-[10px] text-green-700 uppercase tracking-widest">
                 <span>[v0.2.0]</span>
                 <span className="text-gray-800">|</span>
@@ -292,6 +320,13 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Stats Overview */}
+        {sessions.length > 0 && (
+          <div className="mb-6">
+            <StatsOverview sessions={sessions} />
+          </div>
+        )}
 
         {/* New Session Form */}
         <div className="mb-6">
@@ -415,5 +450,14 @@ export default function Home() {
         />
       )}
     </main>
+    </>
+  )
+}
+
+export default function Home() {
+  return (
+    <ToastProvider>
+      <HomeContent />
+    </ToastProvider>
   )
 }
