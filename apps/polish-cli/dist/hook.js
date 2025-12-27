@@ -17,8 +17,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig } from './config.js';
 import { calculateScore, findWorstMetric } from './metrics.js';
-import { gitCommit, hasUncommittedChanges } from './git.js';
-import { loadState, saveState, updateStateWithScore, getPreviousScore, hasInitialScore, createInitialState, } from './state.js';
+import { loadState, saveState, updateStateWithScore, hasInitialScore, createInitialState, } from './state.js';
 import { detectPlateau } from './plateau.js';
 /**
  * Simple file logger for hook invocations
@@ -104,11 +103,6 @@ async function main() {
     // Check if target reached
     if (score.total >= config.target) {
         log(`Target reached! score=${score.total} >= target=${config.target}`);
-        // Commit any remaining changes before stopping
-        if (await hasUncommittedChanges()) {
-            const previousScore = getPreviousScore(state);
-            await gitCommit(`polish: ${previousScore.toFixed(1)} -> ${score.total.toFixed(1)} (target reached)`);
-        }
         const output = {
             decision: 'approve',
             reason: `Target reached! Score: ${score.total}/${config.target}`,
@@ -120,12 +114,10 @@ async function main() {
     // Update state with new score
     const improved = updateStateWithScore(state, score);
     log(`Score update: improved=${improved}, stalledCount=${state.stalledCount}, iteration=${state.iteration}`);
-    // If improved, commit the changes
-    if (improved && (await hasUncommittedChanges())) {
+    // Log improvement (no auto-commit - let user decide when to commit)
+    if (improved) {
         const previousScore = state.scores.length > 1 ? state.scores[state.scores.length - 2] : 0;
-        const worstMetric = findWorstMetric(score);
-        await gitCommit(`polish(${worstMetric.name}): ${previousScore.toFixed(1)} -> ${score.total.toFixed(1)}`);
-        log(`Committed improvement: ${previousScore.toFixed(1)} -> ${score.total.toFixed(1)}`);
+        log(`Score improved: ${previousScore.toFixed(1)} -> ${score.total.toFixed(1)}`);
     }
     // Check for plateau
     const plateauMode = 'stalled'; // Could be config.plateauDetection
