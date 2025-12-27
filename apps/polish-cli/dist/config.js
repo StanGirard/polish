@@ -33,7 +33,7 @@ export function loadConfig(configPath) {
         return DEFAULT_CONFIG;
     }
     // Try default locations
-    const defaultPaths = ['polish.config.json', '.polish.json'];
+    const defaultPaths = ['polish.config.json', '.polish.json', '.polish/polish.config.json'];
     for (const p of defaultPaths) {
         const fullPath = join(cwd, p);
         if (existsSync(fullPath)) {

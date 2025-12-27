@@ -404,41 +404,44 @@ async function runAnthropicAgent(
   return finalResponse;
 }
 
+// OpenAI-compatible message type (used by OpenAI and OpenRouter)
+interface OpenAICompatibleMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+  tool_call_id?: string;
+}
+
+// Configuration for OpenAI-compatible APIs
+interface OpenAICompatibleConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  maxTokens: number;
+  providerName: string;
+  extraHeaders?: Record<string, string>;
+}
+
 /**
- * Run agent using OpenAI API
+ * Shared implementation for OpenAI-compatible APIs (OpenAI, OpenRouter)
  */
-async function runOpenAIAgent(
+async function runOpenAICompatibleAgent(
   prompt: string,
   callbacks: AgentCallbacks | RichAgentCallbacks,
-  options: AgentOptions
+  config: OpenAICompatibleConfig
 ): Promise<string> {
-  const provider = options.provider ?? { type: 'openai' as const };
-  const maxTokens = options.maxTokens ?? 4096;
-  const model = provider.model ?? getModel('openai') ?? 'gpt-4o';
-  const apiKey = provider.apiKey ?? getApiKey('openai');
-  const baseUrl = provider.baseUrl ?? getBaseUrl('openai') ?? 'https://api.openai.com/v1/chat/completions';
+  const { apiKey, baseUrl, model, maxTokens, providerName, extraHeaders } = config;
 
   // Support both legacy and rich callbacks
   const richCallbacks = callbacks as RichAgentCallbacks;
   const legacyCallbacks = callbacks as AgentCallbacks;
   const isRich = 'onToolStart' in callbacks;
 
-  if (!apiKey) {
-    throw new Error('OpenAI API key not found. Set it in .polish/settings.json or OPENAI_API_KEY env var');
-  }
-
-  interface OpenAIMessage {
-    role: 'system' | 'user' | 'assistant' | 'tool';
-    content: string | null;
-    tool_calls?: Array<{
-      id: string;
-      type: 'function';
-      function: { name: string; arguments: string };
-    }>;
-    tool_call_id?: string;
-  }
-
-  const messages: OpenAIMessage[] = [
+  const messages: OpenAICompatibleMessage[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: prompt },
   ];
@@ -451,6 +454,7 @@ async function runOpenAIAgent(
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        ...extraHeaders,
       },
       body: JSON.stringify({
         model,
@@ -462,7 +466,7 @@ async function runOpenAIAgent(
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
+      throw new Error(`${providerName} API error: ${response.status} - ${error}`);
     }
 
     const data = await response.json() as {
@@ -483,26 +487,21 @@ async function runOpenAIAgent(
     const choice = data.choices[0];
     const message = choice.message;
 
-    // Handle text content
     if (message.content) {
       richCallbacks.onText?.(message.content);
       finalResponse += message.content;
     }
 
-    // Handle tool calls
     if (message.tool_calls && message.tool_calls.length > 0) {
-      // Add assistant message with tool calls
       messages.push({
         role: 'assistant',
         content: message.content,
         tool_calls: message.tool_calls,
       });
 
-      // Execute each tool and add results
       for (const toolCall of message.tool_calls) {
         const toolName = toolCall.function.name;
         const toolInput = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
-
         const toolDesc = formatToolCall(toolName, toolInput);
 
         if (isRich) {
@@ -527,11 +526,8 @@ async function runOpenAIAgent(
           tool_call_id: toolCall.id,
         });
       }
-    } else {
-      // No tool calls, check if we should stop
-      if (choice.finish_reason === 'stop') {
-        break;
-      }
+    } else if (choice.finish_reason === 'stop') {
+      break;
     }
 
     if (messages.length > 100) {
@@ -544,6 +540,30 @@ async function runOpenAIAgent(
 }
 
 /**
+ * Run agent using OpenAI API
+ */
+async function runOpenAIAgent(
+  prompt: string,
+  callbacks: AgentCallbacks | RichAgentCallbacks,
+  options: AgentOptions
+): Promise<string> {
+  const provider = options.provider ?? { type: 'openai' as const };
+  const apiKey = provider.apiKey ?? getApiKey('openai');
+
+  if (!apiKey) {
+    throw new Error('OpenAI API key not found. Set it in .polish/settings.json or OPENAI_API_KEY env var');
+  }
+
+  return runOpenAICompatibleAgent(prompt, callbacks, {
+    apiKey,
+    baseUrl: provider.baseUrl ?? getBaseUrl('openai') ?? 'https://api.openai.com/v1/chat/completions',
+    model: provider.model ?? getModel('openai') ?? 'gpt-4o',
+    maxTokens: options.maxTokens ?? 4096,
+    providerName: 'OpenAI',
+  });
+}
+
+/**
  * Run agent using OpenRouter API (OpenAI-compatible)
  */
 async function runOpenRouterAgent(
@@ -552,134 +572,21 @@ async function runOpenRouterAgent(
   options: AgentOptions
 ): Promise<string> {
   const provider = options.provider ?? { type: 'openrouter' as const };
-  const maxTokens = options.maxTokens ?? 4096;
-  const model = provider.model ?? getModel('openrouter') ?? 'anthropic/claude-sonnet-4';
   const apiKey = provider.apiKey ?? getApiKey('openrouter');
-  const baseUrl = provider.baseUrl ?? getBaseUrl('openrouter') ?? 'https://openrouter.ai/api/v1/chat/completions';
-
-  // Support both legacy and rich callbacks
-  const richCallbacks = callbacks as RichAgentCallbacks;
-  const legacyCallbacks = callbacks as AgentCallbacks;
-  const isRich = 'onToolStart' in callbacks;
 
   if (!apiKey) {
     throw new Error('OpenRouter API key not found. Set it in .polish/settings.json or OPENROUTER_API_KEY env var');
   }
 
-  interface OpenAIMessage {
-    role: 'system' | 'user' | 'assistant' | 'tool';
-    content: string | null;
-    tool_calls?: Array<{
-      id: string;
-      type: 'function';
-      function: { name: string; arguments: string };
-    }>;
-    tool_call_id?: string;
-  }
-
-  const messages: OpenAIMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: prompt },
-  ];
-
-  let finalResponse = '';
-
-  while (true) {
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://github.com/polish-cli',
-        'X-Title': 'Polish CLI',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        messages,
-        tools: openaiTools,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json() as {
-      choices: Array<{
-        message: {
-          role: string;
-          content: string | null;
-          tool_calls?: Array<{
-            id: string;
-            type: 'function';
-            function: { name: string; arguments: string };
-          }>;
-        };
-        finish_reason: string;
-      }>;
-    };
-
-    const choice = data.choices[0];
-    const message = choice.message;
-
-    // Handle text content
-    if (message.content) {
-      richCallbacks.onText?.(message.content);
-      finalResponse += message.content;
-    }
-
-    // Handle tool calls
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      // Add assistant message with tool calls
-      messages.push({
-        role: 'assistant',
-        content: message.content,
-        tool_calls: message.tool_calls,
-      });
-
-      // Execute each tool and add results
-      for (const toolCall of message.tool_calls) {
-        const toolName = toolCall.function.name;
-        const toolInput = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
-
-        const toolDesc = formatToolCall(toolName, toolInput);
-
-        if (isRich) {
-          richCallbacks.onToolStart?.(toolCall.id, toolName, toolDesc);
-        } else {
-          legacyCallbacks.onTool?.(toolDesc);
-        }
-
-        const startTime = Date.now();
-        const result = await executeTool(toolName, toolInput);
-        const duration = Date.now() - startTime;
-
-        if (isRich) {
-          richCallbacks.onToolDone?.(toolCall.id, result.success, result.output, result.error, duration);
-        } else {
-          legacyCallbacks.onToolDone?.();
-        }
-
-        messages.push({
-          role: 'tool',
-          content: result.success ? result.output || 'Success' : `Error: ${result.error}`,
-          tool_call_id: toolCall.id,
-        });
-      }
-    } else {
-      // No tool calls, check if we should stop
-      if (choice.finish_reason === 'stop') {
-        break;
-      }
-    }
-
-    if (messages.length > 100) {
-      richCallbacks.onText?.('Max iterations reached');
-      break;
-    }
-  }
-
-  return finalResponse;
+  return runOpenAICompatibleAgent(prompt, callbacks, {
+    apiKey,
+    baseUrl: provider.baseUrl ?? getBaseUrl('openrouter') ?? 'https://openrouter.ai/api/v1/chat/completions',
+    model: provider.model ?? getModel('openrouter') ?? 'anthropic/claude-sonnet-4',
+    maxTokens: options.maxTokens ?? 4096,
+    providerName: 'OpenRouter',
+    extraHeaders: {
+      'HTTP-Referer': 'https://github.com/polish-cli',
+      'X-Title': 'Polish CLI',
+    },
+  });
 }
