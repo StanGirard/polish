@@ -84,17 +84,9 @@ async function main() {
         };
         log('No stdin input - running in manual mode');
     }
-    // CRITICAL: Check stop_hook_active to prevent infinite loops
-    // If true, we're already in a hook-driven continuation - allow stop
-    if (input.stop_hook_active) {
-        log('stop_hook_active=true - approving to prevent infinite loop');
-        const output = {
-            decision: 'approve',
-            reason: 'Stop hook already active - allowing stop to prevent infinite loop',
-        };
-        console.log(JSON.stringify(output));
-        process.exit(0);
-    }
+    // Note: We don't check stop_hook_active here anymore.
+    // The plateau detection logic handles infinite loop prevention by
+    // detecting when the score stops improving after multiple iterations.
     // Load config and state
     const config = loadConfig();
     let state = await loadState();
