@@ -59,7 +59,10 @@ function buildFeedbackPrompt(worstMetric, currentScore, target) {
         }
         prompt += '```\n\n';
     }
-    prompt += `Please fix the issues in "${worstMetric.name}" to improve the score.`;
+    prompt += `Please fix the issues in "${worstMetric.name}" to improve the score.\n\n`;
+    prompt += `IMPORTANT: You must continue working until all metrics reach their targets. `;
+    prompt += `Analyze the output above, identify the root cause, and fix it. `;
+    prompt += `DO NOT stop until the score reaches ${target} or above.`;
     return prompt;
 }
 async function main() {
