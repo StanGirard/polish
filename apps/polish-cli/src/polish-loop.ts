@@ -29,10 +29,18 @@ export interface PolishLoopCallbacks {
   onIteration?: (iteration: number) => void;
   onImproving?: (metricName: string | null) => void;
   onAgentText?: (text: string) => void;
+  // Rich callbacks for tool lifecycle
+  onAgentToolStart?: (id: string, name: string, displayText: string) => void;
+  onAgentToolDone?: (id: string, success: boolean, output?: string, error?: string, duration?: number) => void;
+  // Legacy callbacks (deprecated)
   onAgentTool?: (tool: string) => void;
-  onAgentToolDone?: () => void;
+  onAgentToolLegacyDone?: () => void;
   onCommit?: (hash: string) => void;
   onRollback?: () => void;
+}
+
+export interface PolishLoopOptions {
+  worktreePath?: string; // If provided, run polish loop in this directory
 }
 
 /**
@@ -47,114 +55,144 @@ export async function runPolishLoop(config: PolishConfig): Promise<PolishResult>
  */
 export async function runPolishLoopWithCallback(
   config: PolishConfig,
-  callbacks: PolishLoopCallbacks
+  callbacks: PolishLoopCallbacks,
+  options: PolishLoopOptions = {}
 ): Promise<PolishResult> {
   const {
     onScore,
     onIteration,
     onImproving,
     onAgentText,
-    onAgentTool,
+    onAgentToolStart,
     onAgentToolDone,
+    onAgentTool, // legacy
+    onAgentToolLegacyDone, // legacy
     onCommit,
     onRollback,
   } = callbacks;
 
-  const commits: string[] = [];
-  let stalledCount = 0;
+  const { worktreePath } = options;
 
-  // Calculate initial score
-  const initialScore = await calculateScore(config.metrics);
-  onScore?.(initialScore);
+  // Check if using rich callbacks
+  const isRich = !!onAgentToolStart;
 
-  let currentScore = initialScore;
+  // If worktree path provided, change to it for all operations
+  const originalCwd = process.cwd();
+  if (worktreePath) {
+    process.chdir(worktreePath);
+  }
 
-  for (let iteration = 1; iteration <= config.maxIterations; iteration++) {
-    onIteration?.(iteration);
+  // Wrap entire loop in try/finally to restore cwd
+  try {
+    const commits: string[] = [];
+    let stalledCount = 0;
 
-    // Check if target reached
-    if (currentScore.total >= config.target) {
-      return {
-        initialScore,
-        finalScore: currentScore,
-        iterations: iteration - 1,
-        commits,
-        reason: 'target_reached',
-      };
-    }
+    // Calculate initial score
+    const initialScore = await calculateScore(config.metrics);
+    onScore?.(initialScore);
 
-    // Check for plateau
-    if (stalledCount >= MAX_STALLED) {
-      return {
-        initialScore,
-        finalScore: currentScore,
-        iterations: iteration - 1,
-        commits,
-        reason: 'plateau',
-      };
-    }
+    let currentScore = initialScore;
 
-    // Find worst metric to improve
-    const worst = findWorstMetric(currentScore);
-    onImproving?.(worst.name);
+    for (let iteration = 1; iteration <= config.maxIterations; iteration++) {
+      onIteration?.(iteration);
 
-    // Create snapshot before changes
-    const snapshot = await gitSnapshot();
-
-    // Build prompt for Claude
-    const prompt = buildPolishPrompt(worst.name, worst.score, worst.target, worst.raw);
-
-    try {
-      // Run Claude agent to make improvements
-      await runAgentWithCallback(prompt, {
-        onText: onAgentText,
-        onTool: onAgentTool,
-        onToolDone: onAgentToolDone,
-      }, { maxTokens: 8192, provider: config.provider });
-
-      // Check if there are any changes
-      if (!(await hasUncommittedChanges())) {
-        stalledCount++;
-        continue;
+      // Check if target reached
+      if (currentScore.total >= config.target) {
+        return {
+          initialScore,
+          finalScore: currentScore,
+          iterations: iteration - 1,
+          commits,
+          reason: 'target_reached',
+        };
       }
 
-      // Calculate new score
-      onImproving?.(null);
-      const newScore = await calculateScore(config.metrics);
-      const improvement = newScore.total - currentScore.total;
+      // Check for plateau
+      if (stalledCount >= MAX_STALLED) {
+        return {
+          initialScore,
+          finalScore: currentScore,
+          iterations: iteration - 1,
+          commits,
+          reason: 'plateau',
+        };
+      }
 
-      // Check if improvement is significant
-      if (improvement >= MIN_IMPROVEMENT) {
-        // Commit the changes
-        const message = `polish(${worst.name}): ${currentScore.total.toFixed(1)} → ${newScore.total.toFixed(1)}`;
-        const hash = await gitCommit(message);
-        commits.push(hash);
+      // Find worst metric to improve
+      const worst = findWorstMetric(currentScore);
+      onImproving?.(worst.name);
 
-        onCommit?.(hash);
-        onScore?.(newScore);
+      // Create snapshot before changes
+      const snapshot = await gitSnapshot();
 
-        currentScore = newScore;
-        stalledCount = 0;
-      } else {
-        // Rollback changes
+      // Build prompt for Claude
+      const prompt = buildPolishPrompt(worst.name, worst.score, worst.target, worst.raw);
+
+      try {
+        // Run Claude agent to make improvements
+        const agentCallbacks = isRich
+          ? {
+              onText: onAgentText,
+              onToolStart: onAgentToolStart,
+              onToolDone: onAgentToolDone,
+            }
+          : {
+              onText: onAgentText,
+              onTool: onAgentTool,
+              onToolDone: onAgentToolLegacyDone,
+            };
+
+        await runAgentWithCallback(prompt, agentCallbacks, { maxTokens: 8192, provider: config.provider });
+
+        // Check if there are any changes
+        if (!(await hasUncommittedChanges())) {
+          stalledCount++;
+          continue;
+        }
+
+        // Calculate new score
+        onImproving?.(null);
+        const newScore = await calculateScore(config.metrics);
+        const improvement = newScore.total - currentScore.total;
+
+        // Check if improvement is significant
+        if (improvement >= MIN_IMPROVEMENT) {
+          // Commit the changes
+          const message = `polish(${worst.name}): ${currentScore.total.toFixed(1)} → ${newScore.total.toFixed(1)}`;
+          const hash = await gitCommit(message);
+          commits.push(hash);
+
+          onCommit?.(hash);
+          onScore?.(newScore);
+
+          currentScore = newScore;
+          stalledCount = 0;
+        } else {
+          // Rollback changes
+          await gitRollback(snapshot);
+          onRollback?.();
+          stalledCount++;
+        }
+      } catch (error) {
         await gitRollback(snapshot);
         onRollback?.();
         stalledCount++;
       }
-    } catch (error) {
-      await gitRollback(snapshot);
-      onRollback?.();
-      stalledCount++;
+    }
+
+    return {
+      initialScore,
+      finalScore: currentScore,
+      iterations: config.maxIterations,
+      commits,
+      reason: 'max_iterations',
+    };
+  } finally {
+    // Always restore original directory
+    if (worktreePath) {
+      process.chdir(originalCwd);
     }
   }
-
-  return {
-    initialScore,
-    finalScore: currentScore,
-    iterations: config.maxIterations,
-    commits,
-    reason: 'max_iterations',
-  };
 }
 
 /**

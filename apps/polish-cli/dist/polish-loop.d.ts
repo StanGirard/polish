@@ -4,10 +4,15 @@ export interface PolishLoopCallbacks {
     onIteration?: (iteration: number) => void;
     onImproving?: (metricName: string | null) => void;
     onAgentText?: (text: string) => void;
+    onAgentToolStart?: (id: string, name: string, displayText: string) => void;
+    onAgentToolDone?: (id: string, success: boolean, output?: string, error?: string, duration?: number) => void;
     onAgentTool?: (tool: string) => void;
-    onAgentToolDone?: () => void;
+    onAgentToolLegacyDone?: () => void;
     onCommit?: (hash: string) => void;
     onRollback?: () => void;
+}
+export interface PolishLoopOptions {
+    worktreePath?: string;
 }
 /**
  * Run the polish loop to iteratively improve code quality
@@ -16,7 +21,7 @@ export declare function runPolishLoop(config: PolishConfig): Promise<PolishResul
 /**
  * Run the polish loop with callbacks for UI integration
  */
-export declare function runPolishLoopWithCallback(config: PolishConfig, callbacks: PolishLoopCallbacks): Promise<PolishResult>;
+export declare function runPolishLoopWithCallback(config: PolishConfig, callbacks: PolishLoopCallbacks, options?: PolishLoopOptions): Promise<PolishResult>;
 /**
  * Display final results
  */

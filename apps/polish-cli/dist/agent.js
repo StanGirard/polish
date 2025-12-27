@@ -236,6 +236,7 @@ export async function runAgent(prompt, options = {}) {
 }
 /**
  * Run Claude agent with callbacks for UI integration
+ * Supports both legacy AgentCallbacks and new RichAgentCallbacks
  */
 export async function runAgentWithCallback(prompt, callbacks, options = {}) {
     const provider = options.provider ?? { type: 'anthropic', model: 'claude-sonnet-4.5' };
@@ -254,7 +255,10 @@ async function runAnthropicAgent(prompt, callbacks, options) {
     const provider = options.provider ?? { type: 'anthropic' };
     const maxTokens = options.maxTokens ?? 4096;
     const model = provider.model ?? getModel('anthropic') ?? 'claude-sonnet-4.5';
-    const { onText, onTool, onToolDone } = callbacks;
+    // Support both legacy and rich callbacks
+    const richCallbacks = callbacks;
+    const legacyCallbacks = callbacks;
+    const isRich = 'onToolStart' in callbacks;
     const apiKey = provider.apiKey ?? getApiKey('anthropic');
     if (!apiKey) {
         throw new Error('Anthropic API key not found. Set it in .polish/settings.json or ANTHROPIC_API_KEY env var');
@@ -278,16 +282,29 @@ async function runAnthropicAgent(prompt, callbacks, options) {
         for (const block of response.content) {
             if (block.type === 'text') {
                 if (block.text.trim()) {
-                    onText?.(block.text);
+                    richCallbacks.onText?.(block.text);
                     finalResponse += block.text;
                 }
             }
             else if (block.type === 'tool_use') {
                 hasToolUse = true;
-                const toolDesc = formatToolCall(block.name, block.input);
-                onTool?.(toolDesc);
-                const result = await executeTool(block.name, block.input);
-                onToolDone?.();
+                const toolInput = block.input;
+                const toolDesc = formatToolCall(block.name, toolInput);
+                if (isRich) {
+                    richCallbacks.onToolStart?.(block.id, block.name, toolDesc);
+                }
+                else {
+                    legacyCallbacks.onTool?.(toolDesc);
+                }
+                const startTime = Date.now();
+                const result = await executeTool(block.name, toolInput);
+                const duration = Date.now() - startTime;
+                if (isRich) {
+                    richCallbacks.onToolDone?.(block.id, result.success, result.output, result.error, duration);
+                }
+                else {
+                    legacyCallbacks.onToolDone?.();
+                }
                 toolResults.push({
                     type: 'tool_result',
                     tool_use_id: block.id,
@@ -304,7 +321,7 @@ async function runAnthropicAgent(prompt, callbacks, options) {
             break;
         }
         if (messages.length > 100) {
-            onText?.('Max iterations reached');
+            richCallbacks.onText?.('Max iterations reached');
             break;
         }
     }
@@ -319,7 +336,10 @@ async function runOpenAIAgent(prompt, callbacks, options) {
     const model = provider.model ?? getModel('openai') ?? 'gpt-4o';
     const apiKey = provider.apiKey ?? getApiKey('openai');
     const baseUrl = provider.baseUrl ?? getBaseUrl('openai') ?? 'https://api.openai.com/v1/chat/completions';
-    const { onText, onTool, onToolDone } = callbacks;
+    // Support both legacy and rich callbacks
+    const richCallbacks = callbacks;
+    const legacyCallbacks = callbacks;
+    const isRich = 'onToolStart' in callbacks;
     if (!apiKey) {
         throw new Error('OpenAI API key not found. Set it in .polish/settings.json or OPENAI_API_KEY env var');
     }
@@ -351,7 +371,7 @@ async function runOpenAIAgent(prompt, callbacks, options) {
         const message = choice.message;
         // Handle text content
         if (message.content) {
-            onText?.(message.content);
+            richCallbacks.onText?.(message.content);
             finalResponse += message.content;
         }
         // Handle tool calls
@@ -367,9 +387,21 @@ async function runOpenAIAgent(prompt, callbacks, options) {
                 const toolName = toolCall.function.name;
                 const toolInput = JSON.parse(toolCall.function.arguments);
                 const toolDesc = formatToolCall(toolName, toolInput);
-                onTool?.(toolDesc);
+                if (isRich) {
+                    richCallbacks.onToolStart?.(toolCall.id, toolName, toolDesc);
+                }
+                else {
+                    legacyCallbacks.onTool?.(toolDesc);
+                }
+                const startTime = Date.now();
                 const result = await executeTool(toolName, toolInput);
-                onToolDone?.();
+                const duration = Date.now() - startTime;
+                if (isRich) {
+                    richCallbacks.onToolDone?.(toolCall.id, result.success, result.output, result.error, duration);
+                }
+                else {
+                    legacyCallbacks.onToolDone?.();
+                }
                 messages.push({
                     role: 'tool',
                     content: result.success ? result.output || 'Success' : `Error: ${result.error}`,
@@ -384,7 +416,7 @@ async function runOpenAIAgent(prompt, callbacks, options) {
             }
         }
         if (messages.length > 100) {
-            onText?.('Max iterations reached');
+            richCallbacks.onText?.('Max iterations reached');
             break;
         }
     }
@@ -399,7 +431,10 @@ async function runOpenRouterAgent(prompt, callbacks, options) {
     const model = provider.model ?? getModel('openrouter') ?? 'anthropic/claude-sonnet-4';
     const apiKey = provider.apiKey ?? getApiKey('openrouter');
     const baseUrl = provider.baseUrl ?? getBaseUrl('openrouter') ?? 'https://openrouter.ai/api/v1/chat/completions';
-    const { onText, onTool, onToolDone } = callbacks;
+    // Support both legacy and rich callbacks
+    const richCallbacks = callbacks;
+    const legacyCallbacks = callbacks;
+    const isRich = 'onToolStart' in callbacks;
     if (!apiKey) {
         throw new Error('OpenRouter API key not found. Set it in .polish/settings.json or OPENROUTER_API_KEY env var');
     }
@@ -433,7 +468,7 @@ async function runOpenRouterAgent(prompt, callbacks, options) {
         const message = choice.message;
         // Handle text content
         if (message.content) {
-            onText?.(message.content);
+            richCallbacks.onText?.(message.content);
             finalResponse += message.content;
         }
         // Handle tool calls
@@ -449,9 +484,21 @@ async function runOpenRouterAgent(prompt, callbacks, options) {
                 const toolName = toolCall.function.name;
                 const toolInput = JSON.parse(toolCall.function.arguments);
                 const toolDesc = formatToolCall(toolName, toolInput);
-                onTool?.(toolDesc);
+                if (isRich) {
+                    richCallbacks.onToolStart?.(toolCall.id, toolName, toolDesc);
+                }
+                else {
+                    legacyCallbacks.onTool?.(toolDesc);
+                }
+                const startTime = Date.now();
                 const result = await executeTool(toolName, toolInput);
-                onToolDone?.();
+                const duration = Date.now() - startTime;
+                if (isRich) {
+                    richCallbacks.onToolDone?.(toolCall.id, result.success, result.output, result.error, duration);
+                }
+                else {
+                    legacyCallbacks.onToolDone?.();
+                }
                 messages.push({
                     role: 'tool',
                     content: result.success ? result.output || 'Success' : `Error: ${result.error}`,
@@ -466,7 +513,7 @@ async function runOpenRouterAgent(prompt, callbacks, options) {
             }
         }
         if (messages.length > 100) {
-            onText?.('Max iterations reached');
+            richCallbacks.onText?.('Max iterations reached');
             break;
         }
     }

@@ -1,9 +1,10 @@
 {
   "name": "polish-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "bin": {
-    "polish": "./dist/index.js"
+    "polish": "./dist/index.js",
+    "polish-hook": "./dist/hook.js"
   },
   "scripts": {
     "build": "tsc",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.0",
+    "react-devtools-core": "^7.0.1",
     "typescript": "^5.7.2"
   }
 }

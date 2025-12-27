@@ -10,9 +10,17 @@ import { Init } from './Init.js';
 import { loadConfig, resolveProvider } from '../config.js';
 import { runAgentWithCallback } from '../agent.js';
 import { runPolishLoopWithCallback } from '../polish-loop.js';
-import { isGitRepo, getCurrentBranch } from '../git.js';
+import {
+  isGitRepo,
+  getCurrentBranch,
+  createWorktree,
+  removeWorktree,
+  createBranchFromWorktree,
+  generatePolishBranchName,
+  type WorktreeInfo,
+} from '../git.js';
 import { isInitialized } from '../settings.js';
-import type { CliOptions, PolishResult, ScoreResult } from '../types.js';
+import type { CliOptions, PolishResult, ScoreResult, AnyActivity, ToolActivity } from '../types.js';
 
 type Phase = 'check-init' | 'init' | 'running' | 'implement' | 'polish' | 'done' | 'error';
 
@@ -28,9 +36,74 @@ export function App({ mission, options }: AppProps) {
   const [branch, setBranch] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
-  // Agent state
-  const [agentText, setAgentText] = useState<string>('');
-  const [agentTool, setAgentTool] = useState<string | null>(null);
+  // Activity log for streaming output
+  const [activities, setActivities] = useState<AnyActivity[]>([]);
+
+  // Helper functions for activity management
+  const addTextActivity = (content: string) => {
+    setActivities((prev) => [
+      ...prev,
+      {
+        id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'text',
+        content,
+        timestamp: Date.now(),
+      },
+    ]);
+  };
+
+  const addToolActivity = (id: string, name: string, displayText: string) => {
+    setActivities((prev) => [
+      ...prev,
+      {
+        id,
+        type: 'tool',
+        name,
+        displayText,
+        status: 'running',
+        timestamp: Date.now(),
+      } as ToolActivity,
+    ]);
+  };
+
+  const updateToolActivity = (
+    id: string,
+    success: boolean,
+    output?: string,
+    error?: string,
+    duration?: number
+  ) => {
+    setActivities((prev) =>
+      prev.map((a) =>
+        a.id === id && a.type === 'tool'
+          ? {
+              ...a,
+              status: success ? 'done' : 'error',
+              result: output,
+              error,
+              duration,
+            }
+          : a
+      )
+    );
+  };
+
+  const addStatusActivity = (message: string, variant: 'info' | 'success' | 'warning' | 'error') => {
+    setActivities((prev) => [
+      ...prev,
+      {
+        id: `status-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'status',
+        message,
+        variant,
+        timestamp: Date.now(),
+      },
+    ]);
+  };
+
+  const clearActivities = () => {
+    setActivities([]);
+  };
 
   // Polish state
   const [currentScore, setCurrentScore] = useState<ScoreResult | null>(null);
@@ -38,6 +111,9 @@ export function App({ mission, options }: AppProps) {
   const [maxIterations, setMaxIterations] = useState(50);
   const [improving, setImproving] = useState<string | null>(null);
   const [result, setResult] = useState<PolishResult | null>(null);
+
+  // Worktree state for cleanup on exit
+  const [worktreeInfo, setWorktreeInfo] = useState<WorktreeInfo | null>(null);
 
   // Check initialization on mount
   useEffect(() => {
@@ -49,6 +125,24 @@ export function App({ mission, options }: AppProps) {
       }
     }
   }, [phase]);
+
+  // Cleanup worktree on SIGINT/SIGTERM
+  useEffect(() => {
+    const cleanup = () => {
+      if (worktreeInfo) {
+        removeWorktree(worktreeInfo.path).catch(() => {});
+      }
+      process.exit(0);
+    };
+
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+
+    return () => {
+      process.removeListener('SIGINT', cleanup);
+      process.removeListener('SIGTERM', cleanup);
+    };
+  }, [worktreeInfo]);
 
   // Run main logic
   useEffect(() => {
@@ -84,6 +178,7 @@ export function App({ mission, options }: AppProps) {
         // Phase 1: Implementation
         if (!options.polishOnly && mission) {
           setPhase('implement');
+          clearActivities();
 
           const implementPrompt = `You are working on this codebase. Your mission is:
 
@@ -98,44 +193,66 @@ Guidelines:
 4. Ensure your changes work with existing code`;
 
           await runAgentWithCallback(implementPrompt, {
-            onText: (text) => setAgentText((prev) => prev + text),
-            onTool: (tool) => setAgentTool(tool),
-            onToolDone: () => setAgentTool(null),
+            onText: addTextActivity,
+            onToolStart: addToolActivity,
+            onToolDone: updateToolActivity,
           }, { provider });
-
-          setAgentText('');
-          setAgentTool(null);
         }
 
         // Phase 2: Polish loop
         if (options.polish !== false) {
           setPhase('polish');
+          clearActivities();
 
           // Update config with resolved provider for polish loop
           config.provider = provider;
 
-          const polishResult = await runPolishLoopWithCallback(config, {
-            onScore: (score) => setCurrentScore(score),
-            onIteration: (i) => setIteration(i),
-            onImproving: (metric) => setImproving(metric),
-            onAgentText: (text) => setAgentText((prev) => prev + text),
-            onAgentTool: (tool) => setAgentTool(tool),
-            onAgentToolDone: () => setAgentTool(null),
-            onCommit: () => {
-              setAgentText('');
-              setAgentTool(null);
-            },
-            onRollback: () => {
-              setAgentText('');
-              setAgentTool(null);
-            },
-          });
+          // Create worktree for isolated polish work
+          const currentBranch = await getCurrentBranch();
+          const worktree = await createWorktree(currentBranch);
+          setWorktreeInfo(worktree);
+          addStatusActivity(`Created worktree at ${worktree.path}`, 'info');
+
+          let polishResult: PolishResult;
+          try {
+            polishResult = await runPolishLoopWithCallback(config, {
+              onScore: (score) => setCurrentScore(score),
+              onIteration: (i) => setIteration(i),
+              onImproving: (metric) => setImproving(metric),
+              onAgentText: addTextActivity,
+              onAgentToolStart: addToolActivity,
+              onAgentToolDone: updateToolActivity,
+              onCommit: (hash) => {
+                addStatusActivity(`Committed: ${hash}`, 'success');
+              },
+              onRollback: () => {
+                addStatusActivity('Changes rolled back', 'warning');
+              },
+            }, { worktreePath: worktree.path });
+
+            // If there were commits, create a branch from the worktree
+            if (polishResult.commits.length > 0) {
+              const branchName = generatePolishBranchName();
+              await createBranchFromWorktree(worktree.path, branchName);
+              polishResult.branchName = branchName;
+              addStatusActivity(`Created branch: ${branchName}`, 'success');
+            }
+          } finally {
+            // Always clean up worktree
+            await removeWorktree(worktree.path);
+            setWorktreeInfo(null);
+          }
 
           setResult(polishResult);
         }
 
         setPhase('done');
       } catch (err) {
+        // Clean up worktree on error
+        if (worktreeInfo) {
+          await removeWorktree(worktreeInfo.path).catch(() => {});
+          setWorktreeInfo(null);
+        }
         setError(err instanceof Error ? err.message : String(err));
         setPhase('error');
       }
@@ -184,8 +301,8 @@ Guidelines:
             Implementation
           </Text>
           <Text color="dim">{mission}</Text>
-          <Box marginTop={1}>
-            <AgentOutput text={agentText} currentTool={agentTool} />
+          <Box marginTop={1} flexDirection="column">
+            <AgentOutput activities={activities} />
           </Box>
         </Box>
       )}
@@ -211,11 +328,9 @@ Guidelines:
             improving={improving}
           />
 
-          {agentTool && (
-            <Box marginTop={1}>
-              <AgentOutput text={agentText} currentTool={agentTool} />
-            </Box>
-          )}
+          <Box marginTop={1} flexDirection="column">
+            <AgentOutput activities={activities} />
+          </Box>
         </Box>
       )}
 

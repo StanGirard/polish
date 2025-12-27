@@ -59,6 +59,7 @@ export interface PolishResult {
   iterations: number;
   commits: string[];
   reason: 'target_reached' | 'plateau' | 'max_iterations' | 'error';
+  branchName?: string; // Branch created with polish commits (if any)
 }
 
 // Tool definitions for Claude
@@ -76,3 +77,35 @@ export interface ToolResult {
   output?: string;
   error?: string;
 }
+
+// Activity item types for the streaming log
+export type ActivityType = 'text' | 'tool' | 'status';
+
+export interface ActivityItem {
+  id: string;
+  type: ActivityType;
+  timestamp: number;
+}
+
+export interface TextActivity extends ActivityItem {
+  type: 'text';
+  content: string;
+}
+
+export interface ToolActivity extends ActivityItem {
+  type: 'tool';
+  name: string;
+  displayText: string; // e.g., "read src/file.ts"
+  status: 'running' | 'done' | 'error';
+  result?: string;
+  error?: string;
+  duration?: number;
+}
+
+export interface StatusActivity extends ActivityItem {
+  type: 'status';
+  message: string;
+  variant: 'info' | 'success' | 'warning' | 'error';
+}
+
+export type AnyActivity = TextActivity | ToolActivity | StatusActivity;

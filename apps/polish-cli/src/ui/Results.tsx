@@ -80,6 +80,19 @@ export function Results({ result }: ResultsProps) {
         </Box>
       )}
 
+      {result.branchName && (
+        <Box marginTop={1} flexDirection="column">
+          <Box>
+            <Text color="dim">{'Branch:'.padEnd(16)}</Text>
+            <Text bold color="magenta">{result.branchName}</Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text color="dim">To merge: </Text>
+            <Text color="cyan">git merge {result.branchName}</Text>
+          </Box>
+        </Box>
+      )}
+
       <Box marginTop={1}>
         <Text bold color="green">
           Done!

@@ -1,5 +1,8 @@
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
+import { randomBytes } from 'crypto';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 const exec = promisify(execCallback);
 /**
  * Create a snapshot of current changes (stash)
@@ -81,4 +84,75 @@ export async function getCurrentBranch() {
 export async function hasUncommittedChanges() {
     const { stdout } = await exec('git status --porcelain');
     return stdout.trim().length > 0;
+}
+/**
+ * Generate a unique branch name for polish work
+ * Format: polish/YYYY-MM-DD-abc123
+ */
+export function generatePolishBranchName() {
+    const date = new Date().toISOString().split('T')[0];
+    const id = randomBytes(3).toString('hex');
+    return `polish/${date}-${id}`;
+}
+/**
+ * Create a temporary worktree for isolated polish work
+ * Uses detached HEAD so we don't create a branch until completion
+ */
+export async function createWorktree(baseBranch) {
+    // Get the current commit hash
+    const { stdout: commitHash } = await exec('git rev-parse HEAD');
+    const baseCommit = commitHash.trim();
+    // Worktree path is inside .polish directory (already gitignored)
+    const worktreePath = path.resolve(process.cwd(), '.polish', 'worktree');
+    // Remove existing worktree if it exists (from crashed session)
+    try {
+        await exec(`git worktree remove --force "${worktreePath}"`);
+    }
+    catch {
+        // Ignore errors - worktree may not exist
+    }
+    // Also remove the directory if it somehow still exists
+    try {
+        await fs.rm(worktreePath, { recursive: true, force: true });
+    }
+    catch {
+        // Ignore
+    }
+    // Create the worktree with detached HEAD
+    await exec(`git worktree add --detach "${worktreePath}" HEAD`);
+    return {
+        path: worktreePath,
+        baseBranch,
+        baseCommit,
+    };
+}
+/**
+ * Remove a worktree and clean up
+ */
+export async function removeWorktree(worktreePath) {
+    try {
+        await exec(`git worktree remove --force "${worktreePath}"`);
+    }
+    catch {
+        // If git worktree remove fails, try manual cleanup
+        try {
+            await fs.rm(worktreePath, { recursive: true, force: true });
+            await exec('git worktree prune');
+        }
+        catch {
+            // Best effort cleanup
+        }
+    }
+}
+/**
+ * Create a branch from the worktree's current HEAD
+ * This is called at the end of polish loop to save the work
+ */
+export async function createBranchFromWorktree(worktreePath, branchName) {
+    // Get the HEAD commit from the worktree
+    const { stdout: commitHash } = await exec('git rev-parse HEAD', { cwd: worktreePath });
+    const commit = commitHash.trim();
+    // Create the branch pointing to that commit (from main repo)
+    await exec(`git branch "${branchName}" ${commit}`);
+    return commit;
 }

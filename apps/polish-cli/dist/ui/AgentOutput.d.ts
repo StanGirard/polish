@@ -1,6 +1,7 @@
+import type { AnyActivity } from '../types.js';
 interface AgentOutputProps {
-    text: string;
-    currentTool: string | null;
+    activities: AnyActivity[];
+    maxLines?: number;
 }
-export declare function AgentOutput({ text, currentTool }: AgentOutputProps): import("react/jsx-runtime").JSX.Element;
+export declare function AgentOutput({ activities, maxLines }: AgentOutputProps): import("react/jsx-runtime").JSX.Element;
 export {};
