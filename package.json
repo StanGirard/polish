@@ -2,15 +2,12 @@
   "name": "polish-monorepo",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": ["cli", "website"],
   "scripts": {
-    "dev": "bun run --filter @polish/app dev",
-    "build": "bun run --filter @polish/app build",
-    "start": "bun run --filter @polish/app start",
-    "lint": "bun run --filter @polish/app lint",
-    "test": "bun run --filter @polish/app test",
-    "test:watch": "bun run --filter @polish/app test:watch",
-    "test:coverage": "bun run --filter @polish/app test:coverage",
+    "build": "bun run cli:build && bun run website:build",
+    "test": "bun run cli:test",
+    "cli:build": "bun run --filter polish-cli build",
+    "cli:test": "bun run --filter polish-cli test",
     "website:dev": "bun run --filter @polish/website dev",
     "website:build": "bun run --filter @polish/website build"
   }

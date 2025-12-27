@@ -5,7 +5,7 @@
     "": {
       "name": "polish-monorepo",
     },
-    "apps/polish-cli": {
+    "cli": {
       "name": "polish-cli",
       "version": "0.3.0",
       "bin": {
@@ -21,7 +21,7 @@
         "typescript": "^5.7.2",
       },
     },
-    "apps/website": {
+    "website": {
       "name": "@polish/website",
       "version": "1.0.0",
       "dependencies": {
@@ -128,7 +128,7 @@
 
     "@next/swc-win32-x64-msvc": ["@next/swc-win32-x64-msvc@16.1.1", "", { "os": "win32", "cpu": "x64" }, "sha512-Ncwbw2WJ57Al5OX0k4chM68DKhEPlrXBaSXDCi2kPi5f4d8b3ejr3RRJGfKBLrn2YJL5ezNS7w2TZLHSti8CMw=="],
 
-    "@polish/website": ["@polish/website@workspace:apps/website"],
+    "@polish/website": ["@polish/website@workspace:website"],
 
     "@swc/helpers": ["@swc/helpers@0.5.15", "", { "dependencies": { "tslib": "^2.8.0" } }, "sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g=="],
 
@@ -270,7 +270,7 @@
 
     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 
-    "polish-cli": ["polish-cli@workspace:apps/polish-cli"],
+    "polish-cli": ["polish-cli@workspace:cli"],
 
     "postcss": ["postcss@8.5.6", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg=="],
 
