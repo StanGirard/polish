@@ -292,6 +292,10 @@ export async function runAgentWithCallback(
     return runOpenRouterAgent(prompt, callbacks, options);
   }
 
+  if (provider.type === 'openai') {
+    return runOpenAIAgent(prompt, callbacks, options);
+  }
+
   return runAnthropicAgent(prompt, callbacks, options);
 }
 
@@ -364,6 +368,129 @@ async function runAnthropicAgent(
 
     if (response.stop_reason === 'end_turn' && !hasToolUse) {
       break;
+    }
+
+    if (messages.length > 100) {
+      onText?.('Max iterations reached');
+      break;
+    }
+  }
+
+  return finalResponse;
+}
+
+/**
+ * Run agent using OpenAI API
+ */
+async function runOpenAIAgent(
+  prompt: string,
+  callbacks: AgentCallbacks,
+  options: AgentOptions
+): Promise<string> {
+  const provider = options.provider ?? { type: 'openai' as const };
+  const maxTokens = options.maxTokens ?? 4096;
+  const model = provider.model ?? getModel('openai') ?? 'gpt-4o';
+  const apiKey = provider.apiKey ?? getApiKey('openai');
+  const baseUrl = provider.baseUrl ?? getBaseUrl('openai') ?? 'https://api.openai.com/v1/chat/completions';
+  const { onText, onTool, onToolDone } = callbacks;
+
+  if (!apiKey) {
+    throw new Error('OpenAI API key not found. Set it in .polish/settings.json or OPENAI_API_KEY env var');
+  }
+
+  interface OpenAIMessage {
+    role: 'system' | 'user' | 'assistant' | 'tool';
+    content: string | null;
+    tool_calls?: Array<{
+      id: string;
+      type: 'function';
+      function: { name: string; arguments: string };
+    }>;
+    tool_call_id?: string;
+  }
+
+  const messages: OpenAIMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: prompt },
+  ];
+
+  let finalResponse = '';
+
+  while (true) {
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        messages,
+        tools: openaiTools,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json() as {
+      choices: Array<{
+        message: {
+          role: string;
+          content: string | null;
+          tool_calls?: Array<{
+            id: string;
+            type: 'function';
+            function: { name: string; arguments: string };
+          }>;
+        };
+        finish_reason: string;
+      }>;
+    };
+
+    const choice = data.choices[0];
+    const message = choice.message;
+
+    // Handle text content
+    if (message.content) {
+      onText?.(message.content);
+      finalResponse += message.content;
+    }
+
+    // Handle tool calls
+    if (message.tool_calls && message.tool_calls.length > 0) {
+      // Add assistant message with tool calls
+      messages.push({
+        role: 'assistant',
+        content: message.content,
+        tool_calls: message.tool_calls,
+      });
+
+      // Execute each tool and add results
+      for (const toolCall of message.tool_calls) {
+        const toolName = toolCall.function.name;
+        const toolInput = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+
+        const toolDesc = formatToolCall(toolName, toolInput);
+        onTool?.(toolDesc);
+
+        const result = await executeTool(toolName, toolInput);
+        onToolDone?.();
+
+        messages.push({
+          role: 'tool',
+          content: result.success ? result.output || 'Success' : `Error: ${result.error}`,
+          tool_call_id: toolCall.id,
+        });
+      }
+    } else {
+      // No tool calls, check if we should stop
+      if (choice.finish_reason === 'stop') {
+        break;
+      }
     }
 
     if (messages.length > 100) {

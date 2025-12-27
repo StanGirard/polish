@@ -23,11 +23,13 @@ export function Init({ onComplete, onCancel }: InitProps) {
     if (!isRawModeSupported) {
       // Can't do interactive setup, exit with instructions
       console.error('\nInteractive mode not available.');
-      console.error('Use: polish --init --api-key YOUR_KEY [--provider anthropic|openrouter]\n');
+      console.error('Use: polish --init --api-key YOUR_KEY [--provider anthropic|openrouter|openai]\n');
       onCancel();
       exit();
     }
   }, [isRawModeSupported, onCancel, exit]);
+
+  const providerOptions: ProviderType[] = ['anthropic', 'openrouter', 'openai'];
 
   useInput((input, key) => {
     if (step === 'confirm') {
@@ -43,10 +45,12 @@ export function Init({ onComplete, onCancel }: InitProps) {
         }
       }
     } else if (step === 'provider') {
-      if (key.upArrow || key.downArrow) {
-        setSelectedOption((prev) => (prev === 0 ? 1 : 0));
+      if (key.upArrow) {
+        setSelectedOption((prev) => (prev === 0 ? providerOptions.length - 1 : prev - 1));
+      } else if (key.downArrow) {
+        setSelectedOption((prev) => (prev === providerOptions.length - 1 ? 0 : prev + 1));
       } else if (key.return) {
-        setProvider(selectedOption === 0 ? 'anthropic' : 'openrouter');
+        setProvider(providerOptions[selectedOption]);
         setStep('apikey');
       }
     } else if (step === 'apikey') {
@@ -101,6 +105,9 @@ export function Init({ onComplete, onCancel }: InitProps) {
             <Text color={selectedOption === 1 ? 'cyan' : 'dim'}>
               {selectedOption === 1 ? '❯ ' : '  '}OpenRouter
             </Text>
+            <Text color={selectedOption === 2 ? 'cyan' : 'dim'}>
+              {selectedOption === 2 ? '❯ ' : '  '}OpenAI (GPT API)
+            </Text>
           </Box>
         </Box>
       )}
@@ -108,7 +115,7 @@ export function Init({ onComplete, onCancel }: InitProps) {
       {step === 'apikey' && (
         <Box flexDirection="column" marginTop={1}>
           <Text>
-            Enter your {provider === 'anthropic' ? 'Anthropic' : 'OpenRouter'} API key:
+            Enter your {provider === 'anthropic' ? 'Anthropic' : provider === 'openrouter' ? 'OpenRouter' : 'OpenAI'} API key:
           </Text>
           <Box marginTop={1}>
             <Text color="cyan">

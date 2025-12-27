@@ -88,11 +88,24 @@ export function resolveProvider(
   const providerType = (cliProvider as Provider['type']) ?? settings.defaultProvider ?? configProvider?.type ?? 'anthropic';
 
   // Default models per provider
-  const defaultModel = providerType === 'openrouter' ? 'anthropic/claude-opus-4.5' : 'claude-sonnet-4.5';
+  const getDefaultModel = (provider: Provider['type']) => {
+    switch (provider) {
+      case 'openrouter':
+        return 'anthropic/claude-opus-4.5';
+      case 'openai':
+        return 'gpt-4o';
+      default:
+        return 'claude-sonnet-4.5';
+    }
+  };
+  const defaultModel = getDefaultModel(providerType);
+
+  // Only use config model if provider types match (avoid using anthropic model for openrouter)
+  const configModel = configProvider?.type === providerType ? configProvider?.model : undefined;
 
   return {
     type: providerType,
-    model: cliModel ?? getModel(providerType) ?? configProvider?.model ?? defaultModel,
+    model: cliModel ?? getModel(providerType) ?? configModel ?? defaultModel,
     apiKey: getApiKey(providerType) ?? configProvider?.apiKey,
     baseUrl: cliBaseUrl ?? getBaseUrl(providerType) ?? configProvider?.baseUrl,
   };

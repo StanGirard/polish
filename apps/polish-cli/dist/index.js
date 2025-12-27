@@ -15,7 +15,7 @@ program
     .option('--no-polish', 'Skip the polish loop (only implement)')
     .option('--polish-only', 'Only run polish loop on existing code')
     .option('--config <path>', 'Path to config file', 'polish.config.json')
-    .option('--provider <provider>', 'AI provider: anthropic or openrouter')
+    .option('--provider <provider>', 'AI provider: anthropic, openrouter, or openai')
     .option('--model <model>', 'Model to use (e.g., claude-sonnet-4.5 or anthropic/claude-sonnet-4.5)')
     .option('--base-url <url>', 'Custom API base URL (e.g., https://api.z.ai/api/anthropic)')
     .option('--init', 'Initialize polish in current directory')
@@ -24,10 +24,24 @@ program
     // Handle --init flag for non-interactive initialization
     if (options.init) {
         const provider = (options.provider || 'anthropic');
-        const apiKey = options.apiKey || process.env[provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENROUTER_API_KEY'];
-        const baseUrl = options.baseUrl || process.env[provider === 'anthropic' ? 'ANTHROPIC_BASE_URL' : 'OPENROUTER_BASE_URL'];
+        const getEnvKeyName = (p) => {
+            switch (p) {
+                case 'anthropic': return 'ANTHROPIC_API_KEY';
+                case 'openrouter': return 'OPENROUTER_API_KEY';
+                case 'openai': return 'OPENAI_API_KEY';
+            }
+        };
+        const getEnvBaseUrlName = (p) => {
+            switch (p) {
+                case 'anthropic': return 'ANTHROPIC_BASE_URL';
+                case 'openrouter': return 'OPENROUTER_BASE_URL';
+                case 'openai': return 'OPENAI_BASE_URL';
+            }
+        };
+        const apiKey = options.apiKey || process.env[getEnvKeyName(provider)];
+        const baseUrl = options.baseUrl || process.env[getEnvBaseUrlName(provider)];
         if (!apiKey) {
-            console.error(`Error: API key required. Use --api-key or set ${provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENROUTER_API_KEY'} environment variable.`);
+            console.error(`Error: API key required. Use --api-key or set ${getEnvKeyName(provider)} environment variable.`);
             process.exit(1);
         }
         const providerSettings = { apiKey };

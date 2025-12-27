@@ -16,7 +16,7 @@ export interface ScoreResult {
     total: number;
     metrics: MetricResult[];
 }
-export type ProviderType = 'anthropic' | 'openrouter';
+export type ProviderType = 'anthropic' | 'openrouter' | 'openai';
 export interface Provider {
     type: ProviderType;
     apiKey?: string;

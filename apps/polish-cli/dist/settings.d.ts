@@ -10,6 +10,11 @@ export interface Settings {
         baseUrl?: string;
         model?: string;
     };
+    openai?: {
+        apiKey: string;
+        baseUrl?: string;
+        model?: string;
+    };
     defaultProvider?: ProviderType;
     defaultModel?: string;
 }

@@ -13,6 +13,11 @@ export interface Settings {
     baseUrl?: string; // Custom OpenRouter endpoint
     model?: string; // Default model for this provider
   };
+  openai?: {
+    apiKey: string;
+    baseUrl?: string; // Custom OpenAI endpoint
+    model?: string; // Default model for this provider
+  };
   defaultProvider?: ProviderType;
   defaultModel?: string;
 }
@@ -99,6 +104,10 @@ export function getApiKey(provider: ProviderType): string | undefined {
     return settings.openrouter?.apiKey ?? process.env.OPENROUTER_API_KEY;
   }
 
+  if (provider === 'openai') {
+    return settings.openai?.apiKey ?? process.env.OPENAI_API_KEY;
+  }
+
   return undefined;
 }
 
@@ -116,6 +125,10 @@ export function getBaseUrl(provider: ProviderType): string | undefined {
     return settings.openrouter?.baseUrl ?? process.env.OPENROUTER_BASE_URL;
   }
 
+  if (provider === 'openai') {
+    return settings.openai?.baseUrl ?? process.env.OPENAI_BASE_URL;
+  }
+
   return undefined;
 }
 
@@ -131,6 +144,10 @@ export function getModel(provider: ProviderType): string | undefined {
 
   if (provider === 'openrouter') {
     return settings.openrouter?.model ?? settings.defaultModel;
+  }
+
+  if (provider === 'openai') {
+    return settings.openai?.model ?? settings.defaultModel;
   }
 
   return settings.defaultModel;

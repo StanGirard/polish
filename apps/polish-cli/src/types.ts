@@ -23,7 +23,7 @@ export interface ScoreResult {
 }
 
 // Provider configuration
-export type ProviderType = 'anthropic' | 'openrouter';
+export type ProviderType = 'anthropic' | 'openrouter' | 'openai';
 
 export interface Provider {
   type: ProviderType;
