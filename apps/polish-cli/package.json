@@ -7,7 +7,7 @@
     "polish-hook": "./dist/hook.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/hook.js dist/index.js",
     "dev": "tsc --watch",
     "start": "node dist/index.js"
   },

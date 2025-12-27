@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { loadConfig, resolveProvider } from './config.js';
-import { writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from 'fs';
+import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import type { PolishConfig } from './types.js';
 
@@ -103,11 +103,9 @@ describe('resolveProvider', () => {
   });
 
   afterEach(() => {
+    // Only delete settings.json, preserve hook.log and other files
     if (existsSync(settingsPath)) {
       unlinkSync(settingsPath);
-    }
-    if (existsSync(settingsDir)) {
-      rmSync(settingsDir, { recursive: true });
     }
   });
 

@@ -1,6 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from 'fs';
-import { join } from 'path';
+import { describe, test, expect } from 'bun:test';
 
 // Note: We can't easily test runAgent without mocking the Anthropic API,
 // but we can test the exported interface and ensure it exists

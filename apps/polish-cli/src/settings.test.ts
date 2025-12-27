@@ -9,7 +9,7 @@ import {
   getBaseUrl,
   getModel,
 } from './settings.js';
-import { writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from 'fs';
+import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
 describe('settings paths', () => {
@@ -31,11 +31,9 @@ describe('isInitialized', () => {
   const settingsPath = join(settingsDir, 'settings.json');
 
   afterEach(() => {
+    // Only delete settings.json, preserve hook.log and other files
     if (existsSync(settingsPath)) {
       unlinkSync(settingsPath);
-    }
-    if (existsSync(settingsDir)) {
-      rmSync(settingsDir, { recursive: true });
     }
   });
 
@@ -60,11 +58,9 @@ describe('loadSettings', () => {
   const settingsPath = join(settingsDir, 'settings.json');
 
   afterEach(() => {
+    // Only delete settings.json, preserve hook.log and other files
     if (existsSync(settingsPath)) {
       unlinkSync(settingsPath);
-    }
-    if (existsSync(settingsDir)) {
-      rmSync(settingsDir, { recursive: true });
     }
   });
 
@@ -105,17 +101,17 @@ describe('saveSettings', () => {
   const settingsPath = join(settingsDir, 'settings.json');
 
   afterEach(() => {
+    // Only delete settings.json, preserve hook.log and other files
     if (existsSync(settingsPath)) {
       unlinkSync(settingsPath);
-    }
-    if (existsSync(settingsDir)) {
-      rmSync(settingsDir, { recursive: true });
     }
   });
 
   test('creates .polish directory if it does not exist', () => {
-    if (existsSync(settingsDir)) {
-      rmSync(settingsDir, { recursive: true });
+    // Note: we don't delete the directory as it may contain hook.log
+    // Just ensure settings.json doesn't exist
+    if (existsSync(settingsPath)) {
+      unlinkSync(settingsPath);
     }
 
     saveSettings({ defaultProvider: 'anthropic' });
@@ -153,11 +149,9 @@ describe('getApiKey', () => {
   });
 
   afterEach(() => {
+    // Only delete settings.json, preserve hook.log and other files
     if (existsSync(settingsPath)) {
       unlinkSync(settingsPath);
-    }
-    if (existsSync(settingsDir)) {
-      rmSync(settingsDir, { recursive: true });
     }
     // Restore env
     Object.assign(process.env, originalEnv);
@@ -220,11 +214,9 @@ describe('getBaseUrl', () => {
   });
 
   afterEach(() => {
+    // Only delete settings.json, preserve hook.log and other files
     if (existsSync(settingsPath)) {
       unlinkSync(settingsPath);
-    }
-    if (existsSync(settingsDir)) {
-      rmSync(settingsDir, { recursive: true });
     }
     Object.assign(process.env, originalEnv);
   });
@@ -253,11 +245,9 @@ describe('getModel', () => {
   const settingsPath = join(settingsDir, 'settings.json');
 
   afterEach(() => {
+    // Only delete settings.json, preserve hook.log and other files
     if (existsSync(settingsPath)) {
       unlinkSync(settingsPath);
-    }
-    if (existsSync(settingsDir)) {
-      rmSync(settingsDir, { recursive: true });
     }
   });
 
