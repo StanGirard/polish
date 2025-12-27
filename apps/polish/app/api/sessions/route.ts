@@ -5,6 +5,7 @@ import {
   updateSession,
   addEvent,
   addPlanMessage,
+  waitForSubscriber,
   type Session
 } from '@/lib/session-store'
 import { runIsolatedPolish } from '@/lib/loop'
@@ -42,7 +43,8 @@ export async function POST(request: NextRequest) {
       maxThinkingTokens = 16000,
       capabilityOverrides,
       enablePlanning = false,  // Enable interactive planning phase
-      providerId  // Optional: specific provider to use
+      providerId,  // Optional: specific provider to use
+      selectedMcpIds  // Optional: IDs of global MCP servers to use
     } = body as {
       mission?: string
       projectPath?: string
@@ -51,6 +53,7 @@ export async function POST(request: NextRequest) {
       capabilityOverrides?: CapabilityOverride[]
       enablePlanning?: boolean
       providerId?: string
+      selectedMcpIds?: string[]
     }
 
     // Resolve provider (specific, default from DB, or from env vars)
@@ -61,13 +64,14 @@ export async function POST(request: NextRequest) {
       mission: mission?.trim() || undefined,
       projectPath,
       enablePlanning,
-      providerId: provider?.id !== 'env' ? provider?.id : undefined
+      providerId: provider?.id !== 'env' ? provider?.id : undefined,
+      selectedMcpIds
     })
 
     if (enablePlanning && mission) {
       // Start in planning mode - don't run implementation yet
       // Launch planning in background
-      runPlanningInBackground(session.id, mission.trim(), projectPath, provider)
+      runPlanningInBackground(session.id, mission.trim(), projectPath, provider, selectedMcpIds)
 
       return NextResponse.json({
         sessionId: session.id,
@@ -86,7 +90,8 @@ export async function POST(request: NextRequest) {
       maxDuration: duration,
       maxThinkingTokens,
       isolation: { enabled: true },
-      capabilityOverrides
+      capabilityOverrides,
+      selectedMcpIds
     }, provider)
 
     return NextResponse.json({
@@ -224,7 +229,8 @@ async function runPlanningInBackground(
   sessionId: string,
   mission: string,
   projectPath: string,
-  provider?: Provider
+  provider?: Provider,
+  selectedMcpIds?: string[]
 ) {
   // Set provider environment if available
   if (provider) {
@@ -232,9 +238,12 @@ async function runPlanningInBackground(
   }
 
   try {
+    // Wait for a subscriber to connect (with 5 second timeout)
+    await waitForSubscriber(sessionId, 5000)
+
     // Load preset for capabilities
     const preset = await loadPreset(projectPath)
-    const planningOptions = resolveCapabilitiesForPhase(preset, 'planning')
+    const planningOptions = resolveCapabilitiesForPhase(preset, 'planning', [], selectedMcpIds)
 
     const context: PlanningContext = {
       mission,
@@ -252,12 +261,12 @@ async function runPlanningInBackground(
     for await (const event of runPlanningPhase(context, planningOptions)) {
       addEvent(sessionId, event)
 
-      // If we got a plan, store approaches and update status to awaiting_approval
+      // If we got a plan, store markdown and update status to awaiting_approval
       if (event.type === 'plan') {
         const planData = event.data as PlanEventData
         updateSession(sessionId, {
           status: 'awaiting_approval',
-          availableApproaches: planData.approaches
+          planMarkdown: planData.markdown
         })
       }
 

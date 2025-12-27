@@ -10,8 +10,7 @@ import type { PolishConfig, PolishEvent, PlanStep } from '@/lib/types'
 type RouteParams = { params: Promise<{ id: string }> }
 
 interface ApproveRequest {
-  plan?: PlanStep[]  // Optional: the approved plan (from UI)
-  selectedApproachId?: string  // Which approach was selected
+  plan?: PlanStep[]  // Optional: the approved plan steps
   maxDuration?: number
 }
 
@@ -52,24 +51,12 @@ export async function POST(
     // Determine which plan to use
     let approvedPlan: PlanStep[] = []
 
-    // If a specific approach was selected, get its plan
-    if (body.selectedApproachId && session.availableApproaches) {
-      const selectedApproach = session.availableApproaches.find(
-        a => a.id === body.selectedApproachId
-      )
-      if (selectedApproach) {
-        approvedPlan = selectedApproach.plan
-        updateSession(id, {
-          approvedPlan,
-          selectedApproachId: body.selectedApproachId
-        })
-      }
-    } else if (body.plan) {
-      // Legacy: direct plan provided
+    if (body.plan) {
+      // Direct plan provided
       approvedPlan = body.plan
       updateSession(id, { approvedPlan })
     } else {
-      // Fallback to existing approved plan
+      // Fallback to existing approved plan (parsed from markdown)
       approvedPlan = session.approvedPlan || []
     }
 
@@ -94,7 +81,8 @@ export async function POST(
         enabled: true,
         existingBranch: session.branchName
       },
-      enablePlanning: false // Planning is done, skip to implementation
+      enablePlanning: false, // Planning is done, skip to implementation
+      selectedMcpIds: session.selectedMcpIds // Pass through MCP servers
     })
 
     return NextResponse.json({

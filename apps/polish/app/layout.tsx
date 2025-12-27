@@ -3,6 +3,7 @@ import { JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { ApiConfigProvider } from './context/ApiConfigContext'
 import { ProviderProvider } from './context/ProviderContext'
+import { McpProvider } from './context/McpContext'
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
@@ -25,7 +26,9 @@ export default function RootLayout({
       <body className={`${jetbrainsMono.className} crt-screen`}>
         <ApiConfigProvider>
           <ProviderProvider>
-            {children}
+            <McpProvider>
+              {children}
+            </McpProvider>
           </ProviderProvider>
         </ApiConfigProvider>
       </body>

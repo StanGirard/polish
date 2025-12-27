@@ -154,7 +154,7 @@ export async function runWithProviderEnvironment<T>(
 export async function testProviderConnection(provider: Provider): Promise<{ success: boolean; error?: string }> {
   try {
     const client = createAnthropicClient(provider)
-    const model = getDefaultModelForProvider(provider.type)
+    const model = provider.model || getDefaultModelForProvider(provider.type)
 
     // Make a minimal API call
     await client.messages.create({

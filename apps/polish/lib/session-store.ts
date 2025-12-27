@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
-import type { PolishEvent, PlanStep, PlanMessage, PlanningApproach } from './types'
+import type { PolishEvent, PlanStep, PlanMessage } from './types'
 
 // ============================================================================
 // Types
@@ -34,10 +34,11 @@ export interface Session {
   // Planning phase
   enablePlanning?: boolean // Whether planning is enabled for this session
   approvedPlan?: PlanStep[] // The approved plan (if any)
-  availableApproaches?: PlanningApproach[] // Available approaches from planning
-  selectedApproachId?: string // Which approach was selected
+  planMarkdown?: string // The final markdown plan (for display)
   // Provider
   providerId?: string // AI provider used for this session
+  // MCP servers
+  selectedMcpIds?: string[] // IDs of global MCP servers to use for this session
 }
 
 export interface SessionEvent {
@@ -73,7 +74,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   retry_count INTEGER DEFAULT 0,
   enable_planning INTEGER DEFAULT 0,
   approved_plan TEXT,
-  provider_id TEXT
+  provider_id TEXT,
+  selected_mcp_ids TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session_events (
@@ -112,6 +114,23 @@ CREATE INDEX IF NOT EXISTS idx_events_timestamp ON session_events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_plan_messages_session ON plan_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_providers_default ON providers(is_default);
 CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(type);
+
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  command TEXT,
+  args TEXT,
+  env TEXT,
+  url TEXT,
+  headers TEXT,
+  is_enabled INTEGER DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_type ON mcp_servers(type);
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(is_enabled);
 `
 
 let db: Database.Database | null = null
@@ -162,12 +181,13 @@ function runMigrations(db: Database.Database): void {
   if (!columnNames.includes('provider_id')) {
     db.exec('ALTER TABLE sessions ADD COLUMN provider_id TEXT')
   }
-  // Multiple approaches columns
-  if (!columnNames.includes('available_approaches')) {
-    db.exec('ALTER TABLE sessions ADD COLUMN available_approaches TEXT')
+  // Plan markdown column (for Claude Code-style planning)
+  if (!columnNames.includes('plan_markdown')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN plan_markdown TEXT')
   }
-  if (!columnNames.includes('selected_approach_id')) {
-    db.exec('ALTER TABLE sessions ADD COLUMN selected_approach_id TEXT')
+  // MCP servers column
+  if (!columnNames.includes('selected_mcp_ids')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN selected_mcp_ids TEXT')
   }
 
   // Check if plan_messages table exists
@@ -213,6 +233,28 @@ function runMigrations(db: Database.Database): void {
       db.exec('ALTER TABLE providers ADD COLUMN model TEXT')
     }
   }
+
+  // Check if mcp_servers table exists
+  const mcpTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='mcp_servers'").all()
+  if (mcpTable.length === 0) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS mcp_servers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        command TEXT,
+        args TEXT,
+        env TEXT,
+        url TEXT,
+        headers TEXT,
+        is_enabled INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mcp_servers_type ON mcp_servers(type);
+      CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(is_enabled);
+    `)
+  }
 }
 
 // ============================================================================
@@ -228,6 +270,7 @@ export function createSession(config: {
   projectPath: string
   enablePlanning?: boolean
   providerId?: string
+  selectedMcpIds?: string[]
 }): Session {
   const db = getDb()
   const id = generateId()
@@ -242,13 +285,25 @@ export function createSession(config: {
     commits: 0,
     retryCount: 0,
     enablePlanning: config.enablePlanning,
-    providerId: config.providerId
+    providerId: config.providerId,
+    selectedMcpIds: config.selectedMcpIds
   }
 
   db.prepare(`
-    INSERT INTO sessions (id, status, mission, project_path, started_at, commits, retry_count, enable_planning, provider_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, session.status, session.mission || null, session.projectPath, now.toISOString(), 0, 0, config.enablePlanning ? 1 : 0, config.providerId || null)
+    INSERT INTO sessions (id, status, mission, project_path, started_at, commits, retry_count, enable_planning, provider_id, selected_mcp_ids)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    session.status,
+    session.mission || null,
+    session.projectPath,
+    now.toISOString(),
+    0,
+    0,
+    config.enablePlanning ? 1 : 0,
+    config.providerId || null,
+    config.selectedMcpIds ? JSON.stringify(config.selectedMcpIds) : null
+  )
 
   return session
 }
@@ -322,13 +377,9 @@ export function updateSession(id: string, updates: Partial<Session>): void {
     fields.push('approved_plan = ?')
     values.push(JSON.stringify(updates.approvedPlan))
   }
-  if (updates.availableApproaches !== undefined) {
-    fields.push('available_approaches = ?')
-    values.push(JSON.stringify(updates.availableApproaches))
-  }
-  if (updates.selectedApproachId !== undefined) {
-    fields.push('selected_approach_id = ?')
-    values.push(updates.selectedApproachId)
+  if (updates.planMarkdown !== undefined) {
+    fields.push('plan_markdown = ?')
+    values.push(updates.planMarkdown)
   }
 
   if (fields.length === 0) return
@@ -410,6 +461,7 @@ export function getLatestEvents(sessionId: string, limit = 50): SessionEvent[] {
 // ============================================================================
 
 const eventCallbacks = new Map<string, Set<(event: PolishEvent) => void>>()
+const subscriberWaiters = new Map<string, Set<() => void>>()
 
 export function subscribeToSession(
   sessionId: string,
@@ -421,6 +473,13 @@ export function subscribeToSession(
 
   eventCallbacks.get(sessionId)!.add(callback)
 
+  // Notify anyone waiting for a subscriber
+  const waiters = subscriberWaiters.get(sessionId)
+  if (waiters && waiters.size > 0) {
+    waiters.forEach(resolve => resolve())
+    subscriberWaiters.delete(sessionId)
+  }
+
   // Return unsubscribe function
   return () => {
     const callbacks = eventCallbacks.get(sessionId)
@@ -431,6 +490,42 @@ export function subscribeToSession(
       }
     }
   }
+}
+
+export function hasSubscribers(sessionId: string): boolean {
+  const callbacks = eventCallbacks.get(sessionId)
+  return callbacks !== undefined && callbacks.size > 0
+}
+
+export function waitForSubscriber(sessionId: string, timeoutMs: number = 5000): Promise<void> {
+  // If already has subscribers, resolve immediately
+  if (hasSubscribers(sessionId)) {
+    return Promise.resolve()
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      // Remove waiter on timeout
+      const waiters = subscriberWaiters.get(sessionId)
+      if (waiters) {
+        waiters.delete(resolve)
+        if (waiters.size === 0) {
+          subscriberWaiters.delete(sessionId)
+        }
+      }
+      resolve() // Resolve anyway to allow planning to start
+    }, timeoutMs)
+
+    const resolveWrapper = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+
+    if (!subscriberWaiters.has(sessionId)) {
+      subscriberWaiters.set(sessionId, new Set())
+    }
+    subscriberWaiters.get(sessionId)!.add(resolveWrapper)
+  })
 }
 
 // ============================================================================
@@ -487,12 +582,12 @@ function rowToSession(row: Record<string, unknown>): Session {
     }
   }
 
-  let availableApproaches: PlanningApproach[] | undefined
-  if (row.available_approaches) {
+  let selectedMcpIds: string[] | undefined
+  if (row.selected_mcp_ids) {
     try {
-      availableApproaches = JSON.parse(row.available_approaches as string)
+      selectedMcpIds = JSON.parse(row.selected_mcp_ids as string)
     } catch {
-      availableApproaches = undefined
+      selectedMcpIds = undefined
     }
   }
 
@@ -516,9 +611,9 @@ function rowToSession(row: Record<string, unknown>): Session {
     retryCount: (row.retry_count as number) ?? 0,
     enablePlanning: Boolean(row.enable_planning),
     approvedPlan,
-    availableApproaches,
-    selectedApproachId: row.selected_approach_id as string | undefined,
-    providerId: row.provider_id as string | undefined
+    planMarkdown: row.plan_markdown as string | undefined,
+    providerId: row.provider_id as string | undefined,
+    selectedMcpIds
   }
 }
 

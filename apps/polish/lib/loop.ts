@@ -423,7 +423,7 @@ export async function* runPolishLoop(
 // ============================================================================
 
 export async function* runFullPolish(config: PolishConfig): AsyncGenerator<PolishEvent> {
-  const { projectPath, mission, approvedPlan, retry, capabilityOverrides = [] } = config
+  const { projectPath, mission, approvedPlan, retry, capabilityOverrides = [], selectedMcpIds } = config
 
   // Load preset for capabilities resolution
   const preset = await loadPreset(projectPath)
@@ -442,7 +442,7 @@ export async function* runFullPolish(config: PolishConfig): AsyncGenerator<Polis
     }
 
     // Resolve capabilities for implement phase
-    const implementOptions = resolveCapabilitiesForPhase(preset, 'implement', capabilityOverrides)
+    const implementOptions = resolveCapabilitiesForPhase(preset, 'implement', capabilityOverrides, selectedMcpIds)
 
     for await (const event of runImplementPhase({
       mission,
@@ -473,7 +473,7 @@ export async function* runFullPolish(config: PolishConfig): AsyncGenerator<Polis
   }
 
   // Resolve capabilities for polish phase
-  const polishOptions = resolveCapabilitiesForPhase(preset, 'polish', capabilityOverrides)
+  const polishOptions = resolveCapabilitiesForPhase(preset, 'polish', capabilityOverrides, selectedMcpIds)
 
   for await (const event of runPolishLoop(config, polishOptions)) {
     yield event

@@ -81,7 +81,8 @@ export async function POST(
       retry: {
         feedback: body.feedback,
         retryCount: newRetryCount
-      }
+      },
+      selectedMcpIds: session.selectedMcpIds // Pass through MCP servers
     })
 
     return NextResponse.json({

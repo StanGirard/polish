@@ -176,6 +176,7 @@ export interface PolishConfig {
     retryCount: number // Number of times this session has been retried
   }
   capabilityOverrides?: CapabilityOverride[] // Session-level capability overrides
+  selectedMcpIds?: string[] // IDs of global MCP servers to use for this session
   // Planning phase options
   enablePlanning?: boolean // Enable interactive planning phase before implementation
   planningThoroughness?: PlanningThoroughness // Level of exploration depth (default: 'medium')
@@ -206,6 +207,7 @@ export type PolishEvent =
   | { type: 'aborted'; data: AbortedEventData }
   // Planning phase events
   | { type: 'plan'; data: PlanEventData }
+  | { type: 'plan_question'; data: PlanQuestionEventData }
   | { type: 'plan_message'; data: PlanMessageEventData }
   | { type: 'plan_approved'; data: PlanApprovedEventData }
   | { type: 'plan_rejected'; data: PlanRejectedEventData }
@@ -346,12 +348,16 @@ export interface PlanStep {
   acceptanceCriteria?: string[]
 }
 
-/** A complete implementation approach (one of several options) */
-export interface PlanningApproach {
-  id: string       // e.g., "approach-1", "approach-2"
-  name: string     // e.g., "Conservative", "Aggressive Refactor"
-  summary: string  // Detailed description of the approach
-  plan: PlanStep[] // The detailed steps
+/** Question posée pendant le planning (style Claude Code) */
+export interface PlanQuestion {
+  id: string
+  text: string
+  options: Array<{
+    id: string
+    label: string
+    description?: string
+  }>
+  recommended?: string  // ID de l'option recommandée
 }
 
 /** Message in the planning conversation */
@@ -362,10 +368,14 @@ export interface PlanMessage {
   timestamp: string
 }
 
-/** Plan event data - sent when plan is generated/updated */
+/** Plan question event data */
+export interface PlanQuestionEventData {
+  question: PlanQuestion
+}
+
+/** Plan event data - sent when final markdown plan is ready */
 export interface PlanEventData {
-  approaches: PlanningApproach[]
-  recommendedApproachId?: string
+  markdown: string  // Le plan complet en markdown
 }
 
 /** Plan message event - chat message during planning */
@@ -440,7 +450,7 @@ export interface Provider {
   type: ProviderType
   baseUrl?: string  // Custom base URL (optional for most providers)
   apiKey: string    // API key or OAuth token
-  model?: string    // Model to use (e.g., "claude-sonnet-4-20250514", "GLM-4.7")
+  model?: string    // Model to use (e.g., "claude-sonnet-4.5", "GLM-4.7")
   isDefault: boolean
   createdAt: Date
   updatedAt: Date
@@ -536,4 +546,81 @@ export const PROVIDER_TYPE_LABELS: Record<ProviderType, string> = {
   openrouter: 'OpenRouter',
   glm: 'GLM / Z.ai',
   openai_compatible: 'OpenAI Compatible'
+}
+
+// ============================================================================
+// MCP Server Configuration
+// ============================================================================
+
+/** MCP Server types supported */
+export type McpServerType = 'stdio' | 'sse' | 'http'
+
+/** MCP server stored in database */
+export interface McpServer {
+  id: string
+  name: string
+  type: McpServerType
+  // Stdio fields
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  // HTTP/SSE fields
+  url?: string
+  headers?: Record<string, string>
+  // Common
+  isEnabled: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** MCP server for API responses */
+export interface McpServerPublic {
+  id: string
+  name: string
+  type: McpServerType
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+  isEnabled: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** Request to create a new MCP server */
+export interface CreateMcpServerRequest {
+  name: string
+  type: McpServerType
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+  isEnabled?: boolean
+}
+
+/** Request to update an existing MCP server */
+export interface UpdateMcpServerRequest {
+  name?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+  isEnabled?: boolean
+}
+
+/** Human-readable MCP type labels */
+export const MCP_TYPE_LABELS: Record<McpServerType, string> = {
+  stdio: 'Local (stdio)',
+  sse: 'Remote (SSE)',
+  http: 'Remote (HTTP)'
+}
+
+/** MCP type descriptions */
+export const MCP_TYPE_DESCRIPTIONS: Record<McpServerType, string> = {
+  stdio: 'Runs a local command that communicates via stdin/stdout',
+  sse: 'Connects to a remote server using Server-Sent Events',
+  http: 'Connects to a remote server using HTTP requests'
 }

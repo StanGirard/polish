@@ -16,6 +16,7 @@ import type {
   AgentDefinition
 } from './types'
 import { resolvePluginsToSdkFormat } from './plugin-loader'
+import { getEnabledMcpServers, toSdkMcpConfig } from './mcp-store'
 
 // Default tools for each phase (matches current hardcoded behavior)
 const DEFAULT_IMPLEMENT_TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'Task']
@@ -127,12 +128,14 @@ function applyOverrides(
  * @param preset - The loaded preset configuration
  * @param phase - Current execution phase ('implement' or 'polish')
  * @param overrides - Session-level capability overrides
+ * @param selectedMcpServerIds - Optional array of global MCP server IDs to include
  * @returns Resolved options ready for SDK query() call
  */
 export function resolveCapabilitiesForPhase(
   preset: Preset,
   phase: ExecutionPhase,
-  overrides: CapabilityOverride[] = []
+  overrides: CapabilityOverride[] = [],
+  selectedMcpServerIds?: string[]
 ): ResolvedQueryOptions {
   const caps = preset.capabilities
 
@@ -174,9 +177,18 @@ export function resolveCapabilitiesForPhase(
     result.disallowedTools = Array.from(new Set(merged.disallowedTools)) // dedupe
   }
 
-  // MCP Servers
-  if (merged.mcpServers && Object.keys(merged.mcpServers).length > 0) {
-    result.mcpServers = merged.mcpServers
+  // MCP Servers - merge global servers with preset servers
+  const globalMcpServers = getEnabledMcpServers()
+  const globalMcpConfig = toSdkMcpConfig(globalMcpServers, selectedMcpServerIds)
+
+  // Merge: global MCP servers (lower priority) + preset MCP servers (higher priority)
+  const combinedMcpServers = {
+    ...globalMcpConfig,
+    ...(merged.mcpServers || {})
+  }
+
+  if (Object.keys(combinedMcpServers).length > 0) {
+    result.mcpServers = combinedMcpServers
   }
 
   // Plugins - convert to SDK format

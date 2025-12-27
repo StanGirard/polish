@@ -6,6 +6,7 @@ import { SessionDetail } from './components/SessionDetail'
 import { NewSessionForm } from './components/NewSessionForm'
 import { BackendSettings, BackendIndicator } from './components/BackendSettings'
 import { ProviderManager, ProviderIndicator } from './components/ProviderManager'
+import { McpManager, McpIndicator } from './components/McpManager'
 import { apiFetch } from '@/app/lib/api-client'
 import type { Session } from '@/lib/session-store'
 import type { CapabilityOverride } from '@/lib/types'
@@ -16,6 +17,7 @@ export default function Home() {
   const [isCreating, setIsCreating] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showProviderManager, setShowProviderManager] = useState(false)
+  const [showMcpManager, setShowMcpManager] = useState(false)
   const [prState, setPrState] = useState<{
     sessionId: string
     loading: boolean
@@ -51,7 +53,8 @@ export default function Home() {
     extendedThinking?: boolean,
     capabilityOverrides?: CapabilityOverride[],
     enablePlanning?: boolean,
-    providerId?: string
+    providerId?: string,
+    selectedMcpIds?: string[]
   ) => {
     setIsCreating(true)
     try {
@@ -63,7 +66,8 @@ export default function Home() {
           maxThinkingTokens: extendedThinking ? 16000 : undefined,
           capabilityOverrides,
           enablePlanning,
-          providerId
+          providerId,
+          selectedMcpIds
         })
       })
 
@@ -176,12 +180,12 @@ export default function Home() {
   }
 
   // Approve plan and start implementation
-  const handleApprovePlan = async (sessionId: string, selectedApproachId: string) => {
+  const handleApprovePlan = async (sessionId: string) => {
     try {
       const res = await apiFetch(`/api/sessions/${sessionId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedApproachId })
+        body: JSON.stringify({})
       })
 
       if (res.ok) {
@@ -268,6 +272,7 @@ export default function Home() {
               </div>
             </div>
             <div className="text-right flex items-start gap-4">
+              <McpIndicator onClick={() => setShowMcpManager(true)} />
               <ProviderIndicator onClick={() => setShowProviderManager(true)} />
               <BackendIndicator onClick={() => setShowSettings(true)} />
               {activeSessions.length > 0 ? (
@@ -425,6 +430,12 @@ export default function Home() {
       <ProviderManager
         isOpen={showProviderManager}
         onClose={() => setShowProviderManager(false)}
+      />
+
+      {/* MCP Manager Modal */}
+      <McpManager
+        isOpen={showMcpManager}
+        onClose={() => setShowMcpManager(false)}
       />
     </main>
   )

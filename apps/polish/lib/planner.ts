@@ -25,7 +25,7 @@ import type {
   PlanEventData,
   PlanningThoroughness,
   PlanningMode,
-  PlanningApproach
+  PlanQuestion
 } from './types'
 import { createToolLogger } from './tool-logger'
 
@@ -45,8 +45,10 @@ export interface PlanningContext {
 }
 
 export interface PlanningResult {
-  approaches: PlanningApproach[]
-  recommendedApproachId?: string
+  type: 'question' | 'plan'
+  question?: PlanQuestion      // If type === 'question'
+  markdown?: string            // If type === 'plan' - the full markdown plan
+  plan?: PlanStep[]            // Parsed plan steps from markdown (optional)
 }
 
 // ============================================================================
@@ -55,6 +57,7 @@ export interface PlanningResult {
 
 /**
  * Get the appropriate system prompt based on planning mode and thoroughness
+ * Style Claude Code: questions interactives puis UN SEUL plan markdown
  */
 function getPlanningSystemPrompt(
   thoroughness: PlanningThoroughness = 'medium',
@@ -119,57 +122,65 @@ This is a READ-ONLY planning task. You are STRICTLY PROHIBITED from:
    - Identify technologies used
    - Find patterns and conventions
 
-2. ANALYZE
-   - Read key files
-   - Understand dependencies
-   - Identify extension points
+2. CLARIFY (optional but encouraged)
+   - If you need to clarify requirements, pose a question
+   - Maximum 2-3 questions before generating the plan
+   - Use the question format below
 
 3. DESIGN
-   - Propose implementation plan
-   - Identify risks
-   - Suggest alternatives if relevant
+   - After gathering info, propose ONE implementation plan
+   - Use markdown format for the plan
 
-## Required Output Format
-You MUST return 2-3 different implementation approaches in JSON format within a \`\`\`json block.
-Each approach should offer a distinct strategy for solving the problem.
+## Phase de clarification
 
-\`\`\`json
+Avant de générer le plan, tu PEUX poser des questions pour clarifier les besoins.
+Format pour une question (IMPORTANT: utilise exactement ce format avec \`\`\`question):
+
+\`\`\`question
 {
-  "approaches": [
-    {
-      "id": "approach-1",
-      "name": "Short name (e.g., 'Minimal Changes')",
-      "summary": "Detailed description of this approach - what it does, why choose it",
-      "plan": [
-        {
-          "id": "step-1",
-          "title": "Short step title",
-          "description": "Detailed description of what will be done",
-          "files": ["path/to/file1.ts"],
-          "order": 1,
-          "dependencies": [],
-          "complexity": "low|medium|high"
-        }
-      ]
-    },
-    {
-      "id": "approach-2",
-      "name": "Different approach name",
-      "summary": "Different strategy explanation...",
-      "plan": [...]
-    }
+  "id": "q1",
+  "text": "Comment souhaitez-vous gérer X ?",
+  "options": [
+    {"id": "opt1", "label": "Option A (Recommandé)", "description": "Description de l'option A"},
+    {"id": "opt2", "label": "Option B", "description": "Description de l'option B"},
+    {"id": "opt3", "label": "Option C", "description": "Description de l'option C"}
   ],
-  "recommendedApproachId": "approach-1"
+  "recommended": "opt1"
 }
 \`\`\`
 
-## Approach Guidelines
-- **Approach 1**: Conservative/minimal changes - safest, smallest footprint
-- **Approach 2**: Balanced - good compromise between simplicity and completeness
-- **Approach 3** (optional): Aggressive/thorough - maximum improvement but more changes
+Pose MAXIMUM 2-3 questions pertinentes. Après les réponses, génère le plan.
 
-## Critical Files for Implementation
-End your response with a section listing the 3-5 most essential files with brief explanations of why each is important.
+## Format du plan final
+
+Génère UN SEUL plan en markdown (IMPORTANT: utilise exactement ce format avec \`\`\`plan):
+
+\`\`\`plan
+# Plan d'implémentation
+
+## Résumé
+[1-2 phrases décrivant l'approche choisie]
+
+## Étapes
+
+### 1. [Titre de l'étape]
+- **Fichiers**: \`path/to/file.ts\`, \`path/to/other.ts\`
+- **Description**: Ce qui sera fait en détail
+- **Changements**:
+  - Ajouter X
+  - Modifier Y
+  - Créer Z
+
+### 2. [Titre de l'étape]
+- **Fichiers**: \`path/to/file.ts\`
+- **Description**: Ce qui sera fait
+- **Changements**:
+  - ...
+
+## Fichiers impactés
+- \`file1.ts\` - Raison du changement
+- \`file2.ts\` - Raison du changement
+\`\`\`
 
 ## Guidelines
 - Never modify files - read-only mode
@@ -177,7 +188,8 @@ End your response with a section listing the 3-5 most essential files with brief
 - Reuse existing project patterns
 - Ask questions if mission is unclear
 - Steps should be atomic and testable
-- Prefer simplicity - avoid over-engineering`
+- Prefer simplicity - avoid over-engineering
+- Generate ONE plan, not multiple approaches`
 }
 
 const PLANNING_SYSTEM_PROMPT = getPlanningSystemPrompt('medium', 'agent-driven')
@@ -279,53 +291,95 @@ Always generate a complete plan in JSON format (no partial diffs).`
 // Response Parser
 // ============================================================================
 
+/**
+ * Parse questions and plans from the LLM response
+ * Detects ```question and ```plan blocks
+ */
 function parsePlanFromResponse(text: string): PlanningResult | null {
-  // Extract JSON block from response
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-  if (!jsonMatch) {
-    return null
+  // First check for question block
+  const questionMatch = text.match(/```question\s*([\s\S]*?)\s*```/)
+  if (questionMatch) {
+    try {
+      const parsed = JSON.parse(questionMatch[1])
+      if (parsed.id && parsed.text && Array.isArray(parsed.options)) {
+        return {
+          type: 'question',
+          question: {
+            id: parsed.id,
+            text: parsed.text,
+            options: parsed.options.map((opt: { id?: string; label?: string; description?: string }, idx: number) => ({
+              id: opt.id || `opt-${idx + 1}`,
+              label: opt.label || `Option ${idx + 1}`,
+              description: opt.description
+            })),
+            recommended: parsed.recommended
+          }
+        }
+      }
+    } catch {
+      // Invalid JSON in question block
+    }
   }
 
-  try {
-    const parsed = JSON.parse(jsonMatch[1])
+  // Check for plan block (markdown)
+  const planMatch = text.match(/```plan\s*([\s\S]*?)\s*```/)
+  if (planMatch) {
+    const markdown = planMatch[1].trim()
 
-    // Validate required fields - now expecting approaches array
-    if (!parsed.approaches || !Array.isArray(parsed.approaches) || parsed.approaches.length === 0) {
-      return null
-    }
-
-    const approaches: PlanningApproach[] = parsed.approaches.map((approach: {
-      id?: string
-      name?: string
-      summary?: string
-      plan?: Partial<PlanStep>[]
-    }, approachIndex: number) => ({
-      id: approach.id || `approach-${approachIndex + 1}`,
-      name: approach.name || `Approach ${approachIndex + 1}`,
-      summary: approach.summary || '',
-      plan: (approach.plan || []).map((step: Partial<PlanStep>, stepIndex: number) => ({
-        id: step.id || `step-${stepIndex + 1}`,
-        title: step.title || `Step ${stepIndex + 1}`,
-        description: step.description || '',
-        rationale: step.rationale,
-        files: step.files || [],
-        order: step.order ?? stepIndex + 1,
-        dependencies: step.dependencies,
-        complexity: step.complexity,
-        estimatedLines: step.estimatedLines,
-        testStrategy: step.testStrategy,
-        rollbackPlan: step.rollbackPlan,
-        acceptanceCriteria: step.acceptanceCriteria
-      }))
-    }))
+    // Optionally parse steps from markdown (basic extraction)
+    const steps = parseStepsFromMarkdown(markdown)
 
     return {
-      approaches,
-      recommendedApproachId: parsed.recommendedApproachId || approaches[0]?.id
+      type: 'plan',
+      markdown,
+      plan: steps.length > 0 ? steps : undefined
     }
-  } catch {
-    return null
   }
+
+  return null
+}
+
+/**
+ * Parse plan steps from markdown format
+ * Extracts ### numbered sections as steps
+ */
+function parseStepsFromMarkdown(markdown: string): PlanStep[] {
+  const steps: PlanStep[] = []
+
+  // Match ### N. Title sections
+  const stepRegex = /###\s*(\d+)\.\s*([^\n]+)\n([\s\S]*?)(?=###\s*\d+\.|## |$)/g
+  let match
+
+  while ((match = stepRegex.exec(markdown)) !== null) {
+    const order = parseInt(match[1], 10)
+    const title = match[2].trim()
+    const content = match[3].trim()
+
+    // Extract files from **Fichiers**: `file1`, `file2` pattern
+    const filesMatch = content.match(/\*\*Fichiers?\*\*:\s*([^\n]+)/)
+    const files: string[] = []
+    if (filesMatch) {
+      const fileRefs = filesMatch[1].match(/`([^`]+)`/g)
+      if (fileRefs) {
+        files.push(...fileRefs.map(f => f.replace(/`/g, '')))
+      }
+    }
+
+    // Extract description
+    const descMatch = content.match(/\*\*Description\*\*:\s*([^\n]+)/)
+    const description = descMatch ? descMatch[1].trim() : content.split('\n')[0]
+
+    steps.push({
+      id: `step-${order}`,
+      title,
+      description,
+      files,
+      order,
+      complexity: 'medium' // Default
+    })
+  }
+
+  return steps
 }
 
 // ============================================================================
@@ -518,30 +572,47 @@ export async function* runPlanningPhase(
           }
         }
 
-        // Parse the plan from the full response
+        // Parse question or plan from the full response
         lastPlan = parsePlanFromResponse(fullResponse)
 
         if (lastPlan) {
-          // Yield the structured plan with multiple approaches
-          const planEventData: PlanEventData = {
-            approaches: lastPlan.approaches,
-            recommendedApproachId: lastPlan.recommendedApproachId
-          }
+          if (lastPlan.type === 'question' && lastPlan.question) {
+            // Emit question for user to answer
+            yield {
+              type: 'plan_question',
+              data: {
+                question: lastPlan.question
+              }
+            }
 
-          yield {
-            type: 'plan',
-            data: planEventData
-          }
+            yield {
+              type: 'status',
+              data: {
+                phase: 'planning',
+                message: 'Question en attente de réponse...'
+              }
+            }
+          } else if (lastPlan.type === 'plan' && lastPlan.markdown) {
+            // Emit the final markdown plan
+            const planEventData: PlanEventData = {
+              markdown: lastPlan.markdown
+            }
 
-          yield {
-            type: 'status',
-            data: {
-              phase: 'planning',
-              message: `${lastPlan.approaches.length} approaches ready for review. Select one to approve...`
+            yield {
+              type: 'plan',
+              data: planEventData
+            }
+
+            yield {
+              type: 'status',
+              data: {
+                phase: 'planning',
+                message: 'Plan ready for review. Approve or provide feedback...'
+              }
             }
           }
         } else {
-          // No structured plan found in response
+          // No structured content found in response
           yield {
             type: 'status',
             data: {

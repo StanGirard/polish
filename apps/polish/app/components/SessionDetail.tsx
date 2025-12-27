@@ -7,7 +7,7 @@ import { CommitTimeline } from './CommitTimeline'
 import { EventLog } from './EventLog'
 import { FeedbackPanel } from './FeedbackPanel'
 import { FileChangesSection } from './FileChangesSection'
-import { ApproachSelector } from './ApproachSelector'
+import { QuestionPanel } from './QuestionPanel'
 import {
   handleEventNotification,
   getNotificationsEnabled,
@@ -15,7 +15,7 @@ import {
 } from '@/app/lib/notifications'
 import { createApiEventSource } from '@/app/lib/api-client'
 import type { Session } from '@/lib/session-store'
-import type { MetricResult, PlanStep, PlanningApproach } from '@/lib/types'
+import type { MetricResult, PlanStep, PlanQuestion } from '@/lib/types'
 
 interface PolishEvent {
   type: string
@@ -56,16 +56,8 @@ interface PolishEvent {
     baseBranch?: string
     // Planning phase fields
     plan?: PlanStep[]
-    approaches?: PlanningApproach[]
-    recommendedApproachId?: string
-    summary?: string
-    estimatedChanges?: {
-      filesCreated: string[]
-      filesModified: string[]
-      filesDeleted: string[]
-    }
-    risks?: string[]
-    questions?: string[]
+    markdown?: string              // Final plan as markdown
+    question?: PlanQuestion        // Interactive question
     approvedAt?: string
     rejectedAt?: string
     // Streaming fields
@@ -84,7 +76,7 @@ interface SessionDetailProps {
   onRetry?: (sessionId: string, feedback: string) => Promise<void>
   onFeedbackSubmit?: (sessionId: string, rating: 'satisfied' | 'unsatisfied', comment?: string) => Promise<void>
   // Planning phase callbacks
-  onApprovePlan?: (sessionId: string, selectedApproachId: string) => Promise<void>
+  onApprovePlan?: (sessionId: string) => Promise<void>
   onRejectPlan?: (sessionId: string, reason?: string) => Promise<void>
   onSendPlanMessage?: (sessionId: string, message: string) => Promise<void>
   onAbortSession?: (sessionId: string) => Promise<void>
@@ -117,16 +109,9 @@ export function SessionDetail({
     session.status === 'running' ? 'polish' : 'idle'
   )
   const [currentPlan, setCurrentPlan] = useState<PlanStep[] | null>(session.approvedPlan || null)
-  const [availableApproaches, setAvailableApproaches] = useState<PlanningApproach[]>(session.availableApproaches || [])
-  const [recommendedApproachId, setRecommendedApproachId] = useState<string | undefined>(undefined)
-  const [planSummary, setPlanSummary] = useState<string | null>(null)
-  interface Risk {
-    description: string
-    severity: 'low' | 'medium' | 'high'
-    mitigation: string
-  }
-
-  const [planRisks, setPlanRisks] = useState<Risk[]>([])
+  const [currentQuestion, setCurrentQuestion] = useState<PlanQuestion | null>(null)
+  const [planMarkdown, setPlanMarkdown] = useState<string | null>(null)
+  const [isAnswering, setIsAnswering] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -187,7 +172,7 @@ export function SessionDetail({
         'agent', 'commit', 'rollback', 'result', 'error', 'status',
         'worktree_created', 'worktree_cleanup', 'session_status', 'done', 'aborted',
         // Planning phase events
-        'plan', 'plan_message', 'plan_approved', 'plan_rejected',
+        'plan', 'plan_question', 'plan_message', 'plan_approved', 'plan_rejected',
         // Planning streaming events
         'plan_stream', 'plan_thinking'
       ]
@@ -234,23 +219,20 @@ export function SessionDetail({
 
             // Planning events
             if (type === 'plan') {
-              // New: multiple approaches
-              if (data.approaches && Array.isArray(data.approaches)) {
-                setAvailableApproaches(data.approaches as PlanningApproach[])
-                setRecommendedApproachId(data.recommendedApproachId as string | undefined)
-                // Set current plan from recommended approach for display
-                const recommended = (data.approaches as PlanningApproach[]).find(
-                  a => a.id === data.recommendedApproachId
-                ) || (data.approaches as PlanningApproach[])[0]
-                if (recommended) {
-                  setCurrentPlan(recommended.plan)
-                  setPlanSummary(recommended.summary)
-                }
+              // New: markdown plan
+              if (data.markdown) {
+                setPlanMarkdown(data.markdown as string)
+                setCurrentQuestion(null)  // Clear any pending question
               }
-              // Legacy: single plan
+              // Legacy: direct plan steps
               if (data.plan) setCurrentPlan(data.plan as PlanStep[])
-              if (data.summary) setPlanSummary(data.summary as string)
-              if (data.risks) setPlanRisks(data.risks as Risk[])
+            }
+
+            // Question event - user needs to answer
+            if (type === 'plan_question') {
+              if (data.question) {
+                setCurrentQuestion(data.question as PlanQuestion)
+              }
             }
 
             if (type === 'plan_approved') {
@@ -586,15 +568,59 @@ export function SessionDetail({
           </div>
         )}
 
-        {/* Planning Panel (when awaiting approval) - Multiple Approaches */}
-        {session.status === 'awaiting_approval' && availableApproaches.length > 0 && onApprovePlan && onRejectPlan && (
+        {/* Question Panel (when a question needs to be answered) */}
+        {(session.status === 'planning' || session.status === 'awaiting_approval') && currentQuestion && onSendPlanMessage && (
           <div className="mb-6">
-            <ApproachSelector
-              approaches={availableApproaches}
-              recommendedApproachId={recommendedApproachId}
-              onApprove={(approachId) => onApprovePlan(session.id, approachId)}
-              onReject={(reason) => onRejectPlan(session.id, reason)}
+            <QuestionPanel
+              question={currentQuestion}
+              onAnswer={async (optionId) => {
+                setIsAnswering(true)
+                const selectedOption = currentQuestion.options.find(o => o.id === optionId)
+                const answerText = selectedOption
+                  ? `J'ai choisi l'option: ${selectedOption.label}`
+                  : `Option sélectionnée: ${optionId}`
+                await onSendPlanMessage(session.id, answerText)
+                setCurrentQuestion(null)
+                setIsAnswering(false)
+              }}
+              isSubmitting={isAnswering}
             />
+          </div>
+        )}
+
+        {/* Plan Markdown Display (when plan is ready for approval) */}
+        {session.status === 'awaiting_approval' && planMarkdown && !currentQuestion && onApprovePlan && onRejectPlan && (
+          <div className="mb-6 p-5 bg-black rounded border border-green-500/30 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-green-400 to-transparent" />
+            <div className="text-green-400 text-xs mb-4 uppercase tracking-widest flex items-center gap-2">
+              <span>◆</span> Plan d&apos;implémentation
+            </div>
+
+            {/* Markdown content */}
+            <div className="prose prose-invert prose-sm max-w-none mb-6">
+              <pre className="whitespace-pre-wrap text-gray-300 text-sm font-mono leading-relaxed bg-gray-900/50 p-4 rounded border border-gray-800">
+                {planMarkdown}
+              </pre>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => onApprovePlan(session.id)}
+                className="flex-1 py-2.5 px-4 rounded border text-sm uppercase tracking-wider font-medium transition-all bg-green-900/30 border-green-500/50 text-green-400 hover:bg-green-900/50"
+              >
+                ✓ Approuver le plan
+              </button>
+              <button
+                onClick={() => {
+                  const reason = window.prompt('Raison du rejet (optionnel):')
+                  onRejectPlan(session.id, reason || undefined)
+                }}
+                className="py-2.5 px-4 rounded border border-red-500/50 bg-red-900/20 text-red-400 text-sm uppercase tracking-wider font-medium hover:bg-red-900/40 transition-all"
+              >
+                ✕ Rejeter
+              </button>
+            </div>
           </div>
         )}
 

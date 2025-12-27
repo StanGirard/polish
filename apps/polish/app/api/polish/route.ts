@@ -10,8 +10,15 @@ export async function POST(request: NextRequest) {
     projectPath = process.cwd(),
     mission,
     polishOnly = false,
-    maxDuration: duration = 5 * 60 * 1000 // 5 min default for web UI
-  } = body
+    maxDuration: duration = 5 * 60 * 1000, // 5 min default for web UI
+    selectedMcpIds
+  } = body as {
+    projectPath?: string
+    mission?: string
+    polishOnly?: boolean
+    maxDuration?: number
+    selectedMcpIds?: string[]
+  }
 
   const encoder = new TextEncoder()
 
@@ -39,7 +46,8 @@ export async function POST(request: NextRequest) {
           projectPath,
           mission: hasMission ? mission : undefined,
           maxDuration: duration,
-          isolation: { enabled: true }
+          isolation: { enabled: true },
+          selectedMcpIds
         }
 
         // Use runIsolatedPolish - handles both mission and polish-only cases

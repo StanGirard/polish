@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { CapabilitiesSelector } from './CapabilitiesSelector'
 import { ProviderSelector } from './ProviderSelector'
+import { McpSelector } from './McpSelector'
 import { useProviders } from '@/app/context/ProviderContext'
+import { useMcpServers } from '@/app/context/McpContext'
 import { apiFetch } from '@/app/lib/api-client'
 import type { CapabilityOverride } from '@/lib/types'
 
@@ -15,7 +17,7 @@ interface CapabilitiesConfig {
 }
 
 interface NewSessionFormProps {
-  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[], enablePlanning?: boolean, providerId?: string) => void
+  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[], enablePlanning?: boolean, providerId?: string, selectedMcpIds?: string[]) => void
   disabled?: boolean
 }
 
@@ -28,7 +30,9 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
   const [capabilities, setCapabilities] = useState<CapabilitiesConfig | null>(null)
   const [capabilityOverrides, setCapabilityOverrides] = useState<CapabilityOverride[]>([])
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
   const { hasProviders } = useProviders()
+  const { hasMcpServers } = useMcpServers()
 
   // Fetch capabilities when expanded
   useEffect(() => {
@@ -42,13 +46,15 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
 
   const handleSubmit = () => {
     const overrides = capabilityOverrides.length > 0 ? capabilityOverrides : undefined
-    onCreateSession(mission.trim() || undefined, extendedThinking, overrides, enablePlanning, selectedProviderId || undefined)
+    const mcpIds = selectedMcpIds.length > 0 ? selectedMcpIds : undefined
+    onCreateSession(mission.trim() || undefined, extendedThinking, overrides, enablePlanning, selectedProviderId || undefined, mcpIds)
     setMission('')
     setIsExpanded(false)
     setShowAdvanced(false)
     setCapabilityOverrides([])
     setEnablePlanning(false)
     setSelectedProviderId(null)
+    setSelectedMcpIds([])
   }
 
   return (
@@ -172,9 +178,9 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             >
               <span className={`text-[10px] transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
               <span className="uppercase tracking-widest">Advanced Options</span>
-              {(capabilityOverrides.filter(o => !o.enabled).length > 0 || selectedProviderId) && (
+              {(capabilityOverrides.filter(o => !o.enabled).length > 0 || selectedProviderId || selectedMcpIds.length > 0) && (
                 <span className="text-[9px] px-1.5 py-0.5 bg-amber-900/50 text-amber-400 rounded">
-                  {capabilityOverrides.filter(o => !o.enabled).length + (selectedProviderId ? 1 : 0)} modified
+                  {capabilityOverrides.filter(o => !o.enabled).length + (selectedProviderId ? 1 : 0) + (selectedMcpIds.length > 0 ? 1 : 0)} modified
                 </span>
               )}
             </button>
@@ -192,6 +198,20 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
                       onChange={setSelectedProviderId}
                       disabled={disabled}
                       className="w-full"
+                    />
+                  </div>
+                )}
+
+                {/* MCP Servers Selection */}
+                {hasMcpServers && (
+                  <div className="p-3 border border-gray-800 rounded bg-black/30">
+                    <div className="text-[9px] text-gray-600 tracking-widest mb-2">
+                      MCP SERVERS
+                    </div>
+                    <McpSelector
+                      selectedIds={selectedMcpIds}
+                      onSelectionChange={setSelectedMcpIds}
+                      disabled={disabled}
                     />
                   </div>
                 )}
