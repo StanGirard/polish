@@ -1,20 +1,20 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-// Default metrics when no config file exists
-const DEFAULT_METRICS = [
-    {
-        name: 'tests',
-        command: 'bun test',
-        weight: 100,
-        target: 100,
-        higherIsBetter: true,
-    },
-];
-const DEFAULT_CONFIG = {
-    metrics: DEFAULT_METRICS,
-    target: 95,
-    maxIterations: 50,
-};
+const DEFAULT_TARGET = 95;
+const DEFAULT_MAX_ITERATIONS = 50;
+export class ConfigNotFoundError extends Error {
+    constructor() {
+        super('No polish.config.json found. Create one with your metrics:\n\n' +
+            '{\n' +
+            '  "metrics": [\n' +
+            '    { "name": "tests", "command": "bun test", "weight": 100, "target": 100 }\n' +
+            '  ],\n' +
+            '  "target": 95\n' +
+            '}\n\n' +
+            'See examples/polish.config.json for more metric examples.');
+        this.name = 'ConfigNotFoundError';
+    }
+}
 export function loadConfig(configPath) {
     const cwd = process.cwd();
     // Try explicit path first
@@ -23,8 +23,7 @@ export function loadConfig(configPath) {
         if (existsSync(fullPath)) {
             return parseConfig(fullPath);
         }
-        console.warn(`Config file not found: ${configPath}, using defaults`);
-        return DEFAULT_CONFIG;
+        throw new ConfigNotFoundError();
     }
     // Try default locations
     const defaultPaths = ['polish.config.json', '.polish.json', '.polish/polish.config.json'];
@@ -34,22 +33,18 @@ export function loadConfig(configPath) {
             return parseConfig(fullPath);
         }
     }
-    // No config found, use defaults
-    return DEFAULT_CONFIG;
+    // No config found
+    throw new ConfigNotFoundError();
 }
 function parseConfig(path) {
-    try {
-        const content = readFileSync(path, 'utf-8');
-        const parsed = JSON.parse(content);
-        // Merge with defaults
-        return {
-            metrics: parsed.metrics ?? DEFAULT_METRICS,
-            target: parsed.target ?? DEFAULT_CONFIG.target,
-            maxIterations: parsed.maxIterations ?? DEFAULT_CONFIG.maxIterations,
-        };
+    const content = readFileSync(path, 'utf-8');
+    const parsed = JSON.parse(content);
+    if (!parsed.metrics || parsed.metrics.length === 0) {
+        throw new Error(`Config file ${path} must define at least one metric`);
     }
-    catch (error) {
-        console.error(`Error parsing config file: ${path}`, error);
-        return DEFAULT_CONFIG;
-    }
+    return {
+        metrics: parsed.metrics,
+        target: parsed.target ?? DEFAULT_TARGET,
+        maxIterations: parsed.maxIterations ?? DEFAULT_MAX_ITERATIONS,
+    };
 }

@@ -15,7 +15,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadConfig } from './config.js';
+import { loadConfig, ConfigNotFoundError } from './config.js';
 import { calculateScore, findWorstMetric } from './metrics.js';
 import { loadState, saveState, updateStateWithScore, hasInitialScore, createInitialState, } from './state.js';
 import { detectPlateau } from './plateau.js';
@@ -176,8 +176,18 @@ function readStdin() {
 main().catch((error) => {
     const errorMsg = error instanceof Error ? error.message : String(error);
     log(`Hook error: ${errorMsg}`);
+    // For ConfigNotFoundError, provide a cleaner message
+    if (error instanceof ConfigNotFoundError) {
+        const output = {
+            decision: 'approve',
+            reason: 'No polish.config.json found. Create one to enable Polish metrics.',
+        };
+        log(`Decision: approve (no config)`);
+        console.log(JSON.stringify(output));
+        process.exit(0);
+    }
+    // On other errors, allow Claude to stop (don't block)
     console.error('Polish hook error:', error);
-    // On error, allow Claude to stop (don't block)
     const output = {
         decision: 'approve',
         reason: `Hook error: ${errorMsg}`,

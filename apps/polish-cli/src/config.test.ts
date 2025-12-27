@@ -1,11 +1,20 @@
-import { describe, test, expect, afterEach } from 'bun:test';
-import { loadConfig } from './config.js';
-import { writeFileSync, unlinkSync, existsSync } from 'fs';
+import { describe, test, expect, afterEach, beforeEach } from 'bun:test';
+import { loadConfig, ConfigNotFoundError } from './config.js';
+import { writeFileSync, unlinkSync, existsSync, renameSync } from 'fs';
 
 describe('loadConfig', () => {
   const testConfigPath = 'test-polish.config.json';
   const polishConfigPath = 'polish.config.json';
   const dotPolishPath = '.polish.json';
+  const dotPolishConfigPath = '.polish/polish.config.json';
+  const dotPolishConfigBackup = '.polish/polish.config.json.bak';
+
+  beforeEach(() => {
+    // Backup existing .polish/polish.config.json if it exists
+    if (existsSync(dotPolishConfigPath)) {
+      renameSync(dotPolishConfigPath, dotPolishConfigBackup);
+    }
+  });
 
   afterEach(() => {
     // Clean up test files
@@ -14,15 +23,18 @@ describe('loadConfig', () => {
         unlinkSync(path);
       }
     });
+    // Restore backup
+    if (existsSync(dotPolishConfigBackup)) {
+      renameSync(dotPolishConfigBackup, dotPolishConfigPath);
+    }
   });
 
-  test('returns default config when no config file exists', () => {
-    const config = loadConfig('nonexistent.json');
+  test('throws ConfigNotFoundError when no config file exists', () => {
+    expect(() => loadConfig('nonexistent.json')).toThrow(ConfigNotFoundError);
+  });
 
-    expect(config.target).toBe(95);
-    expect(config.maxIterations).toBe(50);
-    expect(config.metrics).toHaveLength(1);
-    expect(config.metrics[0].name).toBe('tests');
+  test('throws ConfigNotFoundError when no default config exists', () => {
+    expect(() => loadConfig()).toThrow(ConfigNotFoundError);
   });
 
   test('loads config from explicit path', () => {
@@ -42,6 +54,7 @@ describe('loadConfig', () => {
 
   test('loads config from polish.config.json by default', () => {
     const testConfig = {
+      metrics: [{ name: 'tests', command: 'bun test', weight: 100, target: 100 }],
       target: 85,
       maxIterations: 25,
     };
@@ -55,6 +68,7 @@ describe('loadConfig', () => {
 
   test('loads config from .polish.json as fallback', () => {
     const testConfig = {
+      metrics: [{ name: 'tests', command: 'bun test', weight: 100, target: 100 }],
       target: 70,
     };
     writeFileSync(dotPolishPath, JSON.stringify(testConfig));
@@ -64,26 +78,33 @@ describe('loadConfig', () => {
     expect(config.target).toBe(70);
   });
 
-  test('merges partial config with defaults', () => {
+  test('uses default target and maxIterations when not specified', () => {
     const partialConfig = {
-      target: 80,
+      metrics: [{ name: 'tests', command: 'bun test', weight: 100, target: 100 }],
     };
     writeFileSync(testConfigPath, JSON.stringify(partialConfig));
 
     const config = loadConfig(testConfigPath);
 
-    expect(config.target).toBe(80);
+    expect(config.target).toBe(95); // default
     expect(config.maxIterations).toBe(50); // default
-    expect(config.metrics).toHaveLength(1); // default
   });
 
-  test('handles invalid JSON gracefully', () => {
+  test('throws error when config has no metrics', () => {
+    writeFileSync(testConfigPath, JSON.stringify({ target: 80 }));
+
+    expect(() => loadConfig(testConfigPath)).toThrow('must define at least one metric');
+  });
+
+  test('throws error when config has empty metrics array', () => {
+    writeFileSync(testConfigPath, JSON.stringify({ metrics: [], target: 80 }));
+
+    expect(() => loadConfig(testConfigPath)).toThrow('must define at least one metric');
+  });
+
+  test('throws error on invalid JSON', () => {
     writeFileSync(testConfigPath, 'not valid json {{{');
 
-    const config = loadConfig(testConfigPath);
-
-    // Should return defaults
-    expect(config.target).toBe(95);
-    expect(config.maxIterations).toBe(50);
+    expect(() => loadConfig(testConfigPath)).toThrow();
   });
 });

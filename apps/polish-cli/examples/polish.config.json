@@ -1,0 +1,35 @@
+{
+  "metrics": [
+    {
+      "name": "tests",
+      "command": "bun test",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "build",
+      "command": "bun run build",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "typescript",
+      "command": "tsc --noEmit",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "lint",
+      "command": "eslint src",
+      "weight": 80,
+      "target": 95
+    },
+    {
+      "name": "duplication",
+      "command": "npx jscpd src --threshold 5",
+      "weight": 60,
+      "target": 95
+    }
+  ],
+  "target": 95
+}
