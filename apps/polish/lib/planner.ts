@@ -24,7 +24,8 @@ import type {
   PlanMessage,
   PlanEventData,
   PlanningThoroughness,
-  PlanningMode
+  PlanningMode,
+  PlanningApproach
 } from './types'
 import { createToolLogger } from './tool-logger'
 
@@ -44,19 +45,8 @@ export interface PlanningContext {
 }
 
 export interface PlanningResult {
-  plan: PlanStep[]
-  summary: string
-  estimatedChanges: {
-    filesCreated: string[]
-    filesModified: string[]
-    filesDeleted: string[]
-  }
-  risks: Array<{
-    description: string
-    severity?: 'low' | 'medium' | 'high'
-    mitigation?: string
-  } | string>
-  questions?: string[]
+  approaches: PlanningApproach[]
+  recommendedApproachId?: string
 }
 
 // ============================================================================
@@ -140,37 +130,43 @@ This is a READ-ONLY planning task. You are STRICTLY PROHIBITED from:
    - Suggest alternatives if relevant
 
 ## Required Output Format
-You MUST return a structured plan in JSON format within a \`\`\`json block:
+You MUST return 2-3 different implementation approaches in JSON format within a \`\`\`json block.
+Each approach should offer a distinct strategy for solving the problem.
 
 \`\`\`json
 {
-  "summary": "1-2 sentence summary of what the plan accomplishes",
-  "plan": [
+  "approaches": [
     {
-      "id": "step-1",
-      "title": "Short step title",
-      "description": "Detailed description of what will be done",
-      "files": ["path/to/file1.ts", "path/to/file2.ts"],
-      "order": 1,
-      "dependencies": [],
-      "complexity": "low|medium|high"
+      "id": "approach-1",
+      "name": "Short name (e.g., 'Minimal Changes')",
+      "summary": "Detailed description of this approach - what it does, why choose it",
+      "plan": [
+        {
+          "id": "step-1",
+          "title": "Short step title",
+          "description": "Detailed description of what will be done",
+          "files": ["path/to/file1.ts"],
+          "order": 1,
+          "dependencies": [],
+          "complexity": "low|medium|high"
+        }
+      ]
+    },
+    {
+      "id": "approach-2",
+      "name": "Different approach name",
+      "summary": "Different strategy explanation...",
+      "plan": [...]
     }
   ],
-  "estimatedChanges": {
-    "filesCreated": ["new/files.ts"],
-    "filesModified": ["existing/files.ts"],
-    "filesDeleted": []
-  },
-  "risks": [
-    {
-      "description": "Risk description",
-      "severity": "low|medium|high",
-      "mitigation": "How to mitigate this risk"
-    }
-  ],
-  "questions": ["Optional clarifying question"]
+  "recommendedApproachId": "approach-1"
 }
 \`\`\`
+
+## Approach Guidelines
+- **Approach 1**: Conservative/minimal changes - safest, smallest footprint
+- **Approach 2**: Balanced - good compromise between simplicity and completeness
+- **Approach 3** (optional): Aggressive/thorough - maximum improvement but more changes
 
 ## Critical Files for Implementation
 End your response with a section listing the 3-5 most essential files with brief explanations of why each is important.
@@ -293,34 +289,39 @@ function parsePlanFromResponse(text: string): PlanningResult | null {
   try {
     const parsed = JSON.parse(jsonMatch[1])
 
-    // Validate required fields
-    if (!parsed.plan || !Array.isArray(parsed.plan)) {
+    // Validate required fields - now expecting approaches array
+    if (!parsed.approaches || !Array.isArray(parsed.approaches) || parsed.approaches.length === 0) {
       return null
     }
 
-    return {
-      plan: parsed.plan.map((step: Partial<PlanStep>, index: number) => ({
-        id: step.id || `step-${index + 1}`,
-        title: step.title || `Step ${index + 1}`,
+    const approaches: PlanningApproach[] = parsed.approaches.map((approach: {
+      id?: string
+      name?: string
+      summary?: string
+      plan?: Partial<PlanStep>[]
+    }, approachIndex: number) => ({
+      id: approach.id || `approach-${approachIndex + 1}`,
+      name: approach.name || `Approach ${approachIndex + 1}`,
+      summary: approach.summary || '',
+      plan: (approach.plan || []).map((step: Partial<PlanStep>, stepIndex: number) => ({
+        id: step.id || `step-${stepIndex + 1}`,
+        title: step.title || `Step ${stepIndex + 1}`,
         description: step.description || '',
         rationale: step.rationale,
         files: step.files || [],
-        order: step.order ?? index + 1,
+        order: step.order ?? stepIndex + 1,
         dependencies: step.dependencies,
         complexity: step.complexity,
         estimatedLines: step.estimatedLines,
         testStrategy: step.testStrategy,
         rollbackPlan: step.rollbackPlan,
         acceptanceCriteria: step.acceptanceCriteria
-      })),
-      summary: parsed.summary || '',
-      estimatedChanges: {
-        filesCreated: parsed.estimatedChanges?.filesCreated || [],
-        filesModified: parsed.estimatedChanges?.filesModified || [],
-        filesDeleted: parsed.estimatedChanges?.filesDeleted || []
-      },
-      risks: parsed.risks || [],
-      questions: parsed.questions
+      }))
+    }))
+
+    return {
+      approaches,
+      recommendedApproachId: parsed.recommendedApproachId || approaches[0]?.id
     }
   } catch {
     return null
@@ -521,13 +522,10 @@ export async function* runPlanningPhase(
         lastPlan = parsePlanFromResponse(fullResponse)
 
         if (lastPlan) {
-          // Yield the structured plan
+          // Yield the structured plan with multiple approaches
           const planEventData: PlanEventData = {
-            plan: lastPlan.plan,
-            summary: lastPlan.summary,
-            estimatedChanges: lastPlan.estimatedChanges,
-            risks: lastPlan.risks,
-            questions: lastPlan.questions
+            approaches: lastPlan.approaches,
+            recommendedApproachId: lastPlan.recommendedApproachId
           }
 
           yield {
@@ -539,7 +537,7 @@ export async function* runPlanningPhase(
             type: 'status',
             data: {
               phase: 'planning',
-              message: 'Plan ready for review. Waiting for approval...'
+              message: `${lastPlan.approaches.length} approaches ready for review. Select one to approve...`
             }
           }
         } else {

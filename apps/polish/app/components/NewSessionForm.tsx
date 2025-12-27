@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { CapabilitiesSelector } from './CapabilitiesSelector'
+import { ProviderSelector } from './ProviderSelector'
+import { useProviders } from '@/app/context/ProviderContext'
 import { apiFetch } from '@/app/lib/api-client'
 import type { CapabilityOverride } from '@/lib/types'
 
@@ -13,7 +15,7 @@ interface CapabilitiesConfig {
 }
 
 interface NewSessionFormProps {
-  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[], enablePlanning?: boolean) => void
+  onCreateSession: (mission?: string, extendedThinking?: boolean, capabilityOverrides?: CapabilityOverride[], enablePlanning?: boolean, providerId?: string) => void
   disabled?: boolean
 }
 
@@ -25,6 +27,8 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [capabilities, setCapabilities] = useState<CapabilitiesConfig | null>(null)
   const [capabilityOverrides, setCapabilityOverrides] = useState<CapabilityOverride[]>([])
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const { hasProviders } = useProviders()
 
   // Fetch capabilities when expanded
   useEffect(() => {
@@ -38,12 +42,13 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
 
   const handleSubmit = () => {
     const overrides = capabilityOverrides.length > 0 ? capabilityOverrides : undefined
-    onCreateSession(mission.trim() || undefined, extendedThinking, overrides, enablePlanning)
+    onCreateSession(mission.trim() || undefined, extendedThinking, overrides, enablePlanning, selectedProviderId || undefined)
     setMission('')
     setIsExpanded(false)
     setShowAdvanced(false)
     setCapabilityOverrides([])
     setEnablePlanning(false)
+    setSelectedProviderId(null)
   }
 
   return (
@@ -167,29 +172,49 @@ export function NewSessionForm({ onCreateSession, disabled }: NewSessionFormProp
             >
               <span className={`text-[10px] transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
               <span className="uppercase tracking-widest">Advanced Options</span>
-              {capabilityOverrides.filter(o => !o.enabled).length > 0 && (
+              {(capabilityOverrides.filter(o => !o.enabled).length > 0 || selectedProviderId) && (
                 <span className="text-[9px] px-1.5 py-0.5 bg-amber-900/50 text-amber-400 rounded">
-                  {capabilityOverrides.filter(o => !o.enabled).length} modified
+                  {capabilityOverrides.filter(o => !o.enabled).length + (selectedProviderId ? 1 : 0)} modified
                 </span>
               )}
             </button>
 
-            {showAdvanced && capabilities && (
-              <div className="mt-3 p-3 border border-gray-800 rounded bg-black/30">
-                <div className="text-[9px] text-gray-600 tracking-widest mb-3">
-                  CAPABILITIES CONFIG | TOGGLE TO ENABLE/DISABLE
-                </div>
-                <CapabilitiesSelector
-                  capabilities={capabilities}
-                  overrides={capabilityOverrides}
-                  onOverridesChange={setCapabilityOverrides}
-                />
-              </div>
-            )}
+            {showAdvanced && (
+              <div className="mt-3 space-y-4">
+                {/* Provider Selection */}
+                {hasProviders && (
+                  <div className="p-3 border border-gray-800 rounded bg-black/30">
+                    <div className="text-[9px] text-gray-600 tracking-widest mb-2">
+                      AI PROVIDER
+                    </div>
+                    <ProviderSelector
+                      value={selectedProviderId}
+                      onChange={setSelectedProviderId}
+                      disabled={disabled}
+                      className="w-full"
+                    />
+                  </div>
+                )}
 
-            {showAdvanced && !capabilities && (
-              <div className="mt-3 p-3 border border-gray-800 rounded bg-black/30 text-center">
-                <span className="text-xs text-gray-600 animate-pulse">Loading capabilities...</span>
+                {/* Capabilities Config */}
+                {capabilities && (
+                  <div className="p-3 border border-gray-800 rounded bg-black/30">
+                    <div className="text-[9px] text-gray-600 tracking-widest mb-3">
+                      CAPABILITIES CONFIG | TOGGLE TO ENABLE/DISABLE
+                    </div>
+                    <CapabilitiesSelector
+                      capabilities={capabilities}
+                      overrides={capabilityOverrides}
+                      onOverridesChange={setCapabilityOverrides}
+                    />
+                  </div>
+                )}
+
+                {!capabilities && (
+                  <div className="p-3 border border-gray-800 rounded bg-black/30 text-center">
+                    <span className="text-xs text-gray-600 animate-pulse">Loading capabilities...</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

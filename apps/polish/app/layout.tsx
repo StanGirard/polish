@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { ApiConfigProvider } from './context/ApiConfigContext'
+import { ProviderProvider } from './context/ProviderContext'
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
@@ -23,7 +24,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${jetbrainsMono.className} crt-screen`}>
         <ApiConfigProvider>
-          {children}
+          <ProviderProvider>
+            {children}
+          </ProviderProvider>
         </ApiConfigProvider>
       </body>
     </html>

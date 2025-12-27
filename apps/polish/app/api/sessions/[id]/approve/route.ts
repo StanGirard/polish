@@ -11,6 +11,7 @@ type RouteParams = { params: Promise<{ id: string }> }
 
 interface ApproveRequest {
   plan?: PlanStep[]  // Optional: the approved plan (from UI)
+  selectedApproachId?: string  // Which approach was selected
   maxDuration?: number
 }
 
@@ -48,16 +49,35 @@ export async function POST(
 
     const body = await request.json() as ApproveRequest
 
-    // Store the approved plan
-    if (body.plan) {
-      updateSession(id, { approvedPlan: body.plan })
+    // Determine which plan to use
+    let approvedPlan: PlanStep[] = []
+
+    // If a specific approach was selected, get its plan
+    if (body.selectedApproachId && session.availableApproaches) {
+      const selectedApproach = session.availableApproaches.find(
+        a => a.id === body.selectedApproachId
+      )
+      if (selectedApproach) {
+        approvedPlan = selectedApproach.plan
+        updateSession(id, {
+          approvedPlan,
+          selectedApproachId: body.selectedApproachId
+        })
+      }
+    } else if (body.plan) {
+      // Legacy: direct plan provided
+      approvedPlan = body.plan
+      updateSession(id, { approvedPlan })
+    } else {
+      // Fallback to existing approved plan
+      approvedPlan = session.approvedPlan || []
     }
 
     // Emit plan approved event
     const approvedEvent: PolishEvent = {
       type: 'plan_approved',
       data: {
-        plan: body.plan || session.approvedPlan || [],
+        plan: approvedPlan,
         approvedAt: new Date().toISOString()
       }
     }
@@ -65,9 +85,6 @@ export async function POST(
 
     // Update status to running
     updateSession(id, { status: 'running' })
-
-    // Launch implementation in background with approved plan
-    const approvedPlan = body.plan || session.approvedPlan || []
     runImplementationInBackground(id, {
       projectPath: session.projectPath,
       mission: session.mission,

@@ -7,6 +7,7 @@ import { CommitTimeline } from './CommitTimeline'
 import { EventLog } from './EventLog'
 import { FeedbackPanel } from './FeedbackPanel'
 import { FileChangesSection } from './FileChangesSection'
+import { ApproachSelector } from './ApproachSelector'
 import {
   handleEventNotification,
   getNotificationsEnabled,
@@ -14,7 +15,7 @@ import {
 } from '@/app/lib/notifications'
 import { createApiEventSource } from '@/app/lib/api-client'
 import type { Session } from '@/lib/session-store'
-import type { MetricResult, PlanStep } from '@/lib/types'
+import type { MetricResult, PlanStep, PlanningApproach } from '@/lib/types'
 
 interface PolishEvent {
   type: string
@@ -55,6 +56,8 @@ interface PolishEvent {
     baseBranch?: string
     // Planning phase fields
     plan?: PlanStep[]
+    approaches?: PlanningApproach[]
+    recommendedApproachId?: string
     summary?: string
     estimatedChanges?: {
       filesCreated: string[]
@@ -81,7 +84,7 @@ interface SessionDetailProps {
   onRetry?: (sessionId: string, feedback: string) => Promise<void>
   onFeedbackSubmit?: (sessionId: string, rating: 'satisfied' | 'unsatisfied', comment?: string) => Promise<void>
   // Planning phase callbacks
-  onApprovePlan?: (sessionId: string, plan?: PlanStep[]) => Promise<void>
+  onApprovePlan?: (sessionId: string, selectedApproachId: string) => Promise<void>
   onRejectPlan?: (sessionId: string, reason?: string) => Promise<void>
   onSendPlanMessage?: (sessionId: string, message: string) => Promise<void>
   onAbortSession?: (sessionId: string) => Promise<void>
@@ -114,6 +117,8 @@ export function SessionDetail({
     session.status === 'running' ? 'polish' : 'idle'
   )
   const [currentPlan, setCurrentPlan] = useState<PlanStep[] | null>(session.approvedPlan || null)
+  const [availableApproaches, setAvailableApproaches] = useState<PlanningApproach[]>(session.availableApproaches || [])
+  const [recommendedApproachId, setRecommendedApproachId] = useState<string | undefined>(undefined)
   const [planSummary, setPlanSummary] = useState<string | null>(null)
   interface Risk {
     description: string
@@ -229,6 +234,20 @@ export function SessionDetail({
 
             // Planning events
             if (type === 'plan') {
+              // New: multiple approaches
+              if (data.approaches && Array.isArray(data.approaches)) {
+                setAvailableApproaches(data.approaches as PlanningApproach[])
+                setRecommendedApproachId(data.recommendedApproachId as string | undefined)
+                // Set current plan from recommended approach for display
+                const recommended = (data.approaches as PlanningApproach[]).find(
+                  a => a.id === data.recommendedApproachId
+                ) || (data.approaches as PlanningApproach[])[0]
+                if (recommended) {
+                  setCurrentPlan(recommended.plan)
+                  setPlanSummary(recommended.summary)
+                }
+              }
+              // Legacy: single plan
               if (data.plan) setCurrentPlan(data.plan as PlanStep[])
               if (data.summary) setPlanSummary(data.summary as string)
               if (data.risks) setPlanRisks(data.risks as Risk[])
@@ -567,82 +586,15 @@ export function SessionDetail({
           </div>
         )}
 
-        {/* Planning Panel (when awaiting approval) */}
-        {session.status === 'awaiting_approval' && currentPlan && onApprovePlan && onRejectPlan && (
-          <div className="mb-6 p-5 bg-black rounded border border-orange-500/30 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-400 to-transparent" />
-            <div className="text-orange-400 text-xs mb-4 uppercase tracking-widest flex items-center gap-2">
-              <span>◆</span> Implementation Plan - Awaiting Approval
-            </div>
-
-            {planSummary && (
-              <p className="text-gray-300 text-sm mb-4">{planSummary}</p>
-            )}
-
-            <div className="space-y-3 mb-4">
-              {currentPlan.map((step, idx) => (
-                <div key={step.id} className="p-3 bg-gray-900/50 rounded border border-gray-800">
-                  <div className="flex items-start gap-3">
-                    <span className="text-orange-500 font-mono text-xs">{idx + 1}.</span>
-                    <div>
-                      <h4 className="text-gray-200 font-medium text-sm">{step.title}</h4>
-                      <p className="text-gray-500 text-xs mt-1">{step.description}</p>
-                      {step.files.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {step.files.map((file, i) => (
-                            <span key={i} className="text-[10px] px-2 py-0.5 bg-gray-800 rounded text-gray-400 font-mono">
-                              {file}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {planRisks.length > 0 && (
-              <div className="mb-4 p-3 bg-red-900/20 rounded border border-red-800/30">
-                <div className="text-red-400 text-xs mb-2 uppercase tracking-widest">Risks</div>
-                <ul className="space-y-1">
-                  {planRisks.map((risk, i) => (
-                    <li key={i} className="text-red-300 text-xs flex items-start gap-2">
-                      <span className={
-                        risk.severity === 'high' ? 'text-red-500' :
-                        risk.severity === 'medium' ? 'text-yellow-500' : 'text-green-500'
-                      }>⚠</span>
-                      <div>
-                        <span>{risk.description}</span>
-                        {risk.mitigation && (
-                          <span className="text-zinc-500 ml-2">- {risk.mitigation}</span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => onApprovePlan(session.id, currentPlan)}
-                className="flex-1 px-4 py-2 text-sm text-green-400 border border-green-800 rounded hover:bg-green-900/30 transition-colors"
-              >
-                ✓ APPROVE & START
-              </button>
-              <button
-                onClick={() => {
-                  const reason = window.prompt('Why are you rejecting this plan? (Leave empty to cancel session)')
-                  if (reason !== null) {
-                    onRejectPlan(session.id, reason || undefined)
-                  }
-                }}
-                className="flex-1 px-4 py-2 text-sm text-red-400 border border-red-800 rounded hover:bg-red-900/30 transition-colors"
-              >
-                ✗ REJECT
-              </button>
-            </div>
+        {/* Planning Panel (when awaiting approval) - Multiple Approaches */}
+        {session.status === 'awaiting_approval' && availableApproaches.length > 0 && onApprovePlan && onRejectPlan && (
+          <div className="mb-6">
+            <ApproachSelector
+              approaches={availableApproaches}
+              recommendedApproachId={recommendedApproachId}
+              onApprove={(approachId) => onApprovePlan(session.id, approachId)}
+              onReject={(reason) => onRejectPlan(session.id, reason)}
+            />
           </div>
         )}
 

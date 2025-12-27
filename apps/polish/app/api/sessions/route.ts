@@ -11,7 +11,9 @@ import { runIsolatedPolish } from '@/lib/loop'
 import { runPlanningPhase, type PlanningContext } from '@/lib/planner'
 import { loadPreset } from '@/lib/scorer'
 import { resolveCapabilitiesForPhase } from '@/lib/capabilities'
-import type { PolishConfig, PolishEvent, CapabilityOverride } from '@/lib/types'
+import { getProvider, getDefaultProvider } from '@/lib/provider-store'
+import { setProviderEnvironment, clearProviderEnvironment, getProviderFromEnvironment } from '@/lib/provider-runtime'
+import type { PolishConfig, PolishEvent, CapabilityOverride, Provider, PlanEventData } from '@/lib/types'
 
 export const maxDuration = 300 // 5 min max (Vercel limit)
 
@@ -39,7 +41,8 @@ export async function POST(request: NextRequest) {
       maxDuration: duration = 5 * 60 * 1000,
       maxThinkingTokens = 16000,
       capabilityOverrides,
-      enablePlanning = false  // Enable interactive planning phase
+      enablePlanning = false,  // Enable interactive planning phase
+      providerId  // Optional: specific provider to use
     } = body as {
       mission?: string
       projectPath?: string
@@ -47,19 +50,24 @@ export async function POST(request: NextRequest) {
       maxThinkingTokens?: number
       capabilityOverrides?: CapabilityOverride[]
       enablePlanning?: boolean
+      providerId?: string
     }
+
+    // Resolve provider (specific, default from DB, or from env vars)
+    const provider = resolveProvider(providerId)
 
     // Create session in DB
     const session = createSession({
       mission: mission?.trim() || undefined,
       projectPath,
-      enablePlanning
+      enablePlanning,
+      providerId: provider?.id !== 'env' ? provider?.id : undefined
     })
 
     if (enablePlanning && mission) {
       // Start in planning mode - don't run implementation yet
       // Launch planning in background
-      runPlanningInBackground(session.id, mission.trim(), projectPath)
+      runPlanningInBackground(session.id, mission.trim(), projectPath, provider)
 
       return NextResponse.json({
         sessionId: session.id,
@@ -79,7 +87,7 @@ export async function POST(request: NextRequest) {
       maxThinkingTokens,
       isolation: { enabled: true },
       capabilityOverrides
-    })
+    }, provider)
 
     return NextResponse.json({
       sessionId: session.id,
@@ -94,13 +102,37 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Resolve provider: specific ID > default from DB > env vars
+ */
+function resolveProvider(providerId?: string): Provider | undefined {
+  // If specific provider requested, use it
+  if (providerId) {
+    const provider = getProvider(providerId)
+    if (provider) return provider
+    console.warn(`Provider ${providerId} not found, falling back to default`)
+  }
+
+  // Try default provider from DB
+  const defaultProvider = getDefaultProvider()
+  if (defaultProvider) return defaultProvider
+
+  // Fall back to environment variables
+  return getProviderFromEnvironment()
+}
+
 // Background job runner
-async function runPolishInBackground(sessionId: string, config: PolishConfig) {
+async function runPolishInBackground(sessionId: string, config: PolishConfig, provider?: Provider) {
   const startTime = Date.now()
   let commits = 0
   let initialScore: number | undefined
   let finalScore: number | undefined
   let branchName: string | undefined
+
+  // Set provider environment if available
+  if (provider) {
+    setProviderEnvironment(provider)
+  }
 
   try {
     for await (const event of runIsolatedPolish(config)) {
@@ -179,6 +211,11 @@ async function runPolishInBackground(sessionId: string, config: PolishConfig) {
       completedAt: new Date(),
       duration: Date.now() - startTime
     })
+  } finally {
+    // Clean up provider environment
+    if (provider) {
+      clearProviderEnvironment()
+    }
   }
 }
 
@@ -186,8 +223,14 @@ async function runPolishInBackground(sessionId: string, config: PolishConfig) {
 async function runPlanningInBackground(
   sessionId: string,
   mission: string,
-  projectPath: string
+  projectPath: string,
+  provider?: Provider
 ) {
+  // Set provider environment if available
+  if (provider) {
+    setProviderEnvironment(provider)
+  }
+
   try {
     // Load preset for capabilities
     const preset = await loadPreset(projectPath)
@@ -209,9 +252,13 @@ async function runPlanningInBackground(
     for await (const event of runPlanningPhase(context, planningOptions)) {
       addEvent(sessionId, event)
 
-      // If we got a plan, update status to awaiting_approval
+      // If we got a plan, store approaches and update status to awaiting_approval
       if (event.type === 'plan') {
-        updateSession(sessionId, { status: 'awaiting_approval' })
+        const planData = event.data as PlanEventData
+        updateSession(sessionId, {
+          status: 'awaiting_approval',
+          availableApproaches: planData.approaches
+        })
       }
 
       // Store assistant messages
@@ -233,5 +280,10 @@ async function runPlanningInBackground(
     addEvent(sessionId, errorEvent)
 
     updateSession(sessionId, { status: 'failed' })
+  } finally {
+    // Clean up provider environment
+    if (provider) {
+      clearProviderEnvironment()
+    }
   }
 }

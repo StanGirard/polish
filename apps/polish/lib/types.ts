@@ -346,6 +346,14 @@ export interface PlanStep {
   acceptanceCriteria?: string[]
 }
 
+/** A complete implementation approach (one of several options) */
+export interface PlanningApproach {
+  id: string       // e.g., "approach-1", "approach-2"
+  name: string     // e.g., "Conservative", "Aggressive Refactor"
+  summary: string  // Detailed description of the approach
+  plan: PlanStep[] // The detailed steps
+}
+
 /** Message in the planning conversation */
 export interface PlanMessage {
   id: string
@@ -356,19 +364,8 @@ export interface PlanMessage {
 
 /** Plan event data - sent when plan is generated/updated */
 export interface PlanEventData {
-  plan: PlanStep[]
-  summary: string
-  estimatedChanges: {
-    filesCreated: string[]
-    filesModified: string[]
-    filesDeleted: string[]
-  }
-  risks: Array<{
-    description: string
-    severity?: 'low' | 'medium' | 'high'
-    mitigation?: string
-  } | string>
-  questions?: string[]  // Clarifying questions for the user
+  approaches: PlanningApproach[]
+  recommendedApproachId?: string
 }
 
 /** Plan message event - chat message during planning */
@@ -416,3 +413,127 @@ export type NotificationEventType =
   | 'session_completed'    // Session finished successfully
   | 'session_failed'       // Session failed
   | 'error'                // Error occurred
+
+// ============================================================================
+// Provider Configuration
+// ============================================================================
+
+/**
+ * Supported AI provider types
+ * - anthropic: Direct Anthropic API with API key
+ * - anthropic_oauth: Anthropic with OAuth token (Claude Code users)
+ * - openrouter: OpenRouter multi-model gateway
+ * - glm: GLM/Z.ai Chinese AI provider
+ * - openai_compatible: Any OpenAI-compatible API
+ */
+export type ProviderType =
+  | 'anthropic'
+  | 'anthropic_oauth'
+  | 'openrouter'
+  | 'glm'
+  | 'openai_compatible'
+
+/** Provider configuration stored in database */
+export interface Provider {
+  id: string
+  name: string
+  type: ProviderType
+  baseUrl?: string  // Custom base URL (optional for most providers)
+  apiKey: string    // API key or OAuth token
+  model?: string    // Model to use (e.g., "claude-sonnet-4-20250514", "GLM-4.7")
+  isDefault: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** Provider with masked API key (for API responses) */
+export interface ProviderMasked {
+  id: string
+  name: string
+  type: ProviderType
+  baseUrl?: string
+  apiKeyMasked: string  // e.g., "sk-...abc1"
+  model?: string
+  isDefault: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** Request to create a new provider */
+export interface CreateProviderRequest {
+  name: string
+  type: ProviderType
+  baseUrl?: string
+  apiKey: string
+  model?: string
+  isDefault?: boolean
+}
+
+/** Request to update an existing provider */
+export interface UpdateProviderRequest {
+  name?: string
+  baseUrl?: string
+  apiKey?: string
+  model?: string
+  isDefault?: boolean
+}
+
+/** Default models for each provider type */
+export const PROVIDER_DEFAULT_MODELS: Record<ProviderType, string> = {
+  anthropic: 'claude-sonnet-4-5-20250929',
+  anthropic_oauth: 'claude-sonnet-4-5-20250929',
+  openrouter: 'anthropic/claude-sonnet-4.5',
+  glm: 'GLM-4.7',
+  openai_compatible: 'gpt-5.1'
+}
+
+/** Suggested models for each provider type */
+export const PROVIDER_MODEL_OPTIONS: Record<ProviderType, string[]> = {
+  anthropic: [
+    'claude-opus-4-5-20251101',
+    'claude-sonnet-4-5-20250929',
+    'claude-haiku-4-5-20251001'
+  ],
+  anthropic_oauth: [
+    'claude-opus-4-5-20251101',
+    'claude-sonnet-4-5-20250929',
+    'claude-haiku-4-5-20251001',
+  ],
+  openrouter: [
+    'anthropic/claude-opus-4.5',
+    'anthropic/claude-sonnet-4.5',
+    'anthropic/claude-haiku-4.5',
+    'openai/gpt-5.1',
+    'openai/gpt-5.1-codex-max',
+    'openai/gpt-5-mini',
+    'google/gemini-3-flash-preview',
+    'google/gemini-3-pro-preview'
+  ],
+  glm: [
+    'GLM-4.7'
+  ],
+  openai_compatible: [
+    'gpt-5.1',
+    'gpt-5.1-codex-max',
+    'gpt-5-mini',
+    'gpt-5',
+  ]
+}
+
+/** Default base URLs for each provider type */
+export const PROVIDER_BASE_URLS: Record<ProviderType, string> = {
+  anthropic: 'https://api.anthropic.com',
+  anthropic_oauth: 'https://api.anthropic.com',
+  openrouter: 'https://openrouter.ai/api/v1',
+  glm: 'https://api.z.ai/api/anthropic',  // Z.ai/GLM uses Anthropic-compatible API
+  openai_compatible: ''  // Required to be set by user
+}
+
+/** Human-readable provider type labels */
+export const PROVIDER_TYPE_LABELS: Record<ProviderType, string> = {
+  anthropic: 'Anthropic (API Key)',
+  anthropic_oauth: 'Anthropic (OAuth)',
+  openrouter: 'OpenRouter',
+  glm: 'GLM / Z.ai',
+  openai_compatible: 'OpenAI Compatible'
+}

@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { SessionList } from './components/SessionList'
 import { SessionDetail } from './components/SessionDetail'
 import { NewSessionForm } from './components/NewSessionForm'
-import { SystemMonitor } from './components/SystemMonitor'
 import { BackendSettings, BackendIndicator } from './components/BackendSettings'
+import { ProviderManager, ProviderIndicator } from './components/ProviderManager'
 import { apiFetch } from '@/app/lib/api-client'
 import type { Session } from '@/lib/session-store'
 import type { CapabilityOverride } from '@/lib/types'
@@ -15,6 +15,7 @@ export default function Home() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showProviderManager, setShowProviderManager] = useState(false)
   const [prState, setPrState] = useState<{
     sessionId: string
     loading: boolean
@@ -49,7 +50,8 @@ export default function Home() {
     mission?: string,
     extendedThinking?: boolean,
     capabilityOverrides?: CapabilityOverride[],
-    enablePlanning?: boolean
+    enablePlanning?: boolean,
+    providerId?: string
   ) => {
     setIsCreating(true)
     try {
@@ -60,7 +62,8 @@ export default function Home() {
           mission,
           maxThinkingTokens: extendedThinking ? 16000 : undefined,
           capabilityOverrides,
-          enablePlanning
+          enablePlanning,
+          providerId
         })
       })
 
@@ -173,12 +176,12 @@ export default function Home() {
   }
 
   // Approve plan and start implementation
-  const handleApprovePlan = async (sessionId: string, plan?: unknown[]) => {
+  const handleApprovePlan = async (sessionId: string, selectedApproachId: string) => {
     try {
       const res = await apiFetch(`/api/sessions/${sessionId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan })
+        body: JSON.stringify({ selectedApproachId })
       })
 
       if (res.ok) {
@@ -246,14 +249,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-black text-white p-8 font-mono relative">
-      {/* System Monitor - Fixed Position */}
-      <SystemMonitor
-        running={activeSessions.length > 0}
-        phase={activeSessions.length > 0 ? 'polish' : 'idle'}
-        eventsCount={sessions.length}
-        commitsCount={sessions.reduce((acc, s) => acc + s.commits, 0)}
-      />
-
       <div className="max-w-5xl mx-auto relative z-10">
         {/* Header */}
         <div className="mb-8 border border-green-900/30 rounded bg-black/50 p-5 box-glow relative overflow-hidden">
@@ -273,6 +268,7 @@ export default function Home() {
               </div>
             </div>
             <div className="text-right flex items-start gap-4">
+              <ProviderIndicator onClick={() => setShowProviderManager(true)} />
               <BackendIndicator onClick={() => setShowSettings(true)} />
               {activeSessions.length > 0 ? (
                 <div className="flex flex-col items-end gap-1">
@@ -423,6 +419,12 @@ export default function Home() {
       <BackendSettings
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      {/* Provider Manager Modal */}
+      <ProviderManager
+        isOpen={showProviderManager}
+        onClose={() => setShowProviderManager(false)}
       />
     </main>
   )

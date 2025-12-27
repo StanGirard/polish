@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
-import type { PolishEvent, PlanStep, PlanMessage } from './types'
+import type { PolishEvent, PlanStep, PlanMessage, PlanningApproach } from './types'
 
 // ============================================================================
 // Types
@@ -34,6 +34,10 @@ export interface Session {
   // Planning phase
   enablePlanning?: boolean // Whether planning is enabled for this session
   approvedPlan?: PlanStep[] // The approved plan (if any)
+  availableApproaches?: PlanningApproach[] // Available approaches from planning
+  selectedApproachId?: string // Which approach was selected
+  // Provider
+  providerId?: string // AI provider used for this session
 }
 
 export interface SessionEvent {
@@ -68,7 +72,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   feedback_created_at TEXT,
   retry_count INTEGER DEFAULT 0,
   enable_planning INTEGER DEFAULT 0,
-  approved_plan TEXT
+  approved_plan TEXT,
+  provider_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session_events (
@@ -90,14 +95,29 @@ CREATE TABLE IF NOT EXISTS plan_messages (
   FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS providers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  base_url TEXT,
+  api_key TEXT NOT NULL,
+  model TEXT,
+  is_default INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_events_session ON session_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON session_events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_plan_messages_session ON plan_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_providers_default ON providers(is_default);
+CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(type);
 `
 
 let db: Database.Database | null = null
 
-function getDb(): Database.Database {
+/** Get the database instance (creates if needed, runs migrations) */
+export function getDb(): Database.Database {
   if (!db) {
     const dir = dirname(DB_PATH)
     if (!existsSync(dir)) {
@@ -138,6 +158,17 @@ function runMigrations(db: Database.Database): void {
   if (!columnNames.includes('approved_plan')) {
     db.exec('ALTER TABLE sessions ADD COLUMN approved_plan TEXT')
   }
+  // Provider column
+  if (!columnNames.includes('provider_id')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN provider_id TEXT')
+  }
+  // Multiple approaches columns
+  if (!columnNames.includes('available_approaches')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN available_approaches TEXT')
+  }
+  if (!columnNames.includes('selected_approach_id')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN selected_approach_id TEXT')
+  }
 
   // Check if plan_messages table exists
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_messages'").all()
@@ -155,6 +186,33 @@ function runMigrations(db: Database.Database): void {
       CREATE INDEX IF NOT EXISTS idx_plan_messages_session ON plan_messages(session_id);
     `)
   }
+
+  // Check if providers table exists
+  const providerTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='providers'").all()
+  if (providerTable.length === 0) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS providers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        base_url TEXT,
+        api_key TEXT NOT NULL,
+        model TEXT,
+        is_default INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_providers_default ON providers(is_default);
+      CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(type);
+    `)
+  } else {
+    // Migration: Add model column to existing providers table
+    const providerColumns = db.prepare("PRAGMA table_info(providers)").all() as { name: string }[]
+    const providerColumnNames = providerColumns.map(c => c.name)
+    if (!providerColumnNames.includes('model')) {
+      db.exec('ALTER TABLE providers ADD COLUMN model TEXT')
+    }
+  }
 }
 
 // ============================================================================
@@ -169,6 +227,7 @@ export function createSession(config: {
   mission?: string
   projectPath: string
   enablePlanning?: boolean
+  providerId?: string
 }): Session {
   const db = getDb()
   const id = generateId()
@@ -182,13 +241,14 @@ export function createSession(config: {
     startedAt: now,
     commits: 0,
     retryCount: 0,
-    enablePlanning: config.enablePlanning
+    enablePlanning: config.enablePlanning,
+    providerId: config.providerId
   }
 
   db.prepare(`
-    INSERT INTO sessions (id, status, mission, project_path, started_at, commits, retry_count, enable_planning)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, session.status, session.mission || null, session.projectPath, now.toISOString(), 0, 0, config.enablePlanning ? 1 : 0)
+    INSERT INTO sessions (id, status, mission, project_path, started_at, commits, retry_count, enable_planning, provider_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, session.status, session.mission || null, session.projectPath, now.toISOString(), 0, 0, config.enablePlanning ? 1 : 0, config.providerId || null)
 
   return session
 }
@@ -261,6 +321,14 @@ export function updateSession(id: string, updates: Partial<Session>): void {
   if (updates.approvedPlan !== undefined) {
     fields.push('approved_plan = ?')
     values.push(JSON.stringify(updates.approvedPlan))
+  }
+  if (updates.availableApproaches !== undefined) {
+    fields.push('available_approaches = ?')
+    values.push(JSON.stringify(updates.availableApproaches))
+  }
+  if (updates.selectedApproachId !== undefined) {
+    fields.push('selected_approach_id = ?')
+    values.push(updates.selectedApproachId)
   }
 
   if (fields.length === 0) return
@@ -419,6 +487,15 @@ function rowToSession(row: Record<string, unknown>): Session {
     }
   }
 
+  let availableApproaches: PlanningApproach[] | undefined
+  if (row.available_approaches) {
+    try {
+      availableApproaches = JSON.parse(row.available_approaches as string)
+    } catch {
+      availableApproaches = undefined
+    }
+  }
+
   return {
     id: row.id as string,
     status: row.status as SessionStatus,
@@ -438,7 +515,10 @@ function rowToSession(row: Record<string, unknown>): Session {
     } : undefined,
     retryCount: (row.retry_count as number) ?? 0,
     enablePlanning: Boolean(row.enable_planning),
-    approvedPlan
+    approvedPlan,
+    availableApproaches,
+    selectedApproachId: row.selected_approach_id as string | undefined,
+    providerId: row.provider_id as string | undefined
   }
 }
 
