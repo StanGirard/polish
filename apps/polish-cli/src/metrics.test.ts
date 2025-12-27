@@ -34,7 +34,7 @@ describe('runMetric', () => {
     expect(result.name).toBe('failing');
   });
 
-  test('parses bun test output format', async () => {
+  test('parses bun test output format - STRICT: any failure = 0', async () => {
     const metric: Metric = {
       name: 'tests',
       command: 'echo "8 pass, 2 fail"',
@@ -44,10 +44,10 @@ describe('runMetric', () => {
 
     const result = await runMetric(metric);
 
-    expect(result.score).toBe(80); // 8/(8+2) = 80%
+    expect(result.score).toBe(0); // STRICT: any test failure = score 0
   });
 
-  test('parses jest/vitest output format', async () => {
+  test('parses jest/vitest output format - STRICT: any failure = 0', async () => {
     const metric: Metric = {
       name: 'tests',
       command: 'echo "Tests: 15 passed, 5 failed, 20 total"',
@@ -57,7 +57,20 @@ describe('runMetric', () => {
 
     const result = await runMetric(metric);
 
-    expect(result.score).toBe(75); // 15/(15+5) = 75%
+    expect(result.score).toBe(0); // STRICT: any test failure = score 0
+  });
+
+  test('bun test with 0 failures = 100', async () => {
+    const metric: Metric = {
+      name: 'tests',
+      command: 'echo "10 pass, 0 fail"',
+      weight: 100,
+      target: 100,
+    };
+
+    const result = await runMetric(metric);
+
+    expect(result.score).toBe(100); // No failures = 100
   });
 
   test('returns 100 for all tests passed', async () => {
@@ -124,6 +137,58 @@ describe('runMetric', () => {
     const result = await runMetric(metric);
 
     expect(result.score).toBe(82);
+  });
+
+  test('parses jscpd duplication percentage', async () => {
+    const metric: Metric = {
+      name: 'duplication',
+      command: 'echo "5.5% duplicated lines"',
+      weight: 50,
+      target: 95,
+    };
+
+    const result = await runMetric(metric);
+
+    expect(result.score).toBe(95); // 100 - 5.5 = 94.5, rounded to 95
+  });
+
+  test('parses jscpd clone count', async () => {
+    const metric: Metric = {
+      name: 'jscpd',
+      command: 'echo "Found 4 clones in 10 files"',
+      weight: 50,
+      target: 95,
+    };
+
+    const result = await runMetric(metric);
+
+    expect(result.score).toBe(80); // 100 - (4 * 5) = 80
+  });
+
+  test('duplication with 0% returns 100', async () => {
+    const metric: Metric = {
+      name: 'duplication',
+      command: 'echo "0% duplicated lines"',
+      weight: 50,
+      target: 100,
+    };
+
+    const result = await runMetric(metric);
+
+    expect(result.score).toBe(100);
+  });
+
+  test('duplication fallback on success', async () => {
+    const metric: Metric = {
+      name: 'duplication',
+      command: 'echo "No duplication found"',
+      weight: 50,
+      target: 100,
+    };
+
+    const result = await runMetric(metric);
+
+    expect(result.score).toBe(100); // exit code 0 = no significant duplication
   });
 });
 

@@ -56,35 +56,38 @@ function parseMetricOutput(metric, output, exitCode) {
     if (name === 'coverage') {
         return parseCoverageOutput(output);
     }
+    // Duplication: jscpd output
+    if (name === 'duplication' || name === 'jscpd') {
+        return parseDuplicationOutput(output, exitCode);
+    }
     // Default: binary pass/fail based on exit code
     return exitCode === 0 ? 100 : 0;
 }
 /**
  * Parse test runner output (bun test, jest, vitest, etc.)
+ * STRICT MODE: Any test failure = score 0
  */
 function parseTestOutput(output, exitCode) {
     // Bun test format: "123 pass, 5 fail"
     const bunMatch = output.match(/(\d+)\s+pass.*?(\d+)\s+fail/i);
     if (bunMatch) {
-        const passed = parseInt(bunMatch[1], 10);
         const failed = parseInt(bunMatch[2], 10);
-        const total = passed + failed;
-        return total > 0 ? Math.round((passed / total) * 100) : 0;
+        // STRICT: if any test fails, score = 0
+        return failed > 0 ? 0 : 100;
     }
     // Jest/Vitest format: "Tests: 5 passed, 2 failed, 7 total"
     const jestMatch = output.match(/Tests?:\s*(\d+)\s+passed.*?(\d+)\s+failed/i);
     if (jestMatch) {
-        const passed = parseInt(jestMatch[1], 10);
         const failed = parseInt(jestMatch[2], 10);
-        const total = passed + failed;
-        return total > 0 ? Math.round((passed / total) * 100) : 0;
+        // STRICT: if any test fails, score = 0
+        return failed > 0 ? 0 : 100;
     }
     // All passed format: "Tests: 10 passed, 10 total" or "10 pass"
     const allPassedMatch = output.match(/(\d+)\s+pass(?:ed)?/i);
     if (allPassedMatch && !output.match(/fail/i)) {
         return 100;
     }
-    // Fallback to exit code
+    // Fallback to exit code (tool missing, build error, etc.)
     return exitCode === 0 ? 100 : 0;
 }
 /**
@@ -134,6 +137,28 @@ function parseCoverageOutput(output) {
         return Math.round(parseFloat(simpleMatch[1]));
     }
     return 0;
+}
+/**
+ * Parse jscpd duplication output
+ * Score = 100 - duplication% (less duplication = better score)
+ */
+function parseDuplicationOutput(output, exitCode) {
+    // jscpd format: "X.XX% duplicated lines"
+    const percentMatch = output.match(/(\d+(?:\.\d+)?)\s*%\s*(?:duplicated|duplication)/i);
+    if (percentMatch) {
+        const duplicationPercent = parseFloat(percentMatch[1]);
+        // Score = 100 - duplication% (capped at 0)
+        return Math.max(0, Math.round(100 - duplicationPercent));
+    }
+    // Alternative format: "Found X clones" - if found, some duplication exists
+    const clonesMatch = output.match(/found\s+(\d+)\s+clones?/i);
+    if (clonesMatch) {
+        const clones = parseInt(clonesMatch[1], 10);
+        // Penalize 5 points per clone (max 20 clones = 0%)
+        return Math.max(0, 100 - clones * 5);
+    }
+    // Fallback: if exit code 0, no significant duplication
+    return exitCode === 0 ? 100 : 50;
 }
 /**
  * Calculate total score from all metrics
