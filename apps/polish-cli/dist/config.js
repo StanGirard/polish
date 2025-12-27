@@ -1,6 +1,5 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { loadSettings, getApiKey, getBaseUrl, getModel } from './settings.js';
 // Default metrics when no config file exists
 const DEFAULT_METRICS = [
     {
@@ -11,15 +10,10 @@ const DEFAULT_METRICS = [
         higherIsBetter: true,
     },
 ];
-const DEFAULT_PROVIDER = {
-    type: 'anthropic',
-    model: 'claude-sonnet-4.5',
-};
 const DEFAULT_CONFIG = {
     metrics: DEFAULT_METRICS,
     target: 95,
     maxIterations: 50,
-    provider: DEFAULT_PROVIDER,
 };
 export function loadConfig(configPath) {
     const cwd = process.cwd();
@@ -52,41 +46,10 @@ function parseConfig(path) {
             metrics: parsed.metrics ?? DEFAULT_METRICS,
             target: parsed.target ?? DEFAULT_CONFIG.target,
             maxIterations: parsed.maxIterations ?? DEFAULT_CONFIG.maxIterations,
-            provider: parsed.provider ?? DEFAULT_PROVIDER,
         };
     }
     catch (error) {
         console.error(`Error parsing config file: ${path}`, error);
         return DEFAULT_CONFIG;
     }
-}
-/**
- * Get the resolved provider config, merging CLI options with config file and settings
- * Priority: CLI options > .polish/settings.json > polish.config.json > defaults
- */
-export function resolveProvider(config, cliProvider, cliModel, cliBaseUrl) {
-    const settings = loadSettings();
-    const configProvider = config.provider;
-    // Determine provider type: CLI > settings > config > default
-    const providerType = cliProvider ?? settings.defaultProvider ?? configProvider?.type ?? 'anthropic';
-    // Default models per provider
-    const getDefaultModel = (provider) => {
-        switch (provider) {
-            case 'openrouter':
-                return 'anthropic/claude-opus-4.5';
-            case 'openai':
-                return 'gpt-4o';
-            default:
-                return 'claude-sonnet-4.5';
-        }
-    };
-    const defaultModel = getDefaultModel(providerType);
-    // Only use config model if provider types match (avoid using anthropic model for openrouter)
-    const configModel = configProvider?.type === providerType ? configProvider?.model : undefined;
-    return {
-        type: providerType,
-        model: cliModel ?? getModel(providerType) ?? configModel ?? defaultModel,
-        apiKey: getApiKey(providerType) ?? configProvider?.apiKey,
-        baseUrl: cliBaseUrl ?? getBaseUrl(providerType) ?? configProvider?.baseUrl,
-    };
 }

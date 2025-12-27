@@ -22,21 +22,9 @@ export interface ScoreResult {
   metrics: MetricResult[];
 }
 
-// Provider configuration
-export type ProviderType = 'anthropic' | 'openrouter' | 'openai';
-
-export interface Provider {
-  type: ProviderType;
-  apiKey?: string; // If not provided, uses env var
-  model?: string; // Model override
-  baseUrl?: string; // Custom API endpoint (e.g., https://api.z.ai/api/anthropic)
-}
-
 // Hook configuration for Claude Code integration
 export interface HookConfig {
   plateauDetection?: 'stalled' | 'llm'; // How to detect plateau
-  autoCommit?: boolean; // Commit on improvement (default: true)
-  useWorktree?: boolean; // Use git worktree (default: false)
 }
 
 // Configuration file (polish.config.json)
@@ -44,76 +32,5 @@ export interface PolishConfig {
   metrics: Metric[];
   target: number; // target score to reach
   maxIterations: number;
-  provider?: Provider; // For legacy mode (built-in agent)
-  hook?: HookConfig; // For hook mode (Claude Code integration)
+  hook?: HookConfig;
 }
-
-// CLI options
-export interface CliOptions {
-  target: string;
-  maxIterations: string;
-  polish: boolean;
-  polishOnly: boolean;
-  config: string;
-  provider?: string;
-  model?: string;
-  baseUrl?: string;
-}
-
-// Polish loop result
-export interface PolishResult {
-  initialScore: ScoreResult;
-  finalScore: ScoreResult;
-  iterations: number;
-  commits: string[];
-  reason: 'target_reached' | 'plateau' | 'max_iterations' | 'error';
-  branchName?: string; // Branch created with polish commits (if any)
-}
-
-// Tool definitions for Claude
-export type ToolName =
-  | 'read_file'
-  | 'write_file'
-  | 'edit_file'
-  | 'bash'
-  | 'glob'
-  | 'grep'
-  | 'list_dir';
-
-export interface ToolResult {
-  success: boolean;
-  output?: string;
-  error?: string;
-}
-
-// Activity item types for the streaming log
-export type ActivityType = 'text' | 'tool' | 'status';
-
-export interface ActivityItem {
-  id: string;
-  type: ActivityType;
-  timestamp: number;
-}
-
-export interface TextActivity extends ActivityItem {
-  type: 'text';
-  content: string;
-}
-
-export interface ToolActivity extends ActivityItem {
-  type: 'tool';
-  name: string;
-  displayText: string; // e.g., "read src/file.ts"
-  status: 'running' | 'done' | 'error';
-  result?: string;
-  error?: string;
-  duration?: number;
-}
-
-export interface StatusActivity extends ActivityItem {
-  type: 'status';
-  message: string;
-  variant: 'info' | 'success' | 'warning' | 'error';
-}
-
-export type AnyActivity = TextActivity | ToolActivity | StatusActivity;
