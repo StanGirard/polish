@@ -67,14 +67,18 @@ export default function Home() {
         })
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        // Add to list and select
-        await loadSessions()
-        setSelectedSessionId(data.sessionId)
+      const data = await res.json().catch(() => ({ error: 'Failed to create session' }))
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create session')
       }
+
+      // Add to list and select
+      await loadSessions()
+      setSelectedSessionId(data.sessionId)
     } catch (error) {
       console.error('Failed to create session:', error)
+      throw error // Re-throw to let the form handle the error
     } finally {
       setIsCreating(false)
     }
