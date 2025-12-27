@@ -32,12 +32,20 @@ export interface Provider {
   baseUrl?: string; // Custom API endpoint (e.g., https://api.z.ai/api/anthropic)
 }
 
+// Hook configuration for Claude Code integration
+export interface HookConfig {
+  plateauDetection?: 'stalled' | 'llm'; // How to detect plateau
+  autoCommit?: boolean; // Commit on improvement (default: true)
+  useWorktree?: boolean; // Use git worktree (default: false)
+}
+
 // Configuration file (polish.config.json)
 export interface PolishConfig {
   metrics: Metric[];
   target: number; // target score to reach
   maxIterations: number;
-  provider?: Provider;
+  provider?: Provider; // For legacy mode (built-in agent)
+  hook?: HookConfig; // For hook mode (Claude Code integration)
 }
 
 // CLI options

@@ -23,11 +23,17 @@ export interface Provider {
     model?: string;
     baseUrl?: string;
 }
+export interface HookConfig {
+    plateauDetection?: 'stalled' | 'llm';
+    autoCommit?: boolean;
+    useWorktree?: boolean;
+}
 export interface PolishConfig {
     metrics: Metric[];
     target: number;
     maxIterations: number;
     provider?: Provider;
+    hook?: HookConfig;
 }
 export interface CliOptions {
     target: string;
