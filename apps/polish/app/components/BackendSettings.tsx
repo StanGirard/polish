@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useApiConfig } from '@/app/context/ApiConfigContext'
-import { isValidApiUrl } from '@/app/lib/api-client'
+import { isValidApiUrl, testUrlConnection } from '@/app/lib/api-client'
 
 interface BackendSettingsProps {
   isOpen: boolean
@@ -10,7 +10,7 @@ interface BackendSettingsProps {
 }
 
 export function BackendSettings({ isOpen, onClose }: BackendSettingsProps) {
-  const { config, setBaseUrl, testConnection, clearConfig } = useApiConfig()
+  const { config, setBaseUrl, clearConfig } = useApiConfig()
   const [inputUrl, setInputUrl] = useState('')
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -36,18 +36,14 @@ export function BackendSettings({ isOpen, onClose }: BackendSettingsProps) {
     setTestStatus('testing')
     setErrorMessage(null)
 
-    // Temporarily set the URL to test it
-    const originalUrl = config.baseUrl
-    await setBaseUrl(inputUrl)
-    const result = await testConnection()
+    // Test the URL directly without saving to localStorage
+    const result = await testUrlConnection(inputUrl)
 
     if (result.success) {
       setTestStatus('success')
     } else {
       setTestStatus('error')
       setErrorMessage(result.error || 'Connection failed')
-      // Restore original URL on failure
-      await setBaseUrl(originalUrl)
     }
   }
 

@@ -101,15 +101,32 @@ export function createApiEventSource(path: string): EventSource {
 }
 
 /**
- * Test connection to the configured backend
+ * Test connection to the configured backend (reads from localStorage)
  * @returns Object with success status and optional error message
  */
 export async function testBackendConnection(): Promise<{
   success: boolean
   error?: string
 }> {
+  return testUrlConnection(getApiBaseUrl())
+}
+
+/**
+ * Test connection to a specific URL (doesn't use localStorage)
+ * @param baseUrl - The backend URL to test, or empty string for same-origin
+ * @returns Object with success status and optional error message
+ */
+export async function testUrlConnection(baseUrl: string): Promise<{
+  success: boolean
+  error?: string
+}> {
+  const normalizedBase = baseUrl ? baseUrl.replace(/\/$/, '') : ''
+  const url = normalizedBase ? `${normalizedBase}/api/sessions` : '/api/sessions'
+
   try {
-    const response = await apiFetch('/api/sessions')
+    const response = await fetch(url, {
+      credentials: normalizedBase ? 'include' : 'same-origin',
+    })
     if (response.ok) {
       return { success: true }
     }
