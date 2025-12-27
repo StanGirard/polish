@@ -13,11 +13,31 @@
  * - 0: Success (check stdout for decision)
  * - 2: Blocking error
  */
+import * as fs from 'fs';
+import * as path from 'path';
 import { loadConfig } from './config.js';
 import { calculateScore, findWorstMetric } from './metrics.js';
 import { gitCommit, hasUncommittedChanges } from './git.js';
 import { loadState, saveState, updateStateWithScore, getPreviousScore, hasInitialScore, createInitialState, } from './state.js';
 import { detectPlateau } from './plateau.js';
+/**
+ * Simple file logger for hook invocations
+ */
+function log(message) {
+    const logDir = path.join(process.cwd(), '.polish');
+    const logFile = path.join(logDir, 'hook.log');
+    const timestamp = new Date().toISOString();
+    const logLine = `[${timestamp}] ${message}\n`;
+    try {
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+        fs.appendFileSync(logFile, logLine);
+    }
+    catch {
+        // Silently ignore logging errors - don't disrupt hook operation
+    }
+}
 /**
  * Build feedback prompt for Claude based on metric results
  */
@@ -43,11 +63,13 @@ function buildFeedbackPrompt(worstMetric, currentScore, target) {
     return prompt;
 }
 async function main() {
+    log('Hook invoked');
     // Read input from stdin
     let input;
     try {
         const stdin = await readStdin();
         input = JSON.parse(stdin);
+        log(`Input: session_id=${input.session_id}, hook_event=${input.hook_event_name}, stop_hook_active=${input.stop_hook_active}`);
     }
     catch {
         // No stdin or invalid JSON - might be running manually
@@ -57,10 +79,12 @@ async function main() {
             cwd: process.cwd(),
             hook_event_name: 'Stop',
         };
+        log('No stdin input - running in manual mode');
     }
     // CRITICAL: Check stop_hook_active to prevent infinite loops
     // If true, we're already in a hook-driven continuation - allow stop
     if (input.stop_hook_active) {
+        log('stop_hook_active=true - approving to prevent infinite loop');
         const output = {
             decision: 'approve',
             reason: 'Stop hook already active - allowing stop to prevent infinite loop',
@@ -71,8 +95,11 @@ async function main() {
     // Load config and state
     const config = loadConfig();
     let state = await loadState();
+    log(`Config loaded: target=${config.target}, metrics=${config.metrics.map((m) => m.name).join(', ')}`);
     // Run metrics
+    log('Running metrics...');
     const score = await calculateScore(config.metrics);
+    log(`Metrics complete: total=${score.total.toFixed(1)}`);
     // If this is the first iteration, record initial score
     if (!hasInitialScore(state)) {
         state = createInitialState();
@@ -81,6 +108,7 @@ async function main() {
     }
     // Check if target reached
     if (score.total >= config.target) {
+        log(`Target reached! score=${score.total} >= target=${config.target}`);
         // Commit any remaining changes before stopping
         if (await hasUncommittedChanges()) {
             const previousScore = getPreviousScore(state);
@@ -90,26 +118,31 @@ async function main() {
             decision: 'approve',
             reason: `Target reached! Score: ${score.total}/${config.target}`,
         };
+        log(`Decision: approve (target reached)`);
         console.log(JSON.stringify(output));
         process.exit(0);
     }
     // Update state with new score
     const improved = updateStateWithScore(state, score);
+    log(`Score update: improved=${improved}, stalledCount=${state.stalledCount}, iteration=${state.iteration}`);
     // If improved, commit the changes
     if (improved && (await hasUncommittedChanges())) {
         const previousScore = state.scores.length > 1 ? state.scores[state.scores.length - 2] : 0;
         const worstMetric = findWorstMetric(score);
         await gitCommit(`polish(${worstMetric.name}): ${previousScore.toFixed(1)} -> ${score.total.toFixed(1)}`);
+        log(`Committed improvement: ${previousScore.toFixed(1)} -> ${score.total.toFixed(1)}`);
     }
     // Check for plateau
     const plateauMode = 'stalled'; // Could be config.plateauDetection
     const plateauDecision = detectPlateau(state, score, config.target, plateauMode);
     if (plateauDecision.shouldStop) {
+        log(`Plateau detected: ${plateauDecision.reason}`);
         await saveState(state);
         const output = {
             decision: 'approve',
             reason: plateauDecision.reason,
         };
+        log(`Decision: approve (plateau)`);
         console.log(JSON.stringify(output));
         process.exit(0);
     }
@@ -121,6 +154,7 @@ async function main() {
         decision: 'block',
         reason: feedbackPrompt,
     };
+    log(`Decision: block (worst metric: ${worstMetric.name}=${worstMetric.score})`);
     console.log(JSON.stringify(output));
     process.exit(0);
 }
@@ -153,12 +187,15 @@ function readStdin() {
 }
 // Run the hook
 main().catch((error) => {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    log(`Hook error: ${errorMsg}`);
     console.error('Polish hook error:', error);
     // On error, allow Claude to stop (don't block)
     const output = {
         decision: 'approve',
-        reason: `Hook error: ${error instanceof Error ? error.message : String(error)}`,
+        reason: `Hook error: ${errorMsg}`,
     };
+    log(`Decision: approve (error)`);
     console.log(JSON.stringify(output));
     process.exit(0);
 });
