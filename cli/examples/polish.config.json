@@ -37,13 +37,24 @@
       "name": "format",
       "description": "Format code with Biome",
       "command": "npx @biomejs/biome format . --write",
-      "category": "format"
+      "category": "format",
+      "details": "Formats all TypeScript and JavaScript files using Biome's fast formatter."
     },
     {
       "name": "check-all",
       "description": "Run all checks",
       "command": "bun test && tsc --noEmit && eslint src",
-      "category": "quality"
+      "category": "quality",
+      "details": "Runs tests, type checking, and linting in sequence. Fails fast on first error.",
+      "onError": "Check which step failed: tests (assertions), tsc (types), or eslint (style). Fix issues in that order."
+    },
+    {
+      "name": "e2e",
+      "description": "Run end-to-end tests",
+      "command": "npx playwright test",
+      "category": "test",
+      "details": "Runs Playwright E2E tests against your application.",
+      "onError": "Ensure the app is running. Check playwright.config.ts for baseURL. Run 'npx playwright install' if browsers are missing."
     }
   ]
 }

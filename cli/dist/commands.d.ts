@@ -34,4 +34,4 @@ export declare function runCommand(name: string, config?: PolishConfig): Promise
 /**
  * Format command result for display
  */
-export declare function formatCommandResult(result: CommandResult): string;
+export declare function formatCommandResult(result: CommandResult, cmd?: CustomCommand): string;

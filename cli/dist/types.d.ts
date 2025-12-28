@@ -71,6 +71,8 @@ export interface CustomCommand {
     description: string;
     command: string;
     category?: 'test' | 'lint' | 'format' | 'build' | 'security' | 'quality' | 'other';
+    details?: string;
+    onError?: string;
 }
 export interface CommandResult {
     name: string;

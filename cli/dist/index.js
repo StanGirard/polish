@@ -147,7 +147,7 @@ program
     }
     console.log(`Running: ${cmd.command}\n`);
     const result = await executeCommand(cmd);
-    console.log(formatCommandResult(result));
+    console.log(formatCommandResult(result, cmd));
     process.exit(result.success ? 0 : 1);
 });
 // Commands subcommand - manage custom commands
@@ -242,6 +242,12 @@ commandsCommand
     if (isOverride) {
         console.log(`Note:        Overrides built-in command`);
     }
+    if (cmd.details) {
+        console.log(`\nDetails:\n${cmd.details}`);
+    }
+    if (cmd.onError) {
+        console.log(`\nOn Error:\n${cmd.onError}`);
+    }
     console.log('\nRun with: polish run ' + name);
 });
 commandsCommand
@@ -250,6 +256,8 @@ commandsCommand
     .requiredOption('-c, --command <cmd>', 'The shell command to run')
     .option('-d, --description <desc>', 'Description of the command')
     .option('--category <cat>', 'Category (test, lint, format, build, security, quality, other)')
+    .option('--details <text>', 'Detailed explanation of what the command does')
+    .option('--on-error <text>', 'Instructions on how to fix when it fails')
     .action(async (name, options) => {
     const configPath = getConfigPath();
     if (!configPath) {
@@ -270,6 +278,12 @@ commandsCommand
     };
     if (options.category) {
         newCommand.category = options.category;
+    }
+    if (options.details) {
+        newCommand.details = options.details;
+    }
+    if (options.onError) {
+        newCommand.onError = options.onError;
     }
     // Add to config
     config.commands = config.commands || [];

@@ -92,6 +92,8 @@ export interface CustomCommand {
   description: string;
   command: string;
   category?: 'test' | 'lint' | 'format' | 'build' | 'security' | 'quality' | 'other';
+  details?: string; // Detailed explanation of what the command does
+  onError?: string; // Instructions on how to fix when it fails
 }
 
 // Custom command result after execution
