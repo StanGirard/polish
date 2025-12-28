@@ -38,6 +38,24 @@ polish add build
 
 See all available checks: `polish bank list`
 
+## Configuration
+
+Polish creates a `polish.config.json`:
+
+```json
+{
+  "metrics": [
+    { "name": "tests", "command": "npm test", "weight": 100, "target": 100 },
+    { "name": "typescript", "command": "npx tsc --noEmit", "weight": 100, "target": 100 },
+    { "name": "lint", "command": "npx eslint .", "weight": 80, "target": 95 }
+  ],
+  "target": 95
+}
+```
+
+- **weight** - How much this metric matters in the final score
+- **target** - Minimum score for this metric (0-100)
+
 ## License
 
 MIT
