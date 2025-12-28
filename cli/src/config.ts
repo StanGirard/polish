@@ -59,6 +59,8 @@ function parseConfig(path: string): PolishConfig {
     metrics: parsed.metrics,
     target: parsed.target ?? DEFAULT_TARGET,
     maxIterations: parsed.maxIterations ?? DEFAULT_MAX_ITERATIONS,
+    hook: parsed.hook,
+    commands: parsed.commands,
   };
 }
 
