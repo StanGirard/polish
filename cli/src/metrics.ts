@@ -204,13 +204,19 @@ function parseDuplicationOutput(output: string, exitCode: number): number {
 
 /**
  * Calculate total score from all metrics
+ * @param metrics - Array of metrics to run
+ * @param onMetricComplete - Optional callback called after each metric completes
  */
-export async function calculateScore(metrics: Metric[]): Promise<ScoreResult> {
+export async function calculateScore(
+  metrics: Metric[],
+  onMetricComplete?: (result: MetricResult) => void
+): Promise<ScoreResult> {
   const results: MetricResult[] = [];
 
   for (const metric of metrics) {
     const result = await runMetric(metric);
     results.push(result);
+    onMetricComplete?.(result);
   }
 
   // Calculate weighted average

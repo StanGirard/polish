@@ -174,12 +174,15 @@ function parseDuplicationOutput(output, exitCode) {
 }
 /**
  * Calculate total score from all metrics
+ * @param metrics - Array of metrics to run
+ * @param onMetricComplete - Optional callback called after each metric completes
  */
-export async function calculateScore(metrics) {
+export async function calculateScore(metrics, onMetricComplete) {
     const results = [];
     for (const metric of metrics) {
         const result = await runMetric(metric);
         results.push(result);
+        onMetricComplete?.(result);
     }
     // Calculate weighted average
     const totalWeight = results.reduce((sum, r) => sum + r.weight, 0);

@@ -125,7 +125,9 @@ async function main(): Promise<void> {
 
   // Run metrics
   log('Running metrics...');
-  const score = await calculateScore(config.metrics);
+  const score = await calculateScore(config.metrics, (result) => {
+    log(`  ${result.name}: ${result.score}/${result.target}`);
+  });
   log(`Metrics complete: total=${score.total.toFixed(1)}`)
 
   // If this is the first iteration, record initial score

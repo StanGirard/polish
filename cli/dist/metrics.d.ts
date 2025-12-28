@@ -5,8 +5,10 @@ import type { Metric, MetricResult, ScoreResult } from './types.js';
 export declare function runMetric(metric: Metric): Promise<MetricResult>;
 /**
  * Calculate total score from all metrics
+ * @param metrics - Array of metrics to run
+ * @param onMetricComplete - Optional callback called after each metric completes
  */
-export declare function calculateScore(metrics: Metric[]): Promise<ScoreResult>;
+export declare function calculateScore(metrics: Metric[], onMetricComplete?: (result: MetricResult) => void): Promise<ScoreResult>;
 /**
  * Find the worst performing metric
  */
