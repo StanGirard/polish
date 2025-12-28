@@ -1,32 +1,51 @@
-import { VERIFICATIONS, getVerificationNames } from './verifications.js';
+import { getAllVerifications, getVerification } from './verifications/index.js';
 /**
  * List all available verifications
  */
 export function listCommand() {
+    const verifications = getAllVerifications();
     console.log('Available verifications:\n');
-    const maxNameLen = Math.max(...getVerificationNames().map((n) => n.length));
-    for (const [name, def] of Object.entries(VERIFICATIONS)) {
-        console.log(`  ${name.padEnd(maxNameLen + 2)} ${def.description}`);
+    // Group by category
+    const byCategory = {};
+    for (const v of verifications) {
+        const cat = v.category;
+        if (!byCategory[cat]) {
+            byCategory[cat] = [];
+        }
+        byCategory[cat].push(v);
     }
-    console.log('\nUse "polish bank show <name>" for details.');
+    const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality'];
+    for (const cat of categoryOrder) {
+        const list = byCategory[cat];
+        if (!list || list.length === 0)
+            continue;
+        console.log(`${cat.toUpperCase()}`);
+        for (const v of list) {
+            console.log(`  ${v.id.padEnd(18)} ${v.description}`);
+        }
+        console.log('');
+    }
+    console.log('Use "polish bank show <name>" for details.');
     console.log('Use "polish add <name>" to add a verification to your config.');
 }
 /**
  * Show details about a verification
  */
 export function showCommand(name) {
-    const def = VERIFICATIONS[name];
-    if (!def) {
+    const v = getVerification(name);
+    if (!v) {
         console.error(`Unknown verification: ${name}`);
         console.error('\nRun "polish bank list" to see available verifications.');
         process.exit(1);
     }
-    console.log(`${name} - ${def.description}\n`);
-    console.log(`  Command:  ${def.command}`);
-    console.log(`  Weight:   ${def.weight}`);
-    console.log(`  Target:   ${def.target}`);
-    if (def.details) {
-        console.log(`\n  ${def.details}`);
+    console.log(`${v.id} - ${v.name}\n`);
+    console.log(`  Description: ${v.description}`);
+    console.log(`  Category:    ${v.category}`);
+    console.log(`  Command:     ${v.command}`);
+    console.log(`  Weight:      ${v.weight}`);
+    console.log(`  Target:      ${v.target}`);
+    if (v.onError) {
+        console.log(`\n  On Error: ${v.onError}`);
     }
-    console.log(`\nAdd with: polish add ${name}`);
+    console.log(`\nAdd with: polish add ${v.id}`);
 }

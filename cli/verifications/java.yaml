@@ -1,0 +1,55 @@
+# Java Verifications
+
+maven-test:
+  name: Maven Test
+  description: Run tests with Maven
+  category: tests
+  command: mvn test
+  conditions:
+    - fileExists: pom.xml
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check test output in target/surefire-reports
+
+maven-compile:
+  name: Maven Compile
+  description: Compile with Maven
+  category: build
+  command: mvn compile
+  conditions:
+    - fileExists: pom.xml
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+
+gradle-test:
+  name: Gradle Test
+  description: Run tests with Gradle
+  category: tests
+  command: ./gradlew test
+  conditions:
+    - anyOf:
+        - fileExists: build.gradle
+        - fileExists: build.gradle.kts
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check test output in build/reports/tests
+
+gradle-build:
+  name: Gradle Build
+  description: Build with Gradle
+  category: build
+  command: ./gradlew build
+  conditions:
+    - anyOf:
+        - fileExists: build.gradle
+        - fileExists: build.gradle.kts
+  scoring:
+    type: binary
+  weight: 100
+  target: 100

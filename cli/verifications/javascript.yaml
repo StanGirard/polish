@@ -1,0 +1,169 @@
+# JavaScript/TypeScript Verifications
+
+tests-bun:
+  name: Bun Tests
+  description: Run tests with Bun
+  category: tests
+  command: bun test
+  conditions:
+    - anyOf:
+        - fileExists: bun.lock
+        - fileExists: bun.lockb
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check test output. Run specific test with bun test path/to/file.test.ts
+
+tests-vitest:
+  name: Vitest
+  description: Run tests with Vitest
+  category: tests
+  command: npx vitest run
+  conditions:
+    - fileExists: package.json
+    - anyOf:
+        - fileExists: "vitest.config.*"
+        - fileContains:
+            path: package.json
+            pattern: '"vitest"'
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check vitest.config.ts for configuration issues
+
+tests-jest:
+  name: Jest
+  description: Run tests with Jest
+  category: tests
+  command: npx jest
+  conditions:
+    - fileExists: package.json
+    - anyOf:
+        - fileExists: "jest.config.*"
+        - fileContains:
+            path: package.json
+            pattern: '"jest"'
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check jest.config.js. Run jest --clearCache if tests are stale
+
+tests-npm:
+  name: npm test
+  description: Run tests via npm script
+  category: tests
+  command: npm test
+  conditions:
+    - fileExists: package.json
+    - fileContains:
+        path: package.json
+        pattern: '"test":'
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+
+typescript:
+  name: TypeScript
+  description: Type check with tsc
+  category: types
+  command: npx tsc --noEmit
+  conditions:
+    - fileExists: tsconfig.json
+  scoring:
+    type: regex
+    pattern: "error TS\\d+:"
+    perMatch: -5
+  weight: 100
+  target: 100
+  onError: Fix type errors. Add // @ts-expect-error only as last resort
+
+eslint:
+  name: ESLint
+  description: Lint code with ESLint
+  category: lint
+  command: npx eslint .
+  conditions:
+    - fileExists: package.json
+    - anyOf:
+        - fileExists: ".eslintrc*"
+        - fileExists: "eslint.config.*"
+        - fileContains:
+            path: package.json
+            pattern: '"eslint"'
+  scoring:
+    type: regex
+    pattern: "\\d+ problems?"
+    perMatch: -5
+  weight: 80
+  target: 100
+  onError: Run npx eslint . --fix to auto-fix some issues
+
+biome:
+  name: Biome
+  description: Check code with Biome
+  category: lint
+  command: npx @biomejs/biome check .
+  conditions:
+    - anyOf:
+        - fileExists: biome.json
+        - fileExists: biome.jsonc
+        - fileContains:
+            path: package.json
+            pattern: '"@biomejs/biome"'
+  scoring:
+    type: binary
+  weight: 80
+  target: 100
+  onError: Run npx @biomejs/biome check . --write to fix issues
+
+build-bun:
+  name: Build (Bun)
+  description: Build the project with Bun
+  category: build
+  command: bun run build
+  conditions:
+    - anyOf:
+        - fileExists: bun.lock
+        - fileExists: bun.lockb
+    - fileContains:
+        path: package.json
+        pattern: '"build":'
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check for TypeScript errors first with polish run typecheck
+
+build-npm:
+  name: Build (npm)
+  description: Build the project with npm
+  category: build
+  command: npm run build
+  conditions:
+    - fileExists: package.json
+    - fileContains:
+        path: package.json
+        pattern: '"build":'
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check for TypeScript errors first
+
+duplication:
+  name: Duplication
+  description: Check for code duplication
+  category: quality
+  command: npx jscpd src --threshold 5
+  conditions:
+    - fileExists: package.json
+    - fileExists: src/
+  scoring:
+    type: binary
+  weight: 60
+  target: 95
+  onError: Extract duplicated code into shared functions

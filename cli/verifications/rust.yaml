@@ -1,0 +1,52 @@
+# Rust Verifications
+
+cargo-test:
+  name: Cargo Test
+  description: Run tests with cargo
+  category: tests
+  command: cargo test
+  conditions:
+    - fileExists: Cargo.toml
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check test output. Run cargo test -- --nocapture for print output
+
+clippy:
+  name: Clippy
+  description: Lint with Clippy
+  category: lint
+  command: cargo clippy -- -D warnings
+  conditions:
+    - fileExists: Cargo.toml
+  scoring:
+    type: binary
+  weight: 80
+  target: 100
+  onError: Run cargo clippy --fix to auto-fix some issues
+
+cargo-build:
+  name: Cargo Build
+  description: Build with cargo
+  category: build
+  command: cargo build
+  conditions:
+    - fileExists: Cargo.toml
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check for compilation errors
+
+cargo-check:
+  name: Cargo Check
+  description: Fast type checking
+  category: types
+  command: cargo check
+  conditions:
+    - fileExists: Cargo.toml
+  scoring:
+    type: binary
+  weight: 100
+  target: 100

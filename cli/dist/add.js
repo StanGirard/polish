@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig, getConfigPath } from './config.js';
-import { VERIFICATIONS, verificationToMetric, getVerificationNames } from './verifications.js';
+import { getAllVerifications, getVerification, verificationToMetric, } from './verifications/index.js';
 /**
  * Add a verification to the existing config
  */
@@ -13,12 +13,12 @@ export async function addCommand(name, options = {}) {
         process.exit(1);
     }
     // Check if verification exists
-    const def = VERIFICATIONS[name];
-    if (!def) {
+    const verification = getVerification(name);
+    if (!verification) {
         console.error(`Unknown verification: ${name}`);
         console.error('\nAvailable verifications:');
-        for (const n of getVerificationNames()) {
-            console.error(`  - ${n}`);
+        for (const v of getAllVerifications()) {
+            console.error(`  - ${v.id}`);
         }
         console.error('\nRun "polish bank list" for details.');
         process.exit(1);
@@ -34,11 +34,17 @@ export async function addCommand(name, options = {}) {
         process.exit(1);
     }
     // Build metric with overrides
-    const metric = verificationToMetric(def, {
-        command: options.command,
-        weight: options.weight ? parseInt(options.weight, 10) : undefined,
-        target: options.target ? parseInt(options.target, 10) : undefined,
-    });
+    const metric = verificationToMetric(verification);
+    // Apply overrides
+    if (options.command) {
+        metric.command = options.command;
+    }
+    if (options.weight) {
+        metric.weight = parseInt(options.weight, 10);
+    }
+    if (options.target) {
+        metric.target = parseInt(options.target, 10);
+    }
     // Add to config
     config.metrics.push(metric);
     // Save config

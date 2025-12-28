@@ -11,31 +11,35 @@ function TypingTerminal() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const allLines = [
-    { text: "$ polish 'Add OAuth with GitHub'", color: "text-white" },
+    { text: "$ npm install -g polish-cli", color: "text-white" },
+    { text: "$ polish init", color: "text-white" },
+    { text: "  Detected: TypeScript, ESLint, Bun", color: "text-gray-500" },
+    { text: "  Created polish.config.json", color: "text-green-400" },
     { text: "", color: "" },
-    { text: "Phase 1: IMPLEMENT", color: "text-cyan-400" },
-    { text: "  Analyzing project structure...", color: "text-gray-500" },
-    { text: "  Creating auth/config.ts", color: "text-gray-400" },
-    { text: "  Creating auth/providers.ts", color: "text-gray-400" },
-    { text: "  Creating auth/middleware.ts", color: "text-gray-400" },
-    { text: "  Initial score: 34/100", color: "text-orange-400" },
+    { text: "$ polish hook install", color: "text-white" },
+    { text: "  Hook installed to .claude/settings.json", color: "text-green-400" },
     { text: "", color: "" },
-    { text: "Phase 2: POLISH", color: "text-cyan-400" },
-    { text: "  [1/24] fix-types     +5 pts  Fix Optional<User> type", color: "text-green-400" },
-    { text: "  [2/24] add-tests     +8 pts  Add parseToken test", color: "text-green-400" },
-    { text: "  [3/24] fix-types     +3 pts  Add return type annotation", color: "text-green-400" },
-    { text: "  [4/24] fix-lint      +2 pts  Remove unused import", color: "text-green-400" },
-    { text: "  [5/24] fix-types     FAIL    Breaking change -> rollback", color: "text-red-400" },
-    { text: "  [6/24] add-tests     +7 pts  Test auth edge case", color: "text-green-400" },
-    { text: "  [7/24] fix-coverage  +4 pts  Cover error branch", color: "text-green-400" },
-    { text: "  ...", color: "text-gray-600" },
-    { text: "  [24/24] fix-types    +2 pts  Final type annotation", color: "text-green-400" },
+    { text: "# Now use Claude Code as usual...", color: "text-gray-600" },
+    { text: "# When Claude tries to stop:", color: "text-gray-600" },
     { text: "", color: "" },
-    { text: "  Score: 34 -> 91 (+57 points)", color: "text-cyan-400" },
-    { text: "  Commits: 24 atomic changes", color: "text-gray-400" },
-    { text: "  Duration: 47 minutes", color: "text-gray-400" },
+    { text: "[HOOK] Running metrics...", color: "text-cyan-400" },
+    { text: "  tests:      100/100", color: "text-green-400" },
+    { text: "  typescript:  85/100", color: "text-yellow-400" },
+    { text: "  lint:        92/100", color: "text-green-400" },
+    { text: "  Score: 89/100 (target: 95)", color: "text-orange-400" },
     { text: "", color: "" },
-    { text: "Done. Ready for review.", color: "text-green-400" },
+    { text: "[HOOK] Blocking stop. Worst: typescript", color: "text-red-400" },
+    { text: "  Fix 3 type errors in src/auth.ts", color: "text-gray-400" },
+    { text: "", color: "" },
+    { text: "# Claude continues fixing...", color: "text-gray-600" },
+    { text: "", color: "" },
+    { text: "[HOOK] Running metrics...", color: "text-cyan-400" },
+    { text: "  tests:      100/100", color: "text-green-400" },
+    { text: "  typescript: 100/100", color: "text-green-400" },
+    { text: "  lint:        97/100", color: "text-green-400" },
+    { text: "  Score: 98/100 (target: 95)", color: "text-cyan-400" },
+    { text: "", color: "" },
+    { text: "[HOOK] Approving stop. Target reached!", color: "text-green-400" },
   ];
 
   useEffect(() => {
@@ -78,7 +82,7 @@ function TypingTerminal() {
           <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
           <div className="w-3 h-3 rounded-full bg-green-500/80" />
         </div>
-        <span className="text-gray-500 text-xs ml-2 font-mono">polish --session</span>
+        <span className="text-gray-500 text-xs ml-2 font-mono">polish hook</span>
       </div>
       <div ref={containerRef} className="p-4 h-[400px] overflow-y-auto font-mono text-sm">
         {lines.map((line, i) => (
@@ -101,7 +105,7 @@ function TypingTerminal() {
 function ScoreVisualization() {
   const [score, setScore] = useState(34);
   const [targetScore, setTargetScore] = useState(34);
-  const scores = [34, 47, 58, 67, 76, 83, 89, 95];
+  const scores = [34, 47, 58, 67, 76, 83, 89, 95, 97];
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
@@ -125,7 +129,7 @@ function ScoreVisualization() {
   }, [score, targetScore]);
 
   const getColor = (s: number) => {
-    if (s >= 90) return { text: "text-cyan-400", bar: "bg-cyan-400", glow: "shadow-cyan-400/50" };
+    if (s >= 95) return { text: "text-cyan-400", bar: "bg-cyan-400", glow: "shadow-cyan-400/50" };
     if (s >= 70) return { text: "text-green-400", bar: "bg-green-400", glow: "shadow-green-400/30" };
     if (s >= 50) return { text: "text-yellow-400", bar: "bg-yellow-400", glow: "" };
     return { text: "text-orange-400", bar: "bg-orange-400", glow: "" };
@@ -151,7 +155,7 @@ function ScoreVisualization() {
         </div>
         <div className="flex justify-between mt-2 text-xs text-gray-600 font-mono">
           <span>0</span>
-          <span className={score >= 90 ? "text-cyan-400" : "text-gray-600"}>90+</span>
+          <span className={score >= 95 ? "text-cyan-400" : "text-gray-600"}>95+</span>
           <span>100</span>
         </div>
       </div>
@@ -176,10 +180,10 @@ function PolishLoopVisualization() {
   const [activeStep, setActiveStep] = useState(0);
   const steps = [
     { num: "01", label: "Measure", detail: "Run lint, types, tests, coverage", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
-    { num: "02", label: "Identify", detail: "Find worst metric to fix", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
-    { num: "03", label: "Fix", detail: "LLM makes ONE atomic change", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
-    { num: "04", label: "Validate", detail: "Run tests, recalculate score", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
-    { num: "05", label: "Commit", detail: "Keep if better, rollback if worse", icon: "M5 13l4 4L19 7" },
+    { num: "02", label: "Identify", detail: "Find the worst metric", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
+    { num: "03", label: "Fix", detail: "Claude makes one atomic change", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
+    { num: "04", label: "Validate", detail: "Check if it improved", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+    { num: "05", label: "Repeat", detail: "Until score >= 95%", icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" },
   ];
 
   useEffect(() => {
@@ -193,7 +197,7 @@ function PolishLoopVisualization() {
     <div className="border border-gray-800 rounded-lg p-6 bg-gray-950/50">
       <div className="flex items-center justify-between mb-6">
         <span className="text-green-400 text-sm font-medium tracking-wide">THE LOOP</span>
-        <span className="text-gray-600 text-xs font-mono">repeat until score &gt;= 90</span>
+        <span className="text-gray-600 text-xs font-mono">repeat until score &gt;= 95</span>
       </div>
 
       <div className="space-y-4">
@@ -486,24 +490,25 @@ function PrinciplesGrid() {
 
 // CLI usage with copy button
 function UsageSection() {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
-  const copyCommand = () => {
-    navigator.clipboard.writeText('npx polish "Your task here"');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyCommand = (cmd: string) => {
+    navigator.clipboard.writeText(cmd);
+    setCopied(cmd);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   return (
-    <div className="max-w-xl">
+    <div className="grid md:grid-cols-2 gap-6">
+      {/* Get Started */}
       <div className="border border-gray-800 rounded-lg overflow-hidden bg-black">
         <div className="flex items-center justify-between px-4 py-3 bg-gray-900/50 border-b border-gray-800">
-          <span className="text-gray-500 text-xs font-mono">terminal</span>
+          <span className="text-green-400 text-xs font-medium">Get Started</span>
           <button
-            onClick={copyCommand}
+            onClick={() => copyCommand('npm install -g polish-cli && polish init && polish hook install')}
             className="text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
           >
-            {copied ? (
+            {copied === 'npm install -g polish-cli && polish init && polish hook install' ? (
               <>
                 <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -520,31 +525,49 @@ function UsageSection() {
             )}
           </button>
         </div>
-        <div className="p-4 font-mono text-sm space-y-4">
+        <div className="p-4 font-mono text-sm space-y-3">
           <div>
-            <div className="text-gray-600 text-xs mb-2"># Run with a mission</div>
-            <div>
-              <span className="text-gray-500">$</span>{" "}
-              <span className="text-white">npx polish</span>{" "}
-              <span className="text-green-400">&quot;Add user authentication with OAuth&quot;</span>
-            </div>
+            <span className="text-gray-500">$</span>{" "}
+            <span className="text-white">npm install -g polish-cli</span>
           </div>
           <div>
-            <div className="text-gray-600 text-xs mb-2"># Just polish existing code</div>
-            <div>
-              <span className="text-gray-500">$</span>{" "}
-              <span className="text-white">npx polish</span>{" "}
-              <span className="text-yellow-400">--polish-only</span>
-            </div>
+            <span className="text-gray-500">$</span>{" "}
+            <span className="text-white">polish init</span>
           </div>
           <div>
-            <div className="text-gray-600 text-xs mb-2"># Set a time budget</div>
-            <div>
-              <span className="text-gray-500">$</span>{" "}
-              <span className="text-white">npx polish</span>{" "}
-              <span className="text-green-400">&quot;Add API endpoint&quot;</span>{" "}
-              <span className="text-yellow-400">--duration 2h</span>
-            </div>
+            <span className="text-gray-500">$</span>{" "}
+            <span className="text-white">polish hook install</span>
+          </div>
+          <div className="pt-2 text-gray-600 text-xs">
+            That&apos;s it. Now when Claude tries to stop, Polish checks your metrics first.
+          </div>
+        </div>
+      </div>
+
+      {/* Adding Checks */}
+      <div className="border border-gray-800 rounded-lg overflow-hidden bg-black">
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-900/50 border-b border-gray-800">
+          <span className="text-cyan-400 text-xs font-medium">Adding Checks</span>
+        </div>
+        <div className="p-4 font-mono text-sm space-y-3">
+          <div>
+            <span className="text-gray-500">$</span>{" "}
+            <span className="text-white">polish add</span>{" "}
+            <span className="text-green-400">typescript</span>
+          </div>
+          <div>
+            <span className="text-gray-500">$</span>{" "}
+            <span className="text-white">polish add</span>{" "}
+            <span className="text-green-400">lint</span>
+          </div>
+          <div>
+            <span className="text-gray-500">$</span>{" "}
+            <span className="text-white">polish add</span>{" "}
+            <span className="text-green-400">build</span>
+          </div>
+          <div className="pt-2">
+            <span className="text-gray-600 text-xs">See all available checks: </span>
+            <span className="text-yellow-400 text-xs">polish bank list</span>
           </div>
         </div>
       </div>
@@ -552,155 +575,6 @@ function UsageSection() {
   );
 }
 
-// Economics section - why LLMs beat expensive engineers
-function EconomicsSection() {
-  const models = [
-    { name: "Grok Code Fast", provider: "xAI", input: "$0.20", output: "$1.50", tag: "fastest" },
-    { name: "GLM-4.7", provider: "Zhipu AI", input: "$0.60", output: "$2.20", tag: "best value" },
-    { name: "Claude Sonnet 4.5", provider: "Anthropic", input: "$3.00", output: "$15.00", tag: "highest quality" },
-  ];
-
-  return (
-    <div className="space-y-16">
-      {/* Main value prop */}
-      <div className="text-center">
-        <div className="text-gray-500 text-sm mb-4">Scale your team, not your headcount</div>
-        <h3 className="text-2xl md:text-3xl text-gray-200 mb-6">
-          Add <span className="text-green-400">virtual engineers</span> to your team<br />
-          that write <span className="text-cyan-400">production-quality</span> code for <span className="text-green-400">$50/task</span>
-        </h3>
-      </div>
-
-      {/* Real cost calculation */}
-      <div className="border border-gray-800 rounded-lg overflow-hidden">
-        <div className="p-6 bg-gray-900/30 border-b border-gray-800">
-          <div className="text-gray-400 text-sm mb-1">Real session example</div>
-          <div className="text-gray-200">300 lines of code, 5 hours of polishing, 100M tokens</div>
-          <div className="text-gray-600 text-xs mt-2">Industry standard: 3:1 input/output ratio, 70% cache hits</div>
-        </div>
-        <div className="grid md:grid-cols-2">
-          <div className="p-6 border-b md:border-b-0 md:border-r border-gray-800">
-            <div className="text-green-400 text-xs tracking-wide mb-4">WITH GLM-4.7</div>
-            <div className="space-y-2 text-sm mb-6">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Fresh input (22M)</span>
-                <span className="text-gray-400 font-mono">22 x $0.60 = $13</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Cache reads (53M)</span>
-                <span className="text-gray-400 font-mono">53 x $0.06 = $3</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Output (25M)</span>
-                <span className="text-gray-400 font-mono">25 x $2.20 = $55</span>
-              </div>
-              <div className="flex justify-between pt-3 border-t border-gray-800">
-                <span className="text-gray-400">Total cost</span>
-                <span className="text-green-400 font-mono font-bold text-lg">$71</span>
-              </div>
-            </div>
-            <div className="text-gray-600 text-xs">5 hours, 1000+ iterations</div>
-          </div>
-          <div className="p-6">
-            <div className="text-cyan-400 text-xs tracking-wide mb-4">WITH CLAUDE SONNET 4.5</div>
-            <div className="space-y-2 text-sm mb-6">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Fresh input (22M)</span>
-                <span className="text-gray-400 font-mono">22 x $3 = $66</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Cache reads (53M)</span>
-                <span className="text-gray-400 font-mono">53 x $0.30 = $16</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Output (25M)</span>
-                <span className="text-gray-400 font-mono">25 x $15 = $375</span>
-              </div>
-              <div className="flex justify-between pt-3 border-t border-gray-800">
-                <span className="text-gray-400">Total cost</span>
-                <span className="text-cyan-400 font-mono font-bold text-lg">$457</span>
-              </div>
-            </div>
-            <div className="text-gray-600 text-xs">Maximum quality, with prompt caching</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Team scaling example */}
-      <div className="grid md:grid-cols-3 gap-6 text-center">
-        <div className="p-6 rounded-lg border border-gray-800 bg-gray-950/30">
-          <div className="text-gray-200 text-3xl font-bold mb-2">3 devs</div>
-          <div className="text-gray-500 text-sm">Your current team</div>
-          <div className="text-gray-600 text-xs mt-2">Limited bandwidth</div>
-        </div>
-        <div className="p-6 rounded-lg border border-green-900/50 bg-green-950/10">
-          <div className="text-green-400 text-3xl font-bold mb-2">+10</div>
-          <div className="text-gray-500 text-sm">Virtual Engineers</div>
-          <div className="text-gray-600 text-xs mt-2">$50-70 per task</div>
-        </div>
-        <div className="p-6 rounded-lg border border-cyan-900/50 bg-cyan-950/10">
-          <div className="text-cyan-400 text-3xl font-bold mb-2">3x</div>
-          <div className="text-gray-500 text-sm">Team Output</div>
-          <div className="text-gray-600 text-xs mt-2">Same quality standards</div>
-        </div>
-      </div>
-
-      {/* Key insight */}
-      <div className="text-center py-8 border-y border-gray-800">
-        <div className="text-gray-600 text-sm mb-3">The insight</div>
-        <div className="text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto leading-relaxed">
-          Your engineers focus on <span className="text-cyan-400">architecture and reviews</span>.{" "}
-          Polish handles the <span className="text-green-400">implementation grunt work</span>{" "}
-          with the same quality standards.
-        </div>
-      </div>
-
-      {/* Model pricing table */}
-      <div>
-        <div className="text-gray-400 text-sm mb-6">Model pricing (per 1M tokens)</div>
-        <div className="border border-gray-800 rounded-lg overflow-hidden">
-          <div className="grid grid-cols-4 gap-4 p-4 bg-gray-900/50 border-b border-gray-800 text-xs text-gray-500">
-            <div>Model</div>
-            <div>Input</div>
-            <div>Output</div>
-            <div></div>
-          </div>
-          {models.map((model, i) => (
-            <div
-              key={i}
-              className={`grid grid-cols-4 gap-4 p-4 text-sm ${
-                i < models.length - 1 ? "border-b border-gray-800/50" : ""
-              }`}
-            >
-              <div>
-                <div className="text-gray-200">{model.name}</div>
-                <div className="text-gray-600 text-xs">{model.provider}</div>
-              </div>
-              <div className="text-gray-400 font-mono">{model.input}</div>
-              <div className="text-gray-400 font-mono">{model.output}</div>
-              <div className="flex justify-end">
-                {model.tag && (
-                  <span className={`text-[10px] px-2 py-1 rounded ${
-                    model.tag === "highest quality"
-                      ? "bg-cyan-400/20 text-cyan-400"
-                      : model.tag === "best value"
-                      ? "bg-green-400/20 text-green-400"
-                      : "bg-yellow-400/20 text-yellow-400"
-                  }`}>
-                    {model.tag}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="text-gray-700 text-xs mt-4 text-center">
-          Use fast models for iteration. Premium models for initial generation.
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function LandingPage() {
   return (
@@ -734,7 +608,7 @@ export default function LandingPage() {
         </h1>
 
         <p className="text-gray-500 max-w-xl mx-auto text-center text-sm md:text-base leading-relaxed mb-10">
-          Polish gives your team virtual engineers that write maintainable, tested, production-quality code. Scale your output without the technical debt.
+          Polish is a Claude Code hook that keeps Claude working until your code hits 95%+ quality. Easy to integrate, impossible to ignore.
         </p>
 
         <div className="flex flex-wrap gap-4 justify-center">
@@ -797,18 +671,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Economics */}
-      <section className="py-32 px-6 border-t border-gray-900">
-        <div className="max-w-5xl mx-auto">
-          <div className="mb-16">
-            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">Scale Your Team</h2>
-            <p className="text-gray-600 text-sm md:text-base max-w-2xl">
-              Don&apos;t replace your engineers. Give them an army of virtual teammates that ship production-quality code at a fraction of the cost.
-            </p>
-          </div>
-          <EconomicsSection />
-        </div>
-      </section>
 
       {/* Principles */}
       <section className="py-32 px-6 border-t border-gray-900">
@@ -830,14 +692,72 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Configuration */}
+      <section className="py-32 px-6 border-t border-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <h2 className="text-2xl md:text-3xl text-gray-200 mb-4">Configuration</h2>
+            <p className="text-gray-600 text-sm md:text-base max-w-2xl">
+              Polish creates a <span className="text-green-400 font-mono">polish.config.json</span> in your project root.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="border border-gray-800 rounded-lg overflow-hidden bg-black">
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-900/50 border-b border-gray-800">
+                <span className="text-gray-400 text-xs font-mono">polish.config.json</span>
+              </div>
+              <pre className="p-4 font-mono text-sm overflow-x-auto">
+                <code className="text-gray-300">{`{
+  "metrics": [
+    {
+      "name": "tests",
+      "command": "npm test",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "typescript",
+      "command": "npx tsc --noEmit",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "lint",
+      "command": "npx eslint .",
+      "weight": 80,
+      "target": 95
+    }
+  ],
+  "target": 95
+}`}</code>
+              </pre>
+            </div>
+            <div className="space-y-6">
+              <div>
+                <div className="text-green-400 text-sm font-medium mb-2">weight</div>
+                <div className="text-gray-500 text-sm">How much this metric matters in the final score. Tests at 100, lint at 80 means tests matter more.</div>
+              </div>
+              <div>
+                <div className="text-cyan-400 text-sm font-medium mb-2">target</div>
+                <div className="text-gray-500 text-sm">Minimum score for this metric (0-100). Set lower targets for metrics that are harder to perfect.</div>
+              </div>
+              <div>
+                <div className="text-yellow-400 text-sm font-medium mb-2">command</div>
+                <div className="text-gray-500 text-sm">The shell command to run. Polish parses the output to calculate the score.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-32 px-6 border-t border-gray-900">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl text-gray-200 mb-6">
-            Ready to <span className="text-green-400">scale your team</span>?
+            Ready to <span className="text-green-400">ship quality code</span>?
           </h2>
           <p className="text-gray-600 mb-10 text-sm md:text-base">
-            Add virtual engineers that write code your team can actually maintain. No more vibe coding nightmares.
+            Install the hook and let Polish keep Claude working until your code is production-ready.
           </p>
           <a
             href="https://github.com/stangirard/polish"
@@ -858,7 +778,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-green-400 font-bold">POLISH</div>
           <div className="text-gray-700 text-sm text-center">
-            Virtual engineers that ship production-quality code.
+            A Claude Code hook for production-quality vibe coding.
           </div>
           <a
             href="https://github.com/stangirard/polish"

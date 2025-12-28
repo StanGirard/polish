@@ -1,0 +1,93 @@
+# Python Verifications
+
+pytest:
+  name: Pytest
+  description: Run tests with pytest
+  category: tests
+  command: pytest
+  conditions:
+    - anyOf:
+        - fileExists: pytest.ini
+        - fileExists: pyproject.toml
+        - fileExists: tests/
+        - fileExists: test/
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check test output. Run pytest -v for verbose output
+
+ruff:
+  name: Ruff
+  description: Fast Python linter
+  category: lint
+  command: ruff check .
+  conditions:
+    - anyOf:
+        - fileExists: ruff.toml
+        - fileContains:
+            path: pyproject.toml
+            pattern: "[tool.ruff]"
+  scoring:
+    type: regex
+    pattern: "Found \\d+ errors?"
+    perMatch: -5
+  weight: 80
+  target: 100
+  onError: Run ruff check . --fix to auto-fix issues
+
+pylint:
+  name: Pylint
+  description: Lint Python code
+  category: lint
+  command: pylint .
+  conditions:
+    - anyOf:
+        - fileExists: .pylintrc
+        - fileExists: pylintrc
+        - fileContains:
+            path: pyproject.toml
+            pattern: "[tool.pylint]"
+  scoring:
+    type: regex
+    pattern: "\\d+ errors?"
+    perMatch: -5
+  weight: 80
+  target: 100
+
+mypy:
+  name: Mypy
+  description: Type check with mypy
+  category: types
+  command: mypy .
+  conditions:
+    - anyOf:
+        - fileExists: mypy.ini
+        - fileContains:
+            path: pyproject.toml
+            pattern: "[tool.mypy]"
+  scoring:
+    type: regex
+    pattern: "error:"
+    perMatch: -5
+  weight: 100
+  target: 100
+  onError: Fix type errors or add type annotations
+
+pyright:
+  name: Pyright
+  description: Type check with pyright
+  category: types
+  command: pyright
+  conditions:
+    - anyOf:
+        - fileExists: pyrightconfig.json
+        - fileContains:
+            path: pyproject.toml
+            pattern: "[tool.pyright]"
+  scoring:
+    type: regex
+    pattern: "error:"
+    perMatch: -5
+  weight: 100
+  target: 100

@@ -1,0 +1,53 @@
+# Go Verifications
+
+go-test:
+  name: Go Test
+  description: Run tests with go test
+  category: tests
+  command: go test ./...
+  conditions:
+    - fileExists: go.mod
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check test output. Run go test -v ./... for verbose output
+
+golangci-lint:
+  name: GolangCI Lint
+  description: Lint with golangci-lint
+  category: lint
+  command: golangci-lint run
+  conditions:
+    - fileExists: go.mod
+    - fileExists: ".golangci.*"
+  scoring:
+    type: binary
+  weight: 80
+  target: 100
+  onError: Run golangci-lint run --fix to auto-fix some issues
+
+go-vet:
+  name: Go Vet
+  description: Analyze code with go vet
+  category: lint
+  command: go vet ./...
+  conditions:
+    - fileExists: go.mod
+  scoring:
+    type: binary
+  weight: 80
+  target: 100
+
+go-build:
+  name: Go Build
+  description: Build with go build
+  category: build
+  command: go build ./...
+  conditions:
+    - fileExists: go.mod
+  scoring:
+    type: binary
+  weight: 100
+  target: 100
+  onError: Check for compilation errors

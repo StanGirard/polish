@@ -47,7 +47,6 @@ function parseConfig(path) {
         target: parsed.target ?? DEFAULT_TARGET,
         maxIterations: parsed.maxIterations ?? DEFAULT_MAX_ITERATIONS,
         hook: parsed.hook,
-        commands: parsed.commands,
     };
 }
 /**
