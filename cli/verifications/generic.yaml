@@ -1,0 +1,50 @@
+# Generic Verifications - Universal code quality checks
+# These run on unstaged git changes and apply to any project
+
+todo-check:
+  name: TODO/FIXME Check
+  description: No TODO/FIXME in unstaged changes
+  category: quality
+  command: bash -c "git diff --unified=0 | grep -E '^\\+.*\\b(TODO|FIXME|XXX)\\b' && exit 1 || exit 0"
+  conditions: []
+  scoring:
+    type: binary
+  weight: 60
+  target: 100
+  onError: Remove TODO/FIXME comments before committing, or create issues for tracking
+
+inline-comment-check:
+  name: Inline Comment Check
+  description: No inline comments (//) in unstaged changes
+  category: quality
+  command: bash -c "git diff --unified=0 -- '*.ts' '*.tsx' '*.js' '*.jsx' | grep -E '^\\+[^+]' | grep -E '[^:/]//[^/]' | grep -v -E 'https?://' | grep -v -E '/// <reference' && exit 1 || exit 0"
+  conditions: []
+  scoring:
+    type: binary
+  weight: 40
+  target: 100
+  onError: Remove inline comments. Use JSDoc or function-level documentation instead
+
+console-log-check:
+  name: Console.log Check
+  description: No console.log in unstaged changes
+  category: quality
+  command: bash -c "git diff --unified=0 -- '*.ts' '*.tsx' '*.js' '*.jsx' | grep -E '^\\+.*console\\.log' && exit 1 || exit 0"
+  conditions: []
+  scoring:
+    type: binary
+  weight: 60
+  target: 100
+  onError: Remove console.log statements. Use proper logging or debug utilities
+
+print-check:
+  name: Print Statement Check
+  description: No print() in Python unstaged changes
+  category: quality
+  command: bash -c "git diff --unified=0 -- '*.py' | grep -E '^\\+.*\\bprint\\s*\\(' && exit 1 || exit 0"
+  conditions: []
+  scoring:
+    type: binary
+  weight: 60
+  target: 100
+  onError: Remove print() statements. Use the logging module instead

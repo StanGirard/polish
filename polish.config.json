@@ -1,0 +1,54 @@
+{
+  "metrics": [
+    {
+      "name": "tests-bun",
+      "command": "bun test",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "tests-npm",
+      "command": "npm test",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "build-bun",
+      "command": "bun run build",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "build-npm",
+      "command": "npm run build",
+      "weight": 100,
+      "target": 100
+    },
+    {
+      "name": "todo-check",
+      "command": "bash -c \"git diff --unified=0 | grep -E '^\\\\+.*\\\\b(TODO|FIXME|XXX)\\\\b' && exit 1 || exit 0\"",
+      "weight": 60,
+      "target": 100
+    },
+    {
+      "name": "inline-comment-check",
+      "command": "bash -c \"git diff --unified=0 -- '*.ts' '*.tsx' '*.js' '*.jsx' | grep -E '^\\\\+[^+]' | grep -E '[^:/]//[^/]' | grep -v -E 'https?://' | grep -v -E '/// <reference' && exit 1 || exit 0\"",
+      "weight": 40,
+      "target": 100
+    },
+    {
+      "name": "console-log-check",
+      "command": "bash -c \"git diff --unified=0 -- '*.ts' '*.tsx' '*.js' '*.jsx' | grep -E '^\\\\+.*console\\\\.log' && exit 1 || exit 0\"",
+      "weight": 60,
+      "target": 100
+    },
+    {
+      "name": "print-check",
+      "command": "bash -c \"git diff --unified=0 -- '*.py' | grep -E '^\\\\+.*\\\\bprint\\\\s*\\\\(' && exit 1 || exit 0\"",
+      "weight": 60,
+      "target": 100
+    }
+  ],
+  "target": 95,
+  "maxIterations": 50
+}

@@ -167,3 +167,18 @@ duplication:
   weight: 60
   target: 95
   onError: Extract duplicated code into shared functions
+
+dead-code-ts:
+  name: Dead Code (TS)
+  description: Check for unused exports
+  category: quality
+  command: npx ts-prune | grep -v '(used in module)' | head -20
+  conditions:
+    - fileExists: tsconfig.json
+  scoring:
+    type: regex
+    pattern: "^.+:\\d+.*- "
+    perMatch: -5
+  weight: 40
+  target: 100
+  onError: Remove unused exports or mark as intentionally exported

@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { checkbox } from '@inquirer/prompts';
+import { checkbox, Separator } from '@inquirer/prompts';
 import { saveConfig, getConfigPath } from '../config.js';
 import { getMatchingVerifications, getAllVerifications, verificationToMetric, } from '../verifications/index.js';
 /**
@@ -27,14 +27,34 @@ export async function initCommand(options = {}) {
         console.log(`  - ${v.name} (${v.category})`);
     }
     console.log('');
-    // Build choices for interactive selection
+    // Build choices for interactive selection, grouped by category
     const matchingIds = new Set(matching.map(v => v.id));
     const all = getAllVerifications();
-    const choices = all.map(v => ({
-        name: `${v.id.padEnd(16)} - ${v.description}`,
-        value: v.id,
-        checked: matchingIds.has(v.id),
-    }));
+    // Group verifications by category
+    const byCategory = {};
+    for (const v of all) {
+        const cat = v.category;
+        if (!byCategory[cat]) {
+            byCategory[cat] = [];
+        }
+        byCategory[cat].push(v);
+    }
+    // Build choices with category separators
+    const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality'];
+    const choices = [];
+    for (const cat of categoryOrder) {
+        const list = byCategory[cat];
+        if (!list || list.length === 0)
+            continue;
+        choices.push(new Separator(`--- ${cat.toUpperCase()} ---`));
+        for (const v of list) {
+            choices.push({
+                name: `${v.id.padEnd(18)} ${v.description}`,
+                value: v.id,
+                checked: matchingIds.has(v.id),
+            });
+        }
+    }
     let selectedIds;
     if (options.yes) {
         selectedIds = matching.map(v => v.id);
