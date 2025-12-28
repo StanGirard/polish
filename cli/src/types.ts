@@ -42,6 +42,7 @@ export interface PolishConfig {
   target: number; // target score to reach
   maxIterations: number;
   hook?: HookConfig;
+  commands?: CustomCommand[]; // User-defined custom commands
 }
 
 // Verification definition (YAML bank format)
@@ -83,4 +84,22 @@ export interface DetectedTool {
 export interface BankEntry {
   path: string;
   verification: Verification;
+}
+
+// Custom command definition
+export interface CustomCommand {
+  name: string;
+  description: string;
+  command: string;
+  category?: 'test' | 'lint' | 'format' | 'build' | 'security' | 'quality' | 'other';
+}
+
+// Custom command result after execution
+export interface CommandResult {
+  name: string;
+  success: boolean;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  duration: number; // ms
 }

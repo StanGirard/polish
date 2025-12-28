@@ -31,6 +31,7 @@ export interface PolishConfig {
     target: number;
     maxIterations: number;
     hook?: HookConfig;
+    commands?: CustomCommand[];
 }
 export interface Verification {
     name: string;
@@ -64,4 +65,18 @@ export interface DetectedTool {
 export interface BankEntry {
     path: string;
     verification: Verification;
+}
+export interface CustomCommand {
+    name: string;
+    description: string;
+    command: string;
+    category?: 'test' | 'lint' | 'format' | 'build' | 'security' | 'quality' | 'other';
+}
+export interface CommandResult {
+    name: string;
+    success: boolean;
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+    duration: number;
 }

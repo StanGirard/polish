@@ -31,5 +31,19 @@
       "target": 95
     }
   ],
-  "target": 95
+  "target": 95,
+  "commands": [
+    {
+      "name": "format",
+      "description": "Format code with Biome",
+      "command": "npx @biomejs/biome format . --write",
+      "category": "format"
+    },
+    {
+      "name": "check-all",
+      "description": "Run all checks",
+      "command": "bun test && tsc --noEmit && eslint src",
+      "category": "quality"
+    }
+  ]
 }

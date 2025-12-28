@@ -2,11 +2,12 @@
 import { Command } from 'commander';
 import { installHook, uninstallHook, getHookStatus } from './hook-install.js';
 import { loadState, resetState } from './state.js';
-import { loadConfig } from './config.js';
+import { loadConfig, getConfigPath, saveConfig } from './config.js';
 import { calculateScore } from './metrics.js';
 import { initCommand } from './init/index.js';
 import { addCommand } from './add.js';
 import { listCommand, showCommand } from './bank.js';
+import { getCommand, getCommandsByCategory, executeCommand, formatCommandResult, BUILTIN_COMMANDS, } from './commands.js';
 const program = new Command();
 program
     .name('polish')
@@ -125,5 +126,157 @@ bankCommand
     .description('Show details about a verification')
     .action((name) => {
     showCommand(name);
+});
+// Run command - execute a custom command
+program
+    .command('run <name>')
+    .description('Run a command (built-in or custom)')
+    .action(async (name) => {
+    let config;
+    try {
+        config = loadConfig();
+    }
+    catch {
+        // No config, only built-in commands available
+    }
+    const cmd = getCommand(name, config);
+    if (!cmd) {
+        console.error(`Command "${name}" not found.`);
+        console.error('\nUse "polish commands list" to see available commands.');
+        process.exit(1);
+    }
+    console.log(`Running: ${cmd.command}\n`);
+    const result = await executeCommand(cmd);
+    console.log(formatCommandResult(result));
+    process.exit(result.success ? 0 : 1);
+});
+// Commands subcommand - manage custom commands
+const commandsCommand = program
+    .command('commands')
+    .description('Manage custom commands');
+commandsCommand
+    .command('list')
+    .description('List all available commands (built-in and custom)')
+    .option('-c, --category <cat>', 'Filter by category (test, lint, format, build, security, quality)')
+    .action((options) => {
+    let config;
+    try {
+        config = loadConfig();
+    }
+    catch {
+        // No config, only built-in commands
+    }
+    const grouped = getCommandsByCategory(config);
+    const categoryFilter = options.category?.toLowerCase();
+    console.log('Available Commands');
+    console.log('==================\n');
+    // Category order
+    const categoryOrder = ['test', 'lint', 'format', 'build', 'security', 'quality', 'other'];
+    const categoryLabels = {
+        test: '🧪 Test',
+        lint: '🔍 Lint',
+        format: '✨ Format',
+        build: '🔨 Build',
+        security: '🔒 Security',
+        quality: '📊 Quality',
+        other: '📦 Other',
+    };
+    for (const category of categoryOrder) {
+        if (categoryFilter && category !== categoryFilter)
+            continue;
+        const commands = grouped[category];
+        if (!commands || commands.length === 0)
+            continue;
+        console.log(`${categoryLabels[category] || category}`);
+        console.log('-'.repeat(30));
+        for (const cmd of commands) {
+            const isCustom = config?.commands?.some(c => c.name === cmd.name);
+            const suffix = isCustom ? ' (custom)' : '';
+            console.log(`  ${cmd.name.padEnd(20)} ${cmd.description}${suffix}`);
+        }
+        console.log('');
+    }
+    // Show custom commands from config
+    if (config?.commands && config.commands.length > 0) {
+        const customOnly = config.commands.filter(c => !BUILTIN_COMMANDS[c.name]);
+        if (customOnly.length > 0 && !categoryFilter) {
+            console.log('📝 Custom (config)');
+            console.log('-'.repeat(30));
+            for (const cmd of customOnly) {
+                console.log(`  ${cmd.name.padEnd(20)} ${cmd.description}`);
+            }
+            console.log('');
+        }
+    }
+    console.log('Run a command: polish run <name>');
+});
+commandsCommand
+    .command('show <name>')
+    .description('Show details about a command')
+    .action((name) => {
+    let config;
+    try {
+        config = loadConfig();
+    }
+    catch {
+        // No config
+    }
+    const cmd = getCommand(name, config);
+    if (!cmd) {
+        console.error(`Command "${name}" not found.`);
+        process.exit(1);
+    }
+    const isCustom = config?.commands?.some(c => c.name === name);
+    const isOverride = isCustom && BUILTIN_COMMANDS[name];
+    console.log(`Command: ${cmd.name}`);
+    console.log('='.repeat(40));
+    console.log(`Description: ${cmd.description}`);
+    console.log(`Command:     ${cmd.command}`);
+    console.log(`Category:    ${cmd.category || 'other'}`);
+    if (isCustom) {
+        console.log(`Source:      custom (polish.config.json)`);
+    }
+    else {
+        console.log(`Source:      built-in`);
+    }
+    if (isOverride) {
+        console.log(`Note:        Overrides built-in command`);
+    }
+    console.log('\nRun with: polish run ' + name);
+});
+commandsCommand
+    .command('add <name>')
+    .description('Add a command to polish.config.json')
+    .requiredOption('-c, --command <cmd>', 'The shell command to run')
+    .option('-d, --description <desc>', 'Description of the command')
+    .option('--category <cat>', 'Category (test, lint, format, build, security, quality, other)')
+    .action(async (name, options) => {
+    const configPath = getConfigPath();
+    if (!configPath) {
+        console.error('No polish.config.json found. Run "polish init" first.');
+        process.exit(1);
+    }
+    const config = loadConfig();
+    // Check if command already exists in config
+    if (config.commands?.some(c => c.name === name)) {
+        console.error(`Command "${name}" already exists in config.`);
+        process.exit(1);
+    }
+    // Create the new command
+    const newCommand = {
+        name,
+        description: options.description || `Run ${name}`,
+        command: options.command,
+    };
+    if (options.category) {
+        newCommand.category = options.category;
+    }
+    // Add to config
+    config.commands = config.commands || [];
+    config.commands.push(newCommand);
+    // Save
+    await saveConfig(config, configPath);
+    console.log(`Added command "${name}" to ${configPath}`);
+    console.log(`\nRun with: polish run ${name}`);
 });
 program.parse();
