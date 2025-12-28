@@ -197,19 +197,37 @@ export function getBuiltinCommand(name) {
 }
 /**
  * Get all commands (built-in + custom from config)
+ * Custom commands override built-ins with the same name
+ * Custom overrides inherit category from built-in if not specified
  */
 export function getAllCommands(config) {
-    const builtinList = Object.values(BUILTIN_COMMANDS);
     const customList = config?.commands ?? [];
-    return [...builtinList, ...customList];
+    const customNames = new Set(customList.map(c => c.name));
+    // Filter out built-ins that are overridden by custom commands
+    const builtinList = Object.values(BUILTIN_COMMANDS).filter(cmd => !customNames.has(cmd.name));
+    // For custom commands that override built-ins, inherit category if not specified
+    const mergedCustomList = customList.map(cmd => {
+        const builtin = BUILTIN_COMMANDS[cmd.name];
+        if (builtin && !cmd.category) {
+            return { ...cmd, category: builtin.category };
+        }
+        return cmd;
+    });
+    return [...builtinList, ...mergedCustomList];
 }
 /**
  * Get a command by name (checks custom first, then built-in)
+ * Custom commands inherit category from built-in if overriding
  */
 export function getCommand(name, config) {
     // Check custom commands first (allows overriding built-ins)
     const customCommand = config?.commands?.find(cmd => cmd.name === name);
     if (customCommand) {
+        // Inherit category from built-in if overriding and no category specified
+        const builtin = BUILTIN_COMMANDS[name];
+        if (builtin && !customCommand.category) {
+            return { ...customCommand, category: builtin.category };
+        }
         return customCommand;
     }
     return BUILTIN_COMMANDS[name];

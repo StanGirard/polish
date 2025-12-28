@@ -13,10 +13,13 @@ export declare function getBuiltinCommandNames(): string[];
 export declare function getBuiltinCommand(name: string): CustomCommand | undefined;
 /**
  * Get all commands (built-in + custom from config)
+ * Custom commands override built-ins with the same name
+ * Custom overrides inherit category from built-in if not specified
  */
 export declare function getAllCommands(config?: PolishConfig): CustomCommand[];
 /**
  * Get a command by name (checks custom first, then built-in)
+ * Custom commands inherit category from built-in if overriding
  */
 export declare function getCommand(name: string, config?: PolishConfig): CustomCommand | undefined;
 /**

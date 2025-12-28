@@ -10,7 +10,6 @@ import { addCommand } from './add.js';
 import { listCommand, showCommand } from './bank.js';
 import {
   getCommand,
-  getBuiltinCommand,
   getCommandsByCategory,
   executeCommand,
   formatCommandResult,
@@ -224,21 +223,6 @@ commandsCommand
       console.log('');
     }
 
-    // Show custom commands from config
-    if (config?.commands && config.commands.length > 0) {
-      const customOnly = config.commands.filter(
-        c => !BUILTIN_COMMANDS[c.name]
-      );
-      if (customOnly.length > 0 && !categoryFilter) {
-        console.log('📝 Custom (config)');
-        console.log('-'.repeat(30));
-        for (const cmd of customOnly) {
-          console.log(`  ${cmd.name.padEnd(20)} ${cmd.description}`);
-        }
-        console.log('');
-      }
-    }
-
     console.log('Run a command: polish run <name>');
   });
 
@@ -284,6 +268,8 @@ commandsCommand
     console.log('\nRun with: polish run ' + name);
   });
 
+const VALID_CATEGORIES = ['test', 'lint', 'format', 'build', 'security', 'quality', 'other'] as const;
+
 commandsCommand
   .command('add <name>')
   .description('Add a command to polish.config.json')
@@ -304,6 +290,13 @@ commandsCommand
     // Check if command already exists in config
     if (config.commands?.some(c => c.name === name)) {
       console.error(`Command "${name}" already exists in config.`);
+      process.exit(1);
+    }
+
+    // Validate category
+    if (options.category && !VALID_CATEGORIES.includes(options.category)) {
+      console.error(`Invalid category "${options.category}".`);
+      console.error(`Valid categories: ${VALID_CATEGORIES.join(', ')}`);
       process.exit(1);
     }
 
