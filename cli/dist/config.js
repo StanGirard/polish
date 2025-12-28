@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 const DEFAULT_TARGET = 95;
 const DEFAULT_MAX_ITERATIONS = 50;
@@ -47,4 +47,24 @@ function parseConfig(path) {
         target: parsed.target ?? DEFAULT_TARGET,
         maxIterations: parsed.maxIterations ?? DEFAULT_MAX_ITERATIONS,
     };
+}
+/**
+ * Get the path to an existing config file, or null if none exists
+ */
+export function getConfigPath(cwd = process.cwd()) {
+    const defaultPaths = ['polish.config.json', '.polish.json', '.polish/polish.config.json'];
+    for (const p of defaultPaths) {
+        const fullPath = join(cwd, p);
+        if (existsSync(fullPath)) {
+            return fullPath;
+        }
+    }
+    return null;
+}
+/**
+ * Save config to a file
+ */
+export async function saveConfig(config, path) {
+    const content = JSON.stringify(config, null, 2);
+    writeFileSync(path, content + '\n', 'utf-8');
 }

@@ -4,6 +4,9 @@ import { installHook, uninstallHook, getHookStatus } from './hook-install.js';
 import { loadState, resetState } from './state.js';
 import { loadConfig } from './config.js';
 import { calculateScore } from './metrics.js';
+import { initCommand } from './init/index.js';
+import { addCommand } from './add.js';
+import { listCommand, showCommand } from './bank.js';
 const program = new Command();
 program
     .name('polish')
@@ -16,8 +19,9 @@ const hookCommand = program
 hookCommand
     .command('install')
     .description('Install Polish as a Claude Code Stop hook')
-    .action(async () => {
-    const result = await installHook();
+    .option('--local', 'Install to settings.local.json instead of settings.json')
+    .action(async (options) => {
+    const result = await installHook(process.cwd(), options.local ?? false);
     if (result.success) {
         console.log('Polish hook installed');
         console.log(result.message);
@@ -32,8 +36,9 @@ hookCommand
 hookCommand
     .command('uninstall')
     .description('Remove Polish hook from Claude Code')
-    .action(async () => {
-    const result = await uninstallHook();
+    .option('--local', 'Uninstall from settings.local.json instead of settings.json')
+    .action(async (options) => {
+    const result = await uninstallHook(process.cwd(), options.local ?? false);
     if (result.success) {
         console.log('Polish hook uninstalled');
         console.log(result.message);
@@ -46,8 +51,9 @@ hookCommand
 hookCommand
     .command('status')
     .description('Check if Polish hook is installed')
-    .action(async () => {
-    const status = await getHookStatus();
+    .option('--local', 'Check settings.local.json instead of settings.json')
+    .action(async (options) => {
+    const status = await getHookStatus(process.cwd(), options.local ?? false);
     console.log('Polish Hook Status');
     console.log('------------------');
     console.log(`Installed: ${status.installed ? 'Yes' : 'No'}`);
@@ -83,5 +89,41 @@ program
     .action(async () => {
     await resetState();
     console.log('Polish state reset');
+});
+// Init command - auto-detect and generate config
+program
+    .command('init')
+    .description('Auto-detect project stack and generate polish.config.json')
+    .option('-f, --force', 'Overwrite existing config')
+    .option('-y, --yes', 'Skip interactive prompts, use detected defaults')
+    .option('--dry-run', 'Show generated config without writing')
+    .action(async (options) => {
+    await initCommand(options);
+});
+// Add command - add a verification to config
+program
+    .command('add <name>')
+    .description('Add a verification to polish.config.json')
+    .option('-w, --weight <number>', 'Override default weight')
+    .option('-t, --target <number>', 'Override default target')
+    .option('-c, --command <cmd>', 'Override default command')
+    .action(async (name, options) => {
+    await addCommand(name, options);
+});
+// Bank subcommand - browse available verifications
+const bankCommand = program
+    .command('bank')
+    .description('Browse available verifications');
+bankCommand
+    .command('list')
+    .description('List all available verifications')
+    .action(() => {
+    listCommand();
+});
+bankCommand
+    .command('show <name>')
+    .description('Show details about a verification')
+    .action((name) => {
+    showCommand(name);
 });
 program.parse();

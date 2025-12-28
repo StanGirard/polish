@@ -1,5 +1,6 @@
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
+import { parseScoreWithStrategy } from './scoring/index.js';
 const exec = promisify(execCallback);
 /**
  * Run a single metric and return its score
@@ -37,19 +38,26 @@ export async function runMetric(metric) {
 }
 /**
  * Parse metric output to extract score (0-100)
+ * If metric has explicit scoring config, use strategy system.
+ * Otherwise, fall back to name-based detection for backward compatibility.
  */
 function parseMetricOutput(metric, output, exitCode) {
+    // If explicit scoring config, use strategy system
+    if (metric.scoring) {
+        return parseScoreWithStrategy(output, exitCode, metric.scoring);
+    }
+    // Backward compatibility: name-based detection
     const name = metric.name.toLowerCase();
     // Tests: parse pass/fail counts
     if (name === 'tests' || name === 'test') {
         return parseTestOutput(output, exitCode);
     }
     // TypeScript: count errors
-    if (name === 'typescript' || name === 'tsc') {
+    if (name === 'typescript' || name === 'tsc' || name === 'types') {
         return parseTypeScriptOutput(output, exitCode);
     }
     // Lint: count errors/warnings
-    if (name === 'lint' || name === 'eslint') {
+    if (name === 'lint' || name === 'eslint' || name === 'biome' || name === 'ruff') {
         return parseLintOutput(output, exitCode);
     }
     // Coverage: extract percentage
@@ -59,6 +67,10 @@ function parseMetricOutput(metric, output, exitCode) {
     // Duplication: jscpd output
     if (name === 'duplication' || name === 'jscpd') {
         return parseDuplicationOutput(output, exitCode);
+    }
+    // Build: binary pass/fail
+    if (name === 'build') {
+        return exitCode === 0 ? 100 : 0;
     }
     // Default: binary pass/fail based on exit code
     return exitCode === 0 ? 100 : 0;
