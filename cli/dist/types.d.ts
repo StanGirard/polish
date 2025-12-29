@@ -1,8 +1,9 @@
 export interface ScoringConfig {
-    type: 'binary' | 'percentage' | 'count-inverse' | 'custom';
+    type: 'binary' | 'percentage' | 'count-inverse' | 'custom' | 'agent';
     pattern?: string;
     maxCount?: number;
     formula?: string;
+    agentId?: string;
 }
 export interface Metric {
     name: string;

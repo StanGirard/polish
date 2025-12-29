@@ -61,7 +61,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   }
 
   // Build choices with category separators
-  const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality'];
+  const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality', 'agents'];
   const choices: Array<
     | Separator
     | { name: string; value: string; checked: boolean }

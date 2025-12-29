@@ -1,9 +1,10 @@
 // Scoring configuration for metrics
 export interface ScoringConfig {
-  type: 'binary' | 'percentage' | 'count-inverse' | 'custom';
+  type: 'binary' | 'percentage' | 'count-inverse' | 'custom' | 'agent';
   pattern?: string; // Regex pattern to extract value
   maxCount?: number; // For count-inverse: count at which score = 0
   formula?: string; // For custom: expression to calculate score
+  agentId?: string; // For agent: which agent to run
 }
 
 // Metric configuration

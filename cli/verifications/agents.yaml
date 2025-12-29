@@ -1,0 +1,15 @@
+# AI-Powered Agent Verifications
+# These use Claude Agent SDK for intelligent analysis
+
+dry-check:
+  name: DRY Analysis
+  description: AI-powered detection of code duplication in recent changes
+  category: agents
+  command: ""
+  conditions: []
+  scoring:
+    type: agent
+    agentId: dry
+  weight: 60
+  target: 100
+  onError: Extract duplicated code into shared utilities or functions

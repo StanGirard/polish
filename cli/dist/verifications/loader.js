@@ -37,6 +37,14 @@ function parseScoring(raw) {
         return { type: 'binary' };
     }
     const obj = raw;
+    // Agent scoring
+    if (obj.type === 'agent' && typeof obj.agentId === 'string') {
+        return {
+            type: 'agent',
+            agentId: obj.agentId,
+        };
+    }
+    // Regex scoring
     if (obj.type === 'regex' && typeof obj.pattern === 'string') {
         return {
             type: 'regex',

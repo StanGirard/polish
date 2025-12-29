@@ -40,7 +40,7 @@ export async function initCommand(options = {}) {
         byCategory[cat].push(v);
     }
     // Build choices with category separators
-    const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality'];
+    const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality', 'agents'];
     const choices = [];
     for (const cat of categoryOrder) {
         const list = byCategory[cat];

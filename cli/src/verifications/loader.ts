@@ -62,6 +62,15 @@ function parseScoring(raw: unknown): ScoringConfig {
 
   const obj = raw as Record<string, unknown>;
 
+  // Agent scoring
+  if (obj.type === 'agent' && typeof obj.agentId === 'string') {
+    return {
+      type: 'agent',
+      agentId: obj.agentId,
+    };
+  }
+
+  // Regex scoring
   if (obj.type === 'regex' && typeof obj.pattern === 'string') {
     return {
       type: 'regex',

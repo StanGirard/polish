@@ -2,13 +2,57 @@ import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import type { Metric, MetricResult, ScoreResult } from './types.js';
 import { parseScoreWithStrategy } from './scoring/index.js';
+import { runAgent } from './agents/index.js';
 
 const exec = promisify(execCallback);
+
+/**
+ * Run an agent-based metric
+ */
+async function runAgentMetric(metric: Metric): Promise<MetricResult> {
+  const agentId = metric.scoring?.agentId;
+  if (!agentId) {
+    return {
+      name: metric.name,
+      score: 0,
+      target: metric.target,
+      weight: metric.weight,
+      raw: 'Error: No agentId specified for agent metric',
+    };
+  }
+
+  try {
+    const result = await runAgent(agentId);
+    const score = result.pass ? 100 : 0;
+
+    return {
+      name: metric.name,
+      score,
+      target: metric.target,
+      weight: metric.weight,
+      raw: result.findings,
+    };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return {
+      name: metric.name,
+      score: 0,
+      target: metric.target,
+      weight: metric.weight,
+      raw: `Agent error: ${errorMsg}`,
+    };
+  }
+}
 
 /**
  * Run a single metric and return its score
  */
 export async function runMetric(metric: Metric): Promise<MetricResult> {
+  // Check if this is an agent metric
+  if (metric.scoring?.type === 'agent') {
+    return runAgentMetric(metric);
+  }
+
   try {
     const { stdout, stderr } = await exec(metric.command, {
       timeout: 300000, // 5 minutes max

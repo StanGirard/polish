@@ -14,7 +14,7 @@ export function listCommand() {
         }
         byCategory[cat].push(v);
     }
-    const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality'];
+    const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality', 'agents'];
     for (const cat of categoryOrder) {
         const list = byCategory[cat];
         if (!list || list.length === 0)

@@ -1,6 +1,6 @@
-# Polish
+# Polish - The missing Claude Code Command
 
-A Claude Code hook for production-quality vibe coding.
+When Planning was introduced to Claude code it changed the way we used the tool. But now, even thought you have Skills, Agents and all there is still a piece missing. 
 
 ## The Problem
 
@@ -17,6 +17,8 @@ Polish is a hook that keeps Claude working until your code hits 95%+ quality. Th
 3. **Fix** - Claude makes one atomic change
 4. **Validate** - Check if it improved
 5. **Repeat** - Until score >= 95%
+
+It runs all the tests that you never run and more ;) 
 
 ## Get Started
 

@@ -18,7 +18,7 @@ export function listCommand(): void {
     byCategory[cat].push(v);
   }
 
-  const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality'];
+  const categoryOrder = ['tests', 'types', 'lint', 'build', 'security', 'quality', 'agents'];
 
   for (const cat of categoryOrder) {
     const list = byCategory[cat];
